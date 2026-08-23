@@ -91,8 +91,9 @@ export default function Timeline({ campaigns }: { campaigns: Campaign[] }) {
         const hasActivity = !Number.isNaN(last) && last > start;
         return { row, start, end: active ? now : hasActivity ? last : start, active, isPoint: !active && !hasActivity };
       })
-      // Oldest first, so the row order is stable while scrolling forward through time.
-      .sort((a, b) => a.start - b.start);
+      // Newest at the top, oldest below — the campaigns somebody came here to look at are the recent
+      // ones, and a chart that opens on today should not put them at the bottom of a long list.
+      .sort((a, b) => b.start - a.start);
 
     if (!dated.length) return null;
 

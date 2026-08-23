@@ -3,20 +3,24 @@
 
 "use client";
 
+import { Suspense } from "react";
+import BrainDocs from "../../components/BrainDocs";
+import "../calls/calls.css";
+
 /**
- * Messaging — the copy each campaign actually sent.
+ * Campaign messaging, read from the client's own QC Brain folder.
  *
- * A placeholder on purpose. The data for it already exists: `rr_campaign_stats` stores `first_touch`,
- * `follow_up` and `sequence_steps`, so this becomes the page that puts the words next to the rates they
- * produced. Left empty until the shape of that is decided rather than guessed at.
+ * The same reader as the weekly calls, pointed at a different folder — these are two folders of
+ * markdown read one document at a time, and building them twice would let them drift apart.
  */
 export default function Page() {
   return (
-    <div className="content">
-      <div className="page-head">
-        <h1>Messaging</h1>
-      </div>
-      <p className="empty">Nothing here yet.</p>
-    </div>
+    <Suspense fallback={null}>
+      <BrainDocs
+        folder="messaging"
+        title="Messaging"
+        empty="That folder is there, but no messaging documents have been written into it yet."
+      />
+    </Suspense>
   );
 }

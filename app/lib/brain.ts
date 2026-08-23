@@ -4,12 +4,18 @@
 /**
  * Reading the QC Brain — the GitHub repo where weekly call notes are written.
  *
- * ── Read-only, and only one folder of it ────────────────────────────────────────────────────────
+ * ── Read-only, and only two folders of it ───────────────────────────────────────────────────────
  * The brain holds a great deal per client that is internal: strategy notes, competitive research,
- * do-not-contact reasoning, candid assessments. This module can reach exactly one path per client —
- * `clients/<folder>/Weekly calls/` — and refuses anything else. That is enforced here rather than left
- * to the caller, because a path is a string and a bug in a caller would otherwise be a way to read the
- * whole repository.
+ * do-not-contact reasoning, candid assessments. This module can reach exactly two folders per client —
+ * the weekly calls and the campaign messaging — and refuses everything else. That is enforced here
+ * rather than left to callers, because a path is a string and a bug in a caller would otherwise be a
+ * way to read the whole repository.
+ *
+ * ── Why the folder is found rather than assumed ─────────────────────────────────────────────────
+ * Folder names in the brain are written by people: "Campaign messaging", "campaign-messaging" and
+ * "Campaign Messaging" are all plausible and only one of them is right for any given client. So the
+ * client directory is listed and matched against a pattern, which means a rename does not silently
+ * produce an empty page — and when nothing matches, the caller gets to say so specifically.
  *
  * ── No writes ───────────────────────────────────────────────────────────────────────────────────
  * Reply Radar writes these documents; the portal displays them. There is no write path in this file at
@@ -20,8 +26,16 @@ const API = "https://api.github.com";
 const REPO = "jsbiv18/qc-growth-os";
 const TIMEOUT_MS = 15_000;
 
-/** The one folder, per client, that this app may read. */
-const CALLS_FOLDER = "Weekly calls";
+/**
+ * The folders this app may read, each with the pattern that finds it whatever it was actually named.
+ * `key` is what a caller asks for; nothing outside this map is reachable.
+ */
+export const READABLE_FOLDERS = {
+  calls: { label: "Weekly calls", match: /^weekly[\s._-]*calls?$/i },
+  messaging: { label: "Campaign messaging", match: /^campaign[\s._-]*messaging$/i },
+} as const;
+
+export type FolderKey = keyof typeof READABLE_FOLDERS;
 
 export function brainConfigured(): boolean {
   return Boolean(process.env.BRAIN_GITHUB_TOKEN?.trim());
@@ -38,16 +52,46 @@ function headers() {
 }
 
 /**
- * Refuses any path that is not inside this client's own calls folder.
+ * Refuses any path that is not inside the folder it was resolved from.
  *
  * Checked on every read. `..` is rejected outright rather than resolved, because a resolver that gets
  * it wrong once is a directory traversal, and there is no legitimate reason for one to appear here.
  */
-function assertInCallsFolder(folder: string, path: string) {
-  const prefix = `clients/${folder}/${CALLS_FOLDER}/`;
+function assertInside(folder: string, subfolder: string, path: string) {
+  const prefix = `clients/${folder}/${subfolder}/`;
   if (path.includes("..") || !path.startsWith(prefix)) {
-    throw new Error("That document is not one of this client's weekly calls.");
+    throw new Error("That document is not in this client's folder.");
   }
+}
+
+/** One entry from the GitHub contents API, reduced to what is used here. */
+type Entry = { type?: string; name?: string; path?: string; size?: number };
+
+async function contents(path: string): Promise<Entry[] | null> {
+  const response = await fetch(`${API}/repos/${REPO}/contents/${encodeURI(path)}`, {
+    headers: headers(),
+    cache: "no-store",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`The brain returned ${response.status} reading ${path}.`);
+  const body = (await response.json().catch(() => null)) as unknown;
+  return Array.isArray(body) ? (body as Entry[]) : [];
+}
+
+/**
+ * The real name of one of the readable folders inside a client, or null.
+ *
+ * Null is a meaningful answer, not a failure: it is how a caller distinguishes "this client has no
+ * campaign messaging written yet" from "the brain is unreachable", and those want different messages.
+ */
+export async function findFolder(clientFolder: string, key: FolderKey): Promise<string | null> {
+  if (!clientFolder) return null;
+  const listing = await contents(`clients/${clientFolder}`);
+  if (!listing) return null;
+  const { match } = READABLE_FOLDERS[key];
+  const found = listing.find((entry) => entry.type === "dir" && match.test(String(entry.name ?? "")));
+  return found ? String(found.name) : null;
 }
 
 export type CallFile = {
@@ -74,48 +118,32 @@ function describe(path: string, size: number): CallFile {
 }
 
 /**
- * Every weekly call for one client, newest first.
+ * Every markdown document in one of a client's readable folders, newest first.
  *
- * Uses the contents endpoint for the single folder rather than the whole-repo tree: the tree is hundreds
- * of files across every client, and this needs one directory belonging to one of them.
+ * Uses the contents endpoint for that one directory rather than the whole-repo tree: the tree is
+ * hundreds of files across every client, and this needs one folder belonging to one of them.
  */
-export async function listCalls(folder: string): Promise<CallFile[]> {
-  if (!folder) return [];
-  const path = `clients/${folder}/${CALLS_FOLDER}`;
-  const response = await fetch(`${API}/repos/${REPO}/contents/${encodeURI(path)}`, {
-    headers: headers(),
-    cache: "no-store",
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  // A client with no calls yet has no folder, which is a 404 and not an error worth surfacing.
-  if (response.status === 404) return [];
-  if (!response.ok) throw new Error(`The brain returned ${response.status} listing weekly calls.`);
+export async function listDocs(clientFolder: string, subfolder: string): Promise<CallFile[]> {
+  if (!clientFolder || !subfolder) return [];
+  const listing = await contents(`clients/${clientFolder}/${subfolder}`);
+  if (!listing) return [];
 
-  const body = (await response.json().catch(() => [])) as unknown;
-  if (!Array.isArray(body)) return [];
-
-  return body
-    .filter((entry) => {
-      const row = entry as Record<string, unknown>;
-      return row.type === "file" && String(row.name ?? "").toLowerCase().endsWith(".md");
-    })
-    .map((entry) => {
-      const row = entry as Record<string, unknown>;
-      return describe(String(row.path ?? ""), Number(row.size ?? 0));
-    })
+  return listing
+    .filter((entry) => entry.type === "file" && String(entry.name ?? "").toLowerCase().endsWith(".md"))
+    .map((entry) => describe(String(entry.path ?? ""), Number(entry.size ?? 0)))
     // Newest first, and anything without a date in its name sinks below everything that has one.
-    .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+    .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.title.localeCompare(b.title));
 }
 
-/** One call document's markdown. */
-export async function readCall(folder: string, path: string): Promise<string> {
-  assertInCallsFolder(folder, path);
+/** One document's markdown. */
+export async function readDoc(clientFolder: string, subfolder: string, path: string): Promise<string> {
+  assertInside(clientFolder, subfolder, path);
   const response = await fetch(`${API}/repos/${REPO}/contents/${encodeURI(path)}`, {
     headers: { ...headers(), Accept: "application/vnd.github.raw" },
     cache: "no-store",
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (response.status === 404) throw new Error("That call note is no longer in the brain.");
-  if (!response.ok) throw new Error(`The brain returned ${response.status} reading that call.`);
+  if (response.status === 404) throw new Error("That document is no longer in the brain.");
+  if (!response.ok) throw new Error(`The brain returned ${response.status} reading that document.`);
   return response.text();
 }

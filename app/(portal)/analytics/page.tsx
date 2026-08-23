@@ -66,13 +66,6 @@ function engagementRuntime(rows: Campaign[], now: number) {
   return { label, since: `Since ${launchDate(new Date(first).toISOString())}` };
 }
 
-/** The first line or so of a message, for a row that has to fit on one. */
-const excerpt = (value: string | null, length = 130) => {
-  const text = String(value ?? "").replace(/\s+/g, " ").trim();
-  if (!text) return "";
-  return text.length > length ? `${text.slice(0, length - 1).trimEnd()}…` : text;
-};
-
 /** Time alone for figures taken today; the date too once they are older, so a day-old stamp reads as one. */
 const syncedLabel = (at: Date) =>
   at.toDateString() === new Date().toDateString()
@@ -85,33 +78,6 @@ const LEADER_METRICS = [
   { id: "positive", label: "Positive replies", of: (row: Campaign) => row.positiveReplies },
 ] as const;
 
-const SORTS: [string, string][] = [
-  ["launch-desc", "Newest launch"],
-  ["launch-asc", "Oldest launch"],
-  ["reply-desc", "Highest reply rate"],
-  ["accept-desc", "Highest acceptance rate"],
-  ["positive-desc", "Highest positive rate"],
-  ["replies-desc", "Most replies"],
-  ["sent-desc", "Most requests sent"],
-  ["name-asc", "Name A–Z"],
-];
-
-function sortCampaigns(rows: Campaign[], sort: string) {
-  // Rows without a launch date always sink to the bottom of date sorts.
-  const stamp = (row: Campaign) => (row.launchedAt ? Date.parse(row.launchedAt) : NaN);
-  const out = [...rows];
-  switch (sort) {
-    case "launch-asc": return out.sort((a, b) => (Number.isFinite(stamp(a)) ? stamp(a) : Infinity) - (Number.isFinite(stamp(b)) ? stamp(b) : Infinity));
-    case "reply-desc": return out.sort((a, b) => b.replyRate - a.replyRate);
-    case "accept-desc": return out.sort((a, b) => b.acceptanceRate - a.acceptanceRate);
-    case "positive-desc": return out.sort((a, b) => b.positiveReplyRate - a.positiveReplyRate);
-    case "replies-desc": return out.sort((a, b) => b.replies - a.replies);
-    case "sent-desc": return out.sort((a, b) => b.connectionsSent - a.connectionsSent);
-    case "name-asc": return out.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    default: return out.sort((a, b) => (Number.isFinite(stamp(b)) ? stamp(b) : -Infinity) - (Number.isFinite(stamp(a)) ? stamp(a) : -Infinity));
-  }
-}
-
 function Analytics() {
   const params = useSearchParams();
   const clientSlug = params.get("client");
@@ -119,7 +85,6 @@ function Analytics() {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
   const [leaderMetric, setLeaderMetric] = useState<string>("accepted");
-  const [sort, setSort] = useState("launch-desc");
   const [open, setOpen] = useState<Campaign | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [now, setNow] = useState(0);
@@ -200,7 +165,6 @@ function Analytics() {
       // Worst acceptance first. Acceptance rather than replies because it is the earliest thing that
       // can be wrong: nothing downstream of a request nobody accepted is worth diagnosing.
       laggards: [...ranked].sort((a, b) => a.acceptanceRate - b.acceptanceRate).slice(0, 6),
-      messaging: ranked.filter((row) => row.firstTouch).sort((a, b) => b.acceptanceRate - a.acceptanceRate).slice(0, 5),
       leaderMax: Math.max(...ranked.map((row) => metric.of(row)), 1),
     };
   }, [data, leaderMetric]);
@@ -367,62 +331,6 @@ function Analytics() {
             </button>
           )) : <p className="empty-state">No campaign has sent enough to rank yet.</p>}
         </article>
-      </section>
-
-      {/* The copy next to the rates it produced. A campaign name means nothing to anybody who did not
-          write it, so ranking campaigns by acceptance without showing what they said answers "which
-          campaign" when the question was "which message". */}
-      <section className="analytics-card messaging-card">
-        <CardTitle title="Messaging that performed best" subtitle={`Connection request copy, ranked by acceptance rate · campaigns over ${RANKABLE_MINIMUM} requests sent`} />
-        {view.messaging.length ? view.messaging.map((campaign) => (
-          <button type="button" className="messaging-row" key={campaign.campaignId} onClick={() => setOpen(campaign)}>
-            <span className="messaging-rates">
-              <data>{campaign.acceptanceRate.toFixed(1)}%</data>
-              <small>accepted</small>
-              <data>{campaign.replyRate.toFixed(1)}%</data>
-              <small>replied</small>
-            </span>
-            <span className="messaging-copy">
-              <strong>{campaign.name}</strong>
-              <q>{excerpt(campaign.firstTouch)}</q>
-            </span>
-          </button>
-        )) : <p className="empty-state">Campaign copy is still being collected.</p>}
-      </section>
-
-      <section className="analytics-card campaign-metrics-card">
-        <header className="campaign-list-header">
-          <div>
-            <h2>All campaigns</h2>
-            <p>{view.campaigns.length} campaign{view.campaigns.length === 1 ? "" : "s"} tracked for {client.name}</p>
-          </div>
-          <label className="campaign-sort">
-            <span>Sort by</span>
-            <select value={sort} onChange={(event) => setSort(event.target.value)}>
-              {SORTS.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-            </select>
-          </label>
-        </header>
-        <div className="campaign-table-head">
-          <span>CAMPAIGN</span><span>LAUNCHED</span><span>REPLY RATE</span><span>ACCEPTED</span><span>POSITIVE</span><span>REPLIES</span><span />
-        </div>
-        <div className="campaign-metrics-list">
-          {sortCampaigns(view.campaigns, sort).map((campaign) => (
-            <button key={campaign.campaignId} onClick={() => setOpen(campaign)}>
-              <span className="campaign-name">
-                <strong>{campaign.name}</strong>
-                {campaign.status ? <small>{campaign.status.replace(/_/g, " ").toLowerCase()}</small> : null}
-              </span>
-              <span className="campaign-launched">{launchDate(campaign.launchedAt)}</span>
-              <data className="campaign-rate primary">{campaign.replyRate.toFixed(1)}<i>%</i></data>
-              <data className="campaign-rate">{campaign.acceptanceRate.toFixed(1)}<i>%</i></data>
-              <data className="campaign-rate">{campaign.positiveReplyRate.toFixed(1)}<i>%</i></data>
-              <span className="campaign-count">{campaign.replies.toLocaleString()}</span>
-              <b>›</b>
-            </button>
-          ))}
-        </div>
-        {!view.campaigns.length && <p className="empty-state">No campaigns found for this client.</p>}
       </section>
 
       {open && (

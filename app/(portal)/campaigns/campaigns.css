@@ -171,7 +171,12 @@ body.light-mode {
 .tl-scroll::-webkit-scrollbar { display: none; }
 .tl-canvas { position: relative; }
 
-.tl-ruler { position: relative; height: 34px; border-bottom: 1px solid var(--border); }
+/* Sticky, so the months stay readable while scrolling down a long list of campaigns. */
+.tl-ruler {
+  position: sticky; top: 0; z-index: 2;
+  height: 34px; border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
 .tl-tick {
   position: absolute; padding-left: 7px; white-space: nowrap;
   font-weight: 700; color: var(--muted-2);
@@ -184,7 +189,14 @@ body.light-mode {
 /* Day ticks are subordinate: smaller, dimmer, and no rule of their own in the header. */
 .tl-tick.is-day { top: 14px; font-size: 9px; letter-spacing: .04em; opacity: .55; font-weight: 600; }
 
-.tl-lanes { position: relative; padding: 6px 0 10px; }
+/*
+ * The chart is capped and scrolls vertically past that.
+ *
+ * Thirty-five campaigns is a chart taller than any screen, and a section you have to scroll the page
+ * through to get past is worse than one with its own scroll. Sixteen rows is enough to see a pattern.
+ */
+.tl-lanes { position: relative; padding: 5px 0 8px; }
+.tl-scroll { max-height: 470px; overflow-y: auto; }
 .tl-rules { position: absolute; inset: 0; pointer-events: none; }
 .tl-rule { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--border-soft) 60%, transparent); }
 .tl-rule.is-month { background: var(--border-soft); }
@@ -194,23 +206,23 @@ body.light-mode {
   width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
 }
 
-.tl-lane { position: relative; height: 34px; }
+.tl-lane { position: relative; height: 25px; }
 
 .tl-bar {
-  position: absolute; top: 5px; height: 24px; min-width: 10px;
-  display: flex; align-items: center; gap: 10px; padding: 0 10px; overflow: hidden;
-  border-radius: 6px;
+  position: absolute; top: 3px; height: 19px; min-width: 10px;
+  display: flex; align-items: center; gap: 9px; padding: 0 9px; overflow: hidden;
+  border-radius: 5px;
   background: color-mix(in srgb, var(--f-accepted) 34%, var(--panel));
   border: 1px solid color-mix(in srgb, var(--f-accepted) 60%, transparent);
 }
 .tl-bar-name {
-  font-size: 11.5px; font-weight: 620; color: var(--text);
+  font-size: 10.5px; font-weight: 620; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* Ran / planned, pinned to the bar's right edge so it is the last thing read. */
 .tl-bar-run {
   margin-left: auto; flex: none;
-  font-size: 10px; font-weight: 600; color: var(--muted);
+  font-size: 9.5px; font-weight: 600; color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 .tl-bar.is-live {
@@ -223,15 +235,15 @@ body.light-mode {
 }
 
 .tl-dot {
-  position: absolute; top: 12px; margin-left: -5px;
-  width: 10px; height: 10px; border-radius: 50%;
+  position: absolute; top: 8px; margin-left: -4px;
+  width: 9px; height: 9px; border-radius: 50%;
   background: var(--f-reached);
   box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px color-mix(in srgb, var(--f-reached) 60%, transparent);
 }
 .tl-dot-label {
-  position: absolute; top: 9px;
+  position: absolute; top: 5px;
   display: flex; align-items: baseline; gap: 9px; white-space: nowrap;
-  font-size: 11.5px; font-weight: 600; color: var(--muted);
+  font-size: 10.5px; font-weight: 600; color: var(--muted);
 }
 .tl-dot-label em { font-style: normal; font-size: 10px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
 
