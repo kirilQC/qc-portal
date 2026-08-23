@@ -7,6 +7,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { activeTimeZone } from "../../components/Appearance";
 import "./inbox.css";
 
 /**
@@ -47,14 +48,28 @@ const band = (score: number): "hot" | "warm" | "cold" | "nurture" => {
   return "nurture";
 };
 
-function dateParts(iso: string | null): { date: string; time: string } {
+/**
+ * Dates rendered in the reader's chosen zone rather than their machine's.
+ *
+ * A reply that landed at 9:38pm Eastern should say so to everyone looking at it, or two people
+ * discussing the same conversation are three hours apart on when it happened.
+ */
+function dateParts(iso: string | null, timeZone: string): { date: string; time: string } {
   if (!iso) return { date: "—", time: "" };
   const value = new Date(iso);
   if (Number.isNaN(value.getTime())) return { date: "—", time: "" };
-  return {
-    date: value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-    time: value.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-  };
+  try {
+    return {
+      date: value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone }),
+      time: value.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone }),
+    };
+  } catch {
+    // An unknown zone should not blank the column.
+    return {
+      date: value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      time: value.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+    };
+  }
 }
 
 function Avatar({ src, alt, fallback }: { src?: string | null; alt: string; fallback: string }) {
@@ -78,6 +93,10 @@ function Inbox() {
   const [senderFilter, setSenderFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInput = useRef<HTMLInputElement | null>(null);
+  const [timeZone, setTimeZone] = useState("America/New_York");
+  useEffect(() => setTimeZone(activeTimeZone()), []);
   const threadEnd = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -139,6 +158,11 @@ function Inbox() {
     threadEnd.current?.scrollIntoView({ block: "end" });
   }, [current?.id]);
 
+  // Focus follows the open state rather than an autoFocus prop, which steals focus on mount.
+  useEffect(() => {
+    if (searchOpen) searchInput.current?.focus();
+  }, [searchOpen]);
+
   // The five metrics, computed from what is on screen, exactly as Reply Radar computes them.
   const totalReplies = filtered.reduce((sum, lead) => sum + lead.replies, 0);
   const needsReply = filtered.filter((lead) => lead.messages.at(-1)?.direction === "inbound").length;
@@ -159,20 +183,35 @@ function Inbox() {
       {error && <p className="error-note" style={{ margin: "20px 32px 0" }}>{error}</p>}
 
       <div className="inbox-metrics">
-        <Metric label={`Replies ${rangeWord}`} value={String(totalReplies)} tone="purple" note={`Replies ${rangeWord}`} />
-        <Metric label={`Number of leads needing reply ${rangeWord}`} value={String(needsReply)} tone="coral" note="Leads waiting on us" />
-        <Metric label="Conversations" value={String(filtered.length)} tone="amber" note={`Threads ${rangeWord}`} />
-        <Metric label="Positive replies" value={String(positive)} tone="green" note="From our sentiment analysis" />
-        <Metric label={`Positive reply rate ${rangeWord}`} value={`${positiveRate}%`} tone="green" note="Of replies we scored" />
+        <Metric label={`Replies ${rangeWord}`} value={String(totalReplies)} tone="purple" />
+        <Metric label={`Number of leads needing reply ${rangeWord}`} value={String(needsReply)} tone="coral" />
+        <Metric label="Conversations" value={String(filtered.length)} tone="amber" />
+        <Metric label="Positive replies" value={String(positive)} tone="green" />
+        <Metric label={`Positive reply rate ${rangeWord}`} value={`${positiveRate}%`} tone="green" />
       </div>
 
       <div className="inbox-bar">
         <h2 className="inbox-title">Reply queue <b>{filtered.length}</b></h2>
         <div className="inbox-controls">
-          <label className="inbox-search">
-            <span>⌕</span>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, company, campaign" />
-          </label>
+          <div className={`inbox-search ${searchOpen || search ? "is-open" : ""}`}>
+            <button
+              className="inbox-search-toggle"
+              onClick={() => setSearchOpen((was) => !was)}
+              aria-label="Search"
+              title="Search"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+              </svg>
+            </button>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search name, company, campaign"
+              onBlur={() => { if (!search) setSearchOpen(false); }}
+              ref={searchInput}
+            />
+          </div>
           <div className="segmented">
             {FILTERS.map(([label, value]) => (
               <button key={value} className={filter === value ? "selected" : ""} onClick={() => { setFilter(value); setSelectedId(""); }}>
@@ -205,8 +244,12 @@ function Inbox() {
         <div className="queue-card">
           <div className="queue-scroll">
           <div className="table-head">
-            <span>LEAD</span><span>CAMPAIGN</span><span>LATEST REPLY</span>
-            <span>SENDER</span><span>REPLIES</span><span>LEAD SCORE</span>
+            <span>LEAD</span>
+            <span className="mid">CAMPAIGN</span>
+            <span className="mid">LATEST REPLY</span>
+            <span className="mid">SENDER</span>
+            <span className="mid">REPLIES</span>
+            <span className="mid">LEAD SCORE</span>
           </div>
           {!loaded ? (
             <p className="loading">Loading conversations…</p>
@@ -215,7 +258,7 @@ function Inbox() {
           ) : (
             <>
               {filtered.slice(0, visible).map((lead) => {
-                const when = dateParts(lead.latestReplyAt);
+                const when = dateParts(lead.latestReplyAt, timeZone);
                 return (
                   <div
                     key={lead.id}
@@ -239,11 +282,11 @@ function Inbox() {
                         <span>{[lead.role, lead.company].filter(Boolean).join(" @ ") || "No title or company"}</span>
                       </div>
                     </div>
-                    <div className="cell"><strong>{lead.campaignName || "No campaign"}</strong></div>
-                    <div className="cell"><strong>{when.date}</strong><span>{when.time}</span></div>
-                    <div className="cell"><strong>{lead.senderName}</strong></div>
-                    <div className="cell num"><strong>{lead.replies}</strong></div>
-                    <div className="cell num"><strong>{lead.leadScore ?? "—"}</strong></div>
+                    <div className="cell mid"><strong>{lead.campaignName || "No campaign"}</strong></div>
+                    <div className="cell mid"><strong>{when.date}</strong><span>{when.time}</span></div>
+                    <div className="cell mid"><strong>{lead.senderName}</strong></div>
+                    <div className="cell mid"><strong>{lead.replies}</strong></div>
+                    <div className="cell mid"><strong>{lead.leadScore ?? "—"}</strong></div>
                   </div>
                 );
               })}
@@ -323,7 +366,7 @@ function Inbox() {
                         )}
                         <small className="message-author">{message.authorName}</small>
                         <p>{message.body}</p>
-                        <time>{dateParts(message.sentAt).date} · {dateParts(message.sentAt).time}</time>
+                        <time>{dateParts(message.sentAt, timeZone).date} · {dateParts(message.sentAt, timeZone).time}</time>
                       </div>
                     );
                   })
@@ -355,13 +398,12 @@ function Inbox() {
   );
 }
 
-function Metric({ label, value, note, tone }: { label: string; value: string; note: string; tone: string }) {
+function Metric({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <div className="metric-card">
       <div className={`metric-icon ${tone}`} />
       <span>{label}</span>
       <strong>{value}</strong>
-      <small>{note}</small>
     </div>
   );
 }

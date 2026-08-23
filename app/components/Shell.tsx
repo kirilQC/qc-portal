@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import SettingsPanel, { applyTheme, readTheme } from "./SettingsPanel";
+import SettingsPanel from "./SettingsPanel";
+import AppearanceControl from "./Appearance";
 
 /**
  * The frame every signed-in page sits in.
@@ -43,7 +44,6 @@ const ICONS: Record<string, string> = {
   admin: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8",
   collapse: "M15 6l-6 6 6 6",
   signout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
-  appearance: "M12 3a9 9 0 0 0 0 18zM12 3a9 9 0 0 1 0 18",
 };
 
 function Icon({ name }: { name: string }) {
@@ -84,7 +84,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(() => cachedMe(clientParam));
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const pathname = usePathname();
   const suffix = clientParam ? `?client=${encodeURIComponent(clientParam)}` : "";
 
@@ -94,10 +93,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     } catch {
       /* a browser refusing storage just gets the default */
     }
-    // The chosen appearance, reapplied before anything is looked at.
-    const saved = readTheme();
-    setTheme(saved);
-    applyTheme(saved);
   }, []);
 
   const toggleCollapsed = useCallback(() => {
@@ -260,14 +255,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <header className="topbar">
           <span />
           <div className="top-actions">
-            <button
-              className="icon-button"
-              onClick={() => { const next = theme === "dark" ? "light" : "dark"; setTheme(next); applyTheme(next); }}
-              title={theme === "dark" ? "Switch to light" : "Switch to dark"}
-              aria-label="Appearance"
-            >
-              <Icon name="appearance" />
-            </button>
+            <AppearanceControl />
           </div>
         </header>
         {/* The page scrolls inside this, so the sidebar and topbar never move. */}

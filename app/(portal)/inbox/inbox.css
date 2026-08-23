@@ -22,8 +22,8 @@
 }
 .metric-card {
   position: relative;
-  min-height: 96px;
-  padding: 15px 16px;
+  min-height: 104px;
+  padding: 18px 19px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -33,9 +33,8 @@
 .metric-icon.purple { background: var(--accent); box-shadow: 0 0 9px #8b7cff88; }
 .metric-icon.green { background: var(--green); box-shadow: 0 0 9px #55c7a288; }
 .metric-icon.amber { background: var(--amber); box-shadow: 0 0 9px #e7b96e88; }
-.metric-card > span { display: block; margin-bottom: 8px; padding-right: 16px; color: var(--muted); font-size: 12px; line-height: 1.35; }
-.metric-card strong { display: inline-block; font-size: 26px; letter-spacing: -.045em; font-weight: 660; font-variant-numeric: tabular-nums; }
-.metric-card small { display: block; margin-top: 4px; color: var(--muted-2); font-size: 10.5px; }
+.metric-card > span { display: block; margin-bottom: 12px; padding-right: 18px; color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+.metric-card strong { display: inline-block; font-size: 30px; letter-spacing: -.045em; font-weight: 640; font-variant-numeric: tabular-nums; line-height: 1; }
 
 /* ── Toolbar ────────────────────────────────────────────────────────────────────────────────────── */
 
@@ -44,12 +43,28 @@
 .inbox-title b { color: var(--accent); font-size: 13px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 15%, transparent); }
 .inbox-controls { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 
+/*
+ * Search: an icon until it is wanted, then the whole bar.
+ *
+ * A permanently-open 280px field is the widest thing in a toolbar that is mostly filters, and it is
+ * used a fraction as often as they are. Collapsed it costs 32px; opened it takes the room it needs.
+ * It stays open while it holds text, so a search is never lost by clicking away.
+ */
 .inbox-search {
-  display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 11px; min-width: 280px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
-  color: var(--muted-2);
+  display: flex; align-items: center; height: 32px; width: 32px;
+  border: 1px solid transparent; border-radius: 8px; background: transparent;
+  color: var(--muted-2); overflow: hidden;
+  transition: width .18s ease, background .18s ease, border-color .18s ease;
 }
-.inbox-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 12px; }
+.inbox-search.is-open { width: 290px; border-color: var(--border); background: var(--panel); }
+.inbox-search-toggle { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 7px; color: inherit; }
+.inbox-search:not(.is-open) .inbox-search-toggle:hover { background: var(--panel-2); color: var(--text); }
+.inbox-search input {
+  flex: 1; min-width: 0; width: 0; border: 0; outline: 0; background: transparent;
+  color: var(--text); font-size: 12.5px; padding: 0;
+}
+.inbox-search:not(.is-open) input { visibility: hidden; }
+.inbox-search.is-open input { padding-right: 11px; }
 
 .segmented { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
 .segmented button { height: 26px; padding: 0 11px; border-radius: 6px; color: var(--muted-2); font-size: 11.5px; font-weight: 550; }
@@ -87,22 +102,28 @@
  * worse than no header.
  */
 .queue-scroll { overflow-x: auto; }
-.queue-scroll > * { min-width: 780px; }
+.queue-scroll > * { min-width: 860px; }
 
 /* Six columns: lead, campaign, latest reply, sender, replies, lead score. */
+/*
+ * One grid definition for the header and the rows, so a column can never drift out of line with its
+ * own heading. The middle five are centred — they hold short values (a date, a name, a number) and
+ * ragged left edges under centred headings was most of why the table read as janky.
+ */
 .table-head, .lead-row {
   display: grid;
-  grid-template-columns: minmax(210px, 1.8fr) minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, .95fr) 62px 78px;
-  gap: 14px;
+  grid-template-columns: minmax(230px, 1.7fr) minmax(120px, 1.1fr) 130px minmax(110px, .9fr) 74px 92px;
+  gap: 12px;
   align-items: center;
 }
+.table-head .mid, .lead-row .cell.mid { text-align: center; justify-self: center; }
 .table-head {
-  height: 36px; padding: 0 16px;
-  color: var(--muted-2); font-size: 8.5px; letter-spacing: .11em; font-weight: 700;
+  height: 38px; padding: 0 18px;
+  color: var(--muted-2); font-size: 8.5px; letter-spacing: .12em; font-weight: 700;
   border-bottom: 1px solid var(--border-soft);
 }
 .lead-row {
-  width: 100%; min-height: 70px; padding: 12px 16px; text-align: left;
+  width: 100%; min-height: 78px; padding: 14px 18px; text-align: left;
   border-bottom: 1px solid var(--border-soft); cursor: pointer;
 }
 .lead-row:hover { background: var(--panel-2); }
@@ -127,20 +148,19 @@
 
 .lead-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .lead-avatar {
-  display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 8px; overflow: hidden;
-  background: var(--panel-2); color: var(--text); font-size: 10px; font-weight: 750;
+  display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 10px; overflow: hidden;
+  background: var(--panel-2); color: var(--text); font-size: 11px; font-weight: 750;
 }
 .lead-avatar img, .large-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .lead-words { min-width: 0; }
-.lead-name { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 640; }
+.lead-name { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; }
 .lead-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lead-words > span { display: block; margin-top: 2px; color: var(--muted-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lead-words > span { display: block; margin-top: 3px; color: var(--muted-2); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .responded-check { flex: none; color: var(--green); font-size: 10px; font-weight: 700; }
 
 .cell { min-width: 0; }
-.cell strong { display: block; font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cell span { display: block; margin-top: 2px; color: var(--muted-2); font-size: 10px; }
-.cell.num strong { font-variant-numeric: tabular-nums; }
+.cell strong { display: block; font-size: 12px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cell span { display: block; margin-top: 3px; color: var(--muted-2); font-size: 10.5px; font-weight: 500; }
 
 .see-more { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; color: var(--accent); font-size: 12px; font-weight: 650; }
 .see-more span { color: var(--muted-2); font-weight: 500; font-size: 11px; }

@@ -25,34 +25,9 @@ function suggestPassword(): string {
   return [...bytes].map((byte) => alphabet[byte % alphabet.length]).join("");
 }
 
-const THEME_KEY = "qc-portal:theme";
-
-/** Applied to <body>, which is what globals.css keys the light palette off. */
-export function applyTheme(theme: "dark" | "light") {
-  document.body.classList.toggle("light-mode", theme === "light");
-  try {
-    window.localStorage.setItem(THEME_KEY, theme);
-  } catch {
-    /* the preference is a convenience */
-  }
-}
-
-export function readTheme(): "dark" | "light" {
-  if (typeof window === "undefined") return "dark";
-  try {
-    return window.localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
-  } catch {
-    return "dark";
-  }
-}
-
 export default function SettingsPanel({ onClose }: { onClose: () => void }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [colleagues, setColleagues] = useState<Colleague[]>([]);
-  // Read in the initialiser rather than an effect: localStorage is available synchronously on the
-  // client, and the panel only ever mounts there.
-  const [theme, setTheme] = useState<"dark" | "light">(() => readTheme());
-
   const [form, setForm] = useState({ name: "", email: "", currentPassword: "", newPassword: "" });
   const [invite, setInvite] = useState({ name: "", email: "" });
   const [invited, setInvited] = useState<{ email: string; password: string } | null>(null);
@@ -148,21 +123,6 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
         <div className="sheet-body">
           {error && <p className="error-note">{error}</p>}
           {message && <p className="ok-note">{message}</p>}
-
-          <section className="sheet-section">
-            <h3>Appearance</h3>
-            <div className="theme-toggle">
-              {(["dark", "light"] as const).map((option) => (
-                <button
-                  key={option}
-                  className={theme === option ? "selected" : ""}
-                  onClick={() => { setTheme(option); applyTheme(option); }}
-                >
-                  {option === "dark" ? "Dark" : "Light"}
-                </button>
-              ))}
-            </div>
-          </section>
 
           <form className="sheet-section" onSubmit={save}>
             <h3>Your account</h3>
