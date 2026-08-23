@@ -68,50 +68,40 @@ function Campaigns() {
   const client = data?.client;
   if (!client) return <div className="content"><p className="empty">Nothing to show yet.</p></div>;
 
-  const totals = campaigns.reduce(
-    (sum, row) => ({
-      leads: sum.leads + Math.max(row.totalLeads, row.connectionsSent),
-      sent: sum.sent + row.connectionsSent,
-      accepted: sum.accepted + row.connectionsAccepted,
-      replies: sum.replies + row.replies,
-      positive: sum.positive + row.positiveReplies,
-      scored: sum.scored + row.scoredReplies,
-    }),
-    { leads: 0, sent: 0, accepted: 0, replies: 0, positive: 0, scored: 0 },
-  );
-  const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
+  /*
+   * The five headline figures.
+   *
+   * "Average" here is the mean of the per-campaign rates, unweighted — which is how Reply Radar
+   * computes the same three numbers. It is not the pooled total (all accepted ÷ all sent): those two
+   * differ, sometimes by several points, and a portal that quoted one while the internal tool quoted
+   * the other would make every conversation about which screen to trust.
+   */
+  const mean = (pick: (row: Campaign) => number) =>
+    campaigns.length ? Math.round((campaigns.reduce((sum, row) => sum + pick(row), 0) / campaigns.length) * 10) / 10 : 0;
+
+  const reached = campaigns.reduce((sum, row) => sum + row.connectionsSent, 0);
+  const headline = {
+    launched: campaigns.length,
+    reached,
+    acceptance: mean((row) => row.acceptanceRate),
+    reply: mean((row) => row.replyRate),
+    positive: mean((row) => row.positiveReplyRate),
+  };
 
   return (
-    <div className="content">
+    <div className="content cmp-wide">
       <ClientHead client={client} />
 
-      <div className="cmp-bench">
-        <span><b>{totals.leads.toLocaleString()}</b> leads</span>
-        <span><b>{totals.sent.toLocaleString()}</b> reached</span>
-        <span>acceptance <b>{pct(totals.accepted, totals.sent)}%</b></span>
-        <span>reply rate <b>{pct(totals.replies, totals.accepted)}%</b></span>
-        <span>positive <b>{pct(totals.positive, totals.accepted)}%</b></span>
+      <div className="cmp-headline">
+        <Headline label="Campaigns launched" value={headline.launched.toLocaleString()} />
+        <Headline label="Leads reached out to" value={headline.reached.toLocaleString()} />
+        <Headline label="Average acceptance rate" value={`${headline.acceptance}%`} tone="accepted" />
+        <Headline label="Average reply rate" value={`${headline.reply}%`} tone="replied" />
+        <Headline label="Average positive reply rate" value={`${headline.positive}%`} tone="positive" />
       </div>
 
-      {/*
-        * The coverage warning, shown only when it is actually true.
-        *
-        * Sentiment scoring started partway through this account, so a campaign from before it has
-        * replies nobody classified — and a 0% positive rate on a strong old campaign is a number a
-        * client would draw exactly the wrong conclusion from. Saying so once, at the top, is cheaper
-        * than explaining it every time somebody asks.
-        */}
-      {totals.replies > 0 && totals.scored < totals.replies * 0.9 && (
-        <p className="cmp-caveat">
-          Sentiment analysis has classified <b>{totals.scored.toLocaleString()}</b> of{" "}
-          <b>{totals.replies.toLocaleString()}</b> replies. Campaigns that ran before scoring was
-          switched on show a low or blank positive rate because their replies were never classified —
-          not because the replies were poor.
-        </p>
-      )}
-
       <div className="panel">
-        <div className="panel-head">
+        <div className="panel-head cmp-head">
           <h2>Campaigns</h2>
           <div className="cmp-tools">
             <span>{campaigns.length} total</span>
@@ -189,8 +179,10 @@ function CampaignRow({ row }: { row: Campaign }) {
         </div>
 
         <div className="cmp-rates">
-          <Rate label="Acceptance" value={`${row.acceptanceRate}%`} sub={`${row.connectionsAccepted.toLocaleString()} of ${row.connectionsSent.toLocaleString()}`} />
-          <Rate label="Reply rate" value={`${row.replyRate}%`} sub={`${row.replies.toLocaleString()} replies`} />
+          {/* Each figure wears the colour of the band it describes, so a number and its segment are
+              the same thing rather than two things to correlate. */}
+          <Rate label="Acceptance" value={`${row.acceptanceRate}%`} sub={`${row.connectionsAccepted.toLocaleString()} of ${row.connectionsSent.toLocaleString()}`} tone="accepted" />
+          <Rate label="Reply rate" value={`${row.replyRate}%`} sub={`${row.replies.toLocaleString()} replies`} tone="replied" />
           <Rate
             label="Positive"
             value={unscored ? "—" : `${row.positiveReplyRate}%`}
@@ -212,6 +204,16 @@ function CampaignRow({ row }: { row: Campaign }) {
         {positive > 0 && <span className="k-positive" style={{ width: `${share(positive)}%` }} title={`${positive.toLocaleString()} replied positively`} />}
       </div>
     </article>
+  );
+}
+
+/** One headline figure above the table. */
+function Headline({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className={`cmp-headline-card ${tone ?? ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
