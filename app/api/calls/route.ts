@@ -4,11 +4,12 @@
 /**
  * The weekly calls held with one client.
  *
- * ── Staff only, for now, and deliberately ───────────────────────────────────────────────────────
- * These documents come out of the QC Brain, which is an internal notebook. A call note is written to be
- * useful to whoever picks the account up next, and can carry candid assessments — of the client, of what
- * is not working, of what QC decided not to say on the call. Showing that to the client is a decision
- * with no undo, so it is not the default. Opening it up is one line here whenever that call is made.
+ * ── Visible to the client, by decision ──────────────────────────────────────────────────────────
+ * These are notes from calls held *with* the client, so they are shared with them — which is the call
+ * that was made, knowingly. It is worth stating the consequence plainly: these documents are written in
+ * the QC Brain for whoever picks the account up next, and anything candid written in one is now
+ * something the client can read. The safeguard is scope, not secrecy — a session can reach exactly one
+ * folder, belonging to exactly the client it already had access to, and nothing else in the repo.
  *
  * Which folder to read comes from the workspace row through the scoped path, so a session can only ever
  * reach the brain folder of a client it already had access to.
@@ -33,9 +34,6 @@ async function folderFor(slug: string | null) {
 export async function GET(request: Request) {
   const session = await currentSession();
   if (!session) return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
-  if (session.role !== "staff") {
-    return NextResponse.json({ ok: false, error: "Weekly call notes are internal." }, { status: 403 });
-  }
   if (!brainConfigured()) {
     return NextResponse.json(
       { ok: false, error: "The QC Brain is not connected. Set BRAIN_GITHUB_TOKEN in the environment." },

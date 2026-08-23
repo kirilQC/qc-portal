@@ -154,7 +154,6 @@ function Calls() {
   return (
     <div className="content calls-wide">
       <div className="page-head">
-        <span className="eyebrow">Internal</span>
         <h1>Weekly calls</h1>
       </div>
 

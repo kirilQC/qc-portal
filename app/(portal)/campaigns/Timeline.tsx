@@ -27,19 +27,22 @@ import type { Campaign } from "../../components/usePortal";
  *   · has activity   → a closed bar from launch to the last message
  *   · launch only    → a dot on its own lane, because a duration would be invented
  *
- * ── Why a window rather than everything ─────────────────────────────────────────────────────────
- * Eight months at once put January and August on one screen and left every bar a few pixels wide. The
- * window is a month by default and the scale always fills the panel, so the bars are readable at every
- * range instead of only at the widest.
+ * ── Window and scroll, which are different controls ─────────────────────────────────────────────
+ * The range picks *how much time* is in play; the horizontal scroll moves through it. They are separate
+ * because one screen cannot hold a year at a density where a two-week campaign is still a bar you can
+ * read a name inside. So the canvas is laid out at a fixed pixels-per-day and scrolls, but never
+ * narrower than the panel — which is what stops the axis ending in the middle of the page as it did
+ * before. The name column is sticky, so it stays put while the dates move under it.
  */
 type Range = "1m" | "3m" | "6m" | "1y" | "all";
 
-const RANGES: [Range, string, number][] = [
-  ["1m", "1M", 30],
-  ["3m", "3M", 91],
-  ["6m", "6M", 182],
-  ["1y", "1Y", 365],
-  ["all", "All", 0],
+/** key, label, days in the window, pixels per day at that range. */
+const RANGES: [Range, string, number, number][] = [
+  ["1m", "1M", 30, 34],
+  ["3m", "3M", 91, 15],
+  ["6m", "6M", 182, 9],
+  ["1y", "1Y", 365, 5.5],
+  ["all", "All", 0, 4],
 ];
 
 const DAY_MS = 86_400_000;
@@ -80,7 +83,9 @@ export default function Timeline({ campaigns }: { campaigns: Campaign[] }) {
 
     const earliest = Math.min(...dated.map((entry) => entry.start));
     const latest = Math.max(...dated.map((entry) => entry.end), now);
-    const days = RANGES.find(([key]) => key === range)?.[2] ?? 30;
+    const spec = RANGES.find(([key]) => key === range);
+    const days = spec?.[2] ?? 30;
+    const perDay = spec?.[3] ?? 34;
 
     // The window: the last N days up to the newest thing on the chart, or everything.
     const windowEnd = utcDay(latest) + DAY_MS;
@@ -92,8 +97,9 @@ export default function Timeline({ campaigns }: { campaigns: Campaign[] }) {
       .filter((entry) => entry.end >= windowStart && entry.start <= windowEnd)
       .sort((a, b) => b.start - a.start);
 
-    /** Position as a percentage of the window, so the scale always fills the panel. */
-    const at = (time: number) => ((Math.min(Math.max(time, windowStart), windowEnd) - windowStart) / span) * 100;
+    /** Position in pixels from the left of the canvas, clamped to the window. */
+    const at = (time: number) => ((Math.min(Math.max(time, windowStart), windowEnd) - windowStart) / DAY_MS) * perDay;
+    const canvasWidth = (span / DAY_MS) * perDay;
 
     /*
      * Ticks. A month window is read in weeks and a year in months, so the unit follows the range rather
@@ -125,6 +131,7 @@ export default function Timeline({ campaigns }: { campaigns: Campaign[] }) {
       rows,
       ticks,
       at,
+      canvasWidth,
       today: now >= windowStart && now <= windowEnd ? at(now) : null,
       hidden: dated.length - rows.length,
     };
@@ -179,26 +186,27 @@ export default function Timeline({ campaigns }: { campaigns: Campaign[] }) {
             </div>
 
             <div className="tl-chart">
-              <div className="tl-ruler">
-                {model.ticks.map((tick) => (
-                  <span key={`${tick.label}-${tick.left}`} className="tl-tick" style={{ left: `${tick.left}%` }}>
-                    {tick.label}
-                  </span>
-                ))}
-              </div>
-
-              <div className="tl-lanes">
-                {/* Rules and the today line span every lane, behind the bars. */}
-                <div className="tl-rules" aria-hidden="true">
+              <div className="tl-canvas" style={{ width: model.canvasWidth }}>
+                <div className="tl-ruler">
                   {model.ticks.map((tick) => (
-                    <span key={`rule-${tick.left}`} className="tl-rule" style={{ left: `${tick.left}%` }} />
+                    <span key={`${tick.label}-${tick.left}`} className="tl-tick" style={{ left: tick.left }}>
+                      {tick.label}
+                    </span>
                   ))}
-                  {model.today !== null && <span className="tl-today" style={{ left: `${model.today}%` }} />}
                 </div>
 
-                {model.rows.map(({ row, start, end, active, isPoint }) => {
+                <div className="tl-lanes">
+                  {/* Rules and the today line span every lane, behind the bars. */}
+                  <div className="tl-rules" aria-hidden="true">
+                    {model.ticks.map((tick) => (
+                      <span key={`rule-${tick.left}`} className="tl-rule" style={{ left: tick.left }} />
+                    ))}
+                    {model.today !== null && <span className="tl-today" style={{ left: model.today }} />}
+                  </div>
+
+                  {model.rows.map(({ row, start, end, active, isPoint }) => {
                   const left = model.at(start);
-                  const width = Math.max(model.at(end) - left, 0.6);
+                  const width = Math.max(model.at(end) - left, 6);
                   const days = Math.max(1, Math.round((end - start) / DAY_MS));
                   const label = `${row.name} · launched ${new Date(start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${
                     isPoint ? " · no activity recorded" : active ? ` · running ${days} days` : ` · ran ${days} days`
@@ -207,17 +215,24 @@ export default function Timeline({ campaigns }: { campaigns: Campaign[] }) {
                   return (
                     <div className="tl-lane" key={row.campaignId || row.name}>
                       {isPoint ? (
-                        <span className="tl-dot" style={{ left: `${left}%` }} title={label} />
+                        <>
+                          <span className="tl-dot" style={{ left }} title={label} />
+                          <span className="tl-dot-label" style={{ left: left + 13 }}>{row.name}</span>
+                        </>
                       ) : (
                         <span
                           className={`tl-bar ${active ? "is-live" : ""}`}
-                          style={{ left: `${left}%`, width: `${width}%` }}
+                          style={{ left, width }}
                           title={label}
-                        />
+                        >
+                          {/* The name rides inside its own bar, which is where the eye already is. */}
+                          <span className="tl-bar-name">{row.name}</span>
+                        </span>
                       )}
                     </div>
                   );
                 })}
+                </div>
               </div>
             </div>
           </div>
