@@ -3,203 +3,472 @@
 
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- loads on mount and when the client changes; the
-   setState calls sit inside an async callback rather than the effect body. */
+   setState calls sit inside async callbacks rather than the effect body. */
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import "../inbox/inbox.css";
 import "./analytics.css";
 
 /**
- * The client's outbound performance, on its own page.
+ * One client's analytics, reproduced from Reply Radar's own page.
  *
- * It lived inside the inbox as a second view, which was wrong: analytics is not a way of looking at the
- * reply queue, it is a different question about the same programme, and burying it behind a toggle on
- * another page means nobody finds it. It reads the same conversations the inbox does, so the two can
- * never state different totals.
+ * The layout, the labels, the eleven figures and the order they appear in are all deliberately the
+ * same, because the point is that a client reading this and QC reading Reply Radar are looking at one
+ * set of numbers rather than two. Every rate is computed server-side using Reply Radar's conventions —
+ * see the note in `app/api/analytics/route.ts` for why each divides by what it does.
+ *
+ * One difference: "Sync now" is staff-only. Everything else here reads; that button writes a job for
+ * the worker, and it is not something a client should be able to press repeatedly.
  */
-type Lead = {
-  id: string; name: string; company: string; campaignName: string | null; senderName: string;
-  sentiment: string | null; replies: number; lastMessageAt: string; latestReplyAt: string;
-  messages: { direction: string; sentAt: string }[];
+type Campaign = {
+  campaignId: string; name: string; status: string | null; launchedAt: string | null;
+  senderIds: string[]; totalLeads: number; leadsPending: number;
+  connectionsSent: number; connectionsAccepted: number; replies: number; positiveReplies: number;
+  messagesStarted: number; sequenceSteps: number | null;
+  firstTouch: string | null; followUp: string | null;
+  acceptanceRate: number; replyRate: number; positiveReplyRate: number; daysLeft: number | null;
 };
+type DailyPoint = { day: string; label: string; connectionsSent: number; connectionsAccepted: number; replies: number };
+type SenderSeries = { id: string; name: string; dailyLimit: number | null; connectionsSent: number; connectionsAccepted: number; byDay: number[] };
+type Payload = {
+  ok: boolean; status: string; role?: "staff" | "client"; error?: string;
+  workspace?: { id: string; name: string; slug: string; logoUrl: string | null; accentColor: string | null };
+  campaigns?: Campaign[]; daily?: DailyPoint[]; senders?: SenderSeries[]; senderCap?: number;
+  repliesSynced?: number; replies7d?: number; conversations?: number; collectedAt?: string | null;
+  sync?: { state: string; lastStatus: string | null; lastFinishedAt: string | null; lastError: string | null };
+};
+
+const sum = <T,>(rows: T[], of: (row: T) => number) => rows.reduce((total, row) => total + of(row), 0);
+
+/** Campaigns with enough volume for a rate to mean anything. Reply Radar's threshold. */
+const RANKABLE_MINIMUM = 50;
+const rankable = (rows: Campaign[]) => rows.filter((row) => row.connectionsSent >= RANKABLE_MINIMUM);
+
+const launchDate = (value: string | null) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
+/** How long we have worked with a client, measured from their first real campaign launch. */
+function engagementRuntime(rows: Campaign[], now: number) {
+  const stamps = rows.map((row) => (row.launchedAt ? Date.parse(row.launchedAt) : NaN)).filter((stamp) => Number.isFinite(stamp));
+  // `now` is 0 for the first frame, before the clock has been read. Waiting is better than reading it
+  // during render, which would make the label depend on when React happened to re-render.
+  if (!stamps.length || !now) return { label: "—", since: "Launch dates unavailable" };
+  const first = Math.min(...stamps);
+  const days = Math.max(0, Math.floor((now - first) / 86_400_000));
+  const months = Math.floor(days / 30.44);
+  const label =
+    days < 31 ? `${days} day${days === 1 ? "" : "s"}` :
+    months < 12 ? `${months} month${months === 1 ? "" : "s"}` :
+    `${Math.floor(months / 12)}y ${months % 12}m`;
+  return { label, since: `Since ${launchDate(new Date(first).toISOString())}` };
+}
+
+/** The first line or so of a message, for a row that has to fit on one. */
+const excerpt = (value: string | null, length = 130) => {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  return text.length > length ? `${text.slice(0, length - 1).trimEnd()}…` : text;
+};
+
+/** Time alone for figures taken today; the date too once they are older, so a day-old stamp reads as one. */
+const syncedLabel = (at: Date) =>
+  at.toDateString() === new Date().toDateString()
+    ? at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : at.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+const LEADER_METRICS = [
+  { id: "accepted", label: "Connections accepted", of: (row: Campaign) => row.connectionsAccepted },
+  { id: "replies", label: "Total replies", of: (row: Campaign) => row.replies },
+  { id: "positive", label: "Positive replies", of: (row: Campaign) => row.positiveReplies },
+] as const;
+
+const SORTS: [string, string][] = [
+  ["launch-desc", "Newest launch"],
+  ["launch-asc", "Oldest launch"],
+  ["reply-desc", "Highest reply rate"],
+  ["accept-desc", "Highest acceptance rate"],
+  ["positive-desc", "Highest positive rate"],
+  ["replies-desc", "Most replies"],
+  ["sent-desc", "Most requests sent"],
+  ["name-asc", "Name A–Z"],
+];
+
+function sortCampaigns(rows: Campaign[], sort: string) {
+  // Rows without a launch date always sink to the bottom of date sorts.
+  const stamp = (row: Campaign) => (row.launchedAt ? Date.parse(row.launchedAt) : NaN);
+  const out = [...rows];
+  switch (sort) {
+    case "launch-asc": return out.sort((a, b) => (Number.isFinite(stamp(a)) ? stamp(a) : Infinity) - (Number.isFinite(stamp(b)) ? stamp(b) : Infinity));
+    case "reply-desc": return out.sort((a, b) => b.replyRate - a.replyRate);
+    case "accept-desc": return out.sort((a, b) => b.acceptanceRate - a.acceptanceRate);
+    case "positive-desc": return out.sort((a, b) => b.positiveReplyRate - a.positiveReplyRate);
+    case "replies-desc": return out.sort((a, b) => b.replies - a.replies);
+    case "sent-desc": return out.sort((a, b) => b.connectionsSent - a.connectionsSent);
+    case "name-asc": return out.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    default: return out.sort((a, b) => (Number.isFinite(stamp(b)) ? stamp(b) : -Infinity) - (Number.isFinite(stamp(a)) ? stamp(a) : -Infinity));
+  }
+}
 
 function Analytics() {
   const params = useSearchParams();
   const clientSlug = params.get("client");
 
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
-  const [days, setDays] = useState(30);
-  /**
-   * "Now", pinned once on mount.
-   *
-   * Reading the clock during render makes the result depend on when React happened to re-render, so a
-   * chart could shift under a hover. Fixed at mount, the window only moves when the page is reloaded or
-   * the range is changed — which is what a person reading it would expect anyway.
-   */
+  const [leaderMetric, setLeaderMetric] = useState<string>("accepted");
+  const [sort, setSort] = useState("launch-desc");
+  const [open, setOpen] = useState<Campaign | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [now, setNow] = useState(0);
+
   useEffect(() => setNow(Date.now()), []);
 
-  useEffect(() => {
-    setLoaded(false);
-    void (async () => {
-      try {
-        const query = clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : "";
-        const response = await fetch(`/api/inbox${query}`, { cache: "no-store" });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          setError(payload.error || "Analytics did not load.");
-          return;
-        }
-        setLeads(payload.conversations ?? []);
-        setError("");
-      } catch {
-        setError("Analytics did not load.");
-      } finally {
-        setLoaded(true);
+  const load = useCallback(async () => {
+    try {
+      const query = clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : "";
+      const response = await fetch(`/api/analytics${query}`, { cache: "no-store" });
+      const payload = (await response.json().catch(() => ({}))) as Payload;
+      if (!response.ok) {
+        setError(payload.error || "Analytics did not load.");
+        return;
       }
-    })();
+      setError("");
+      setData(payload);
+    } catch {
+      setError("Analytics did not load.");
+    }
   }, [clientSlug]);
 
-  const stats = useMemo(() => {
-    const since = (now || 0) - days * 86_400_000;
-    const inRange = leads.filter((lead) => Date.parse(lead.latestReplyAt || lead.lastMessageAt) >= since);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-    const byDay = new Map<string, number>();
-    const byCampaign = new Map<string, number>();
-    const bySender = new Map<string, number>();
-    const sentiment = { positive: 0, neutral: 0, negative: 0, unscored: 0 };
-
-    for (const lead of inRange) {
-      const day = (lead.latestReplyAt || lead.lastMessageAt || "").slice(0, 10);
-      if (day) byDay.set(day, (byDay.get(day) ?? 0) + lead.replies);
-      byCampaign.set(lead.campaignName || "No campaign", (byCampaign.get(lead.campaignName || "No campaign") ?? 0) + lead.replies);
-      bySender.set(lead.senderName, (bySender.get(lead.senderName) ?? 0) + lead.replies);
-      const key = (lead.sentiment ?? "") as keyof typeof sentiment;
-      if (key === "positive" || key === "neutral" || key === "negative") sentiment[key] += 1;
-      else sentiment.unscored += 1;
-    }
-
-    const top = (map: Map<string, number>) => [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-    const scored = sentiment.positive + sentiment.neutral + sentiment.negative;
-
-    return {
-      conversations: inRange.length,
-      replies: inRange.reduce((sum, lead) => sum + lead.replies, 0),
-      awaiting: inRange.filter((lead) => lead.messages.at(-1)?.direction === "inbound").length,
-      positiveRate: scored ? Math.round((sentiment.positive / scored) * 1000) / 10 : 0,
-      days: [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])),
-      campaigns: top(byCampaign),
-      senders: top(bySender),
-      sentiment,
-      scored,
+  // Escape closes the campaign modal, which is what a dialog is expected to do.
+  useEffect(() => {
+    if (!open) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(null);
     };
-  }, [leads, days, now]);
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [open]);
 
-  if (!clientSlug && error) {
-    return <div className="content"><p className="empty">Pick a client from the directory first.</p></div>;
+  async function sync() {
+    if (!clientSlug || syncing) return;
+    setSyncing(true);
+    try {
+      await fetch(`/api/analytics/refresh?client=${encodeURIComponent(clientSlug)}`, { method: "POST" });
+      await load();
+    } finally {
+      setSyncing(false);
+    }
   }
 
-  const peak = Math.max(1, ...stats.days.map(([, value]) => value));
+  const view = useMemo(() => {
+    const campaigns = data?.campaigns ?? [];
+    const daily = data?.daily ?? [];
+    const senders = data?.senders ?? [];
+    const senderCap = data?.senderCap ?? 25;
+
+    const average = (key: "replyRate" | "acceptanceRate" | "positiveReplyRate") =>
+      campaigns.length ? sum(campaigns, (row) => row[key]) / campaigns.length : null;
+
+    const ranked = rankable(campaigns);
+    const metric = LEADER_METRICS.find((option) => option.id === leaderMetric) ?? LEADER_METRICS[0];
+
+    return {
+      campaigns, daily, senders, senderCap, average,
+      // HeyReach's reply totals cover the whole campaign history, not just what we have synced.
+      allTimeReplies: sum(campaigns, (row) => row.replies),
+      contacted: sum(campaigns, (row) => row.connectionsSent),
+      accepted: sum(campaigns, (row) => row.connectionsAccepted),
+      launched: campaigns.filter((row) => row.launchedAt).length,
+      // Campaigns still working through their list, longest runway first — the ones that need senders.
+      running: campaigns
+        .filter((row) => (row.status ?? "").toUpperCase() === "IN_PROGRESS")
+        .sort((a, b) => (b.daysLeft ?? 0) - (a.daysLeft ?? 0) || b.leadsPending - a.leadsPending),
+      windowSent: sum(daily, (point) => point.connectionsSent),
+      sentMax: Math.max(...daily.map((point) => point.connectionsSent), 1),
+      // The stacked chart is scaled on its own busiest column rather than the total series, so the two
+      // charts are read independently and neither flattens the other.
+      stackMax: Math.max(...daily.map((_, index) => sum(senders, (sender) => sender.byDay[index] ?? 0)), 1),
+      metric,
+      leaders: [...ranked].sort((a, b) => metric.of(b) - metric.of(a)).slice(0, 6),
+      // Worst acceptance first. Acceptance rather than replies because it is the earliest thing that
+      // can be wrong: nothing downstream of a request nobody accepted is worth diagnosing.
+      laggards: [...ranked].sort((a, b) => a.acceptanceRate - b.acceptanceRate).slice(0, 6),
+      messaging: ranked.filter((row) => row.firstTouch).sort((a, b) => b.acceptanceRate - a.acceptanceRate).slice(0, 5),
+      leaderMax: Math.max(...ranked.map((row) => metric.of(row)), 1),
+    };
+  }, [data, leaderMetric]);
+
+  if (!clientSlug && (error || data?.status === "no_client")) {
+    return <div className="content"><p className="empty">Pick a client from the directory first.</p></div>;
+  }
+  if (error) return <div className="content"><p className="error-note">{error}</p></div>;
+  if (!data?.workspace) return <div className="content"><p className="loading">Loading…</p></div>;
+
+  const client = data.workspace;
+  const runtime = engagementRuntime(view.campaigns, now);
+  const collectedAt = data.collectedAt ? new Date(data.collectedAt) : null;
+  const inFlight = syncing || (data.sync?.state ?? "idle") !== "idle";
+  const rate = (value: number | null) => (value == null ? "—" : `${value.toFixed(1)}%`);
 
   return (
-    <div className="inbox-wrap">
-        <div className="inbox-bar">
-          <h2 className="inbox-title">Analytics</h2>
-          <div className="segmented">
-            {[7, 30, 90].map((option) => (
-              <button key={option} className={days === option ? "selected" : ""} onClick={() => setDays(option)}>
-                {option} days
+    <div className="analytics-dashboard">
+      <header className="analytics-hero client-hero">
+        <div className="client-hero-identity">
+          <i className="client-hero-logo" style={client.logoUrl ? undefined : { background: client.accentColor || "var(--accent)" }}>
+            {client.logoUrl ? <img src={client.logoUrl} alt={client.name} /> : client.name[0]}
+          </i>
+          <div>
+            <h1>{client.name}</h1>
+          </div>
+        </div>
+        <div className="client-hero-sync">
+          {/*
+            * Stamped with when the worker last read HeyReach, not with when this page was opened. The
+            * figures are up to a day old, and saying so is the difference between a stale number and a
+            * wrong one — which is also what the button beside it is for.
+            */}
+          <div className="analytics-live"><i /> {collectedAt ? `Last synced @ ${syncedLabel(collectedAt)}` : "Not synced yet"}</div>
+          {data.role === "staff" && (
+            <button className="client-resync" onClick={() => void sync()} disabled={inFlight}>
+              {inFlight ? "Syncing…" : "Sync now"}
+            </button>
+          )}
+        </div>
+      </header>
+
+      <section className="analytics-kpis">
+        <Kpi label="All-time replies" value={view.allTimeReplies.toLocaleString()} sub={`${(data.repliesSynced ?? 0).toLocaleString()} synced to the inbox`} />
+        <Kpi label="Average reply rate" value={rate(view.average("replyRate"))} />
+        <Kpi label="Average acceptance rate" value={rate(view.average("acceptanceRate"))} />
+        <Kpi label="Average positive reply rate" value={rate(view.average("positiveReplyRate"))} />
+        <Kpi label="Engagement runtime" value={runtime.label} sub={runtime.since} />
+      </section>
+
+      <section className="analytics-kpis analytics-kpis-secondary">
+        <Kpi label="Leads reached out to" value={view.contacted.toLocaleString()} sub="Connection requests sent, all time" />
+        <Kpi label="Connections accepted" value={view.accepted.toLocaleString()} sub={view.contacted ? `${((view.accepted / view.contacted) * 100).toFixed(1)}% of requests sent` : undefined} />
+        <Kpi label="Campaigns launched" value={view.launched.toLocaleString()} sub={`${view.campaigns.length.toLocaleString()} tracked`} />
+        <Kpi label="Campaigns running" value={view.running.length.toLocaleString()} sub={`${view.senders.length} sender${view.senders.length === 1 ? "" : "s"} active`} />
+        <Kpi label="Requests last 14 days" value={view.windowSent.toLocaleString()} sub={`${Math.round(view.windowSent / Math.max(view.daily.length, 1)).toLocaleString()} a day`} />
+      </section>
+
+      <section className="analytics-primary">
+        <article className="analytics-card analytics-trend">
+          <CardTitle title="Connection requests sent" subtitle={`Every sender, day by day · ${view.windowSent.toLocaleString()} in the last ${view.daily.length || 14} days`} />
+          <div className="analytics-bars">
+            {view.daily.map((point) => (
+              <div key={point.day}>
+                <strong>{point.connectionsSent}</strong>
+                <i style={{ height: `${Math.max(4, (point.connectionsSent / view.sentMax) * 100)}%` }} />
+                <small>{point.label}</small>
+              </div>
+            ))}
+          </div>
+          {!view.daily.length && <p className="empty-state">No daily figures collected yet.</p>}
+        </article>
+      </section>
+
+      <section className="analytics-primary">
+        <article className="analytics-card">
+          <CardTitle
+            title="Connection requests by sender"
+            subtitle={`${view.senders.length} sender${view.senders.length === 1 ? "" : "s"} · ${view.senderCap} a day each is the cap, so a full column is about ${(view.senders.length * view.senderCap).toLocaleString()}`}
+          />
+          {/* Stacked as divs: each sender is one segment of the day's column, sized against the busiest
+              day in the window, so a column's height is the day's total and its bands are who sent it. */}
+          <div className="sender-stack">
+            {view.daily.map((point, index) => {
+              const total = sum(view.senders, (sender) => sender.byDay[index] ?? 0);
+              return (
+                <div key={point.day}>
+                  <strong>{total || ""}</strong>
+                  <span>
+                    {view.senders.map((sender, order) => {
+                      const value = sender.byDay[index] ?? 0;
+                      if (!value) return null;
+                      return <i key={sender.id} data-tone={order % 6} style={{ height: `${(value / view.stackMax) * 100}%` }} title={`${sender.name}: ${value}`} />;
+                    })}
+                  </span>
+                  <small>{point.label}</small>
+                </div>
+              );
+            })}
+          </div>
+          <div className="sender-legend">
+            {view.senders.map((sender, order) => (
+              <span key={sender.id}>
+                <i data-tone={order % 6} />
+                <em>{sender.name}</em>
+                <b>{sender.connectionsSent.toLocaleString()}</b>
+                <small>
+                  {Math.round(sender.connectionsSent / Math.max(view.daily.length, 1))}/day{sender.dailyLimit ? ` of ${sender.dailyLimit}` : ""}
+                </small>
+              </span>
+            ))}
+          </div>
+          {!view.senders.length && <p className="empty-state">No sender activity in the last fortnight.</p>}
+        </article>
+      </section>
+
+      <section className="analytics-grid">
+        <article className="analytics-card analytics-ranking">
+          <CardTitle title="Active campaigns" subtitle={`Sending days left at ${view.senderCap} requests per sender per day`} />
+          {view.running.length ? view.running.slice(0, 8).map((campaign) => (
+            <button type="button" className="campaign-runway" key={campaign.campaignId} onClick={() => setOpen(campaign)}>
+              <span>
+                <strong>{campaign.name}</strong>
+                <small>{campaign.senderIds.length} sender{campaign.senderIds.length === 1 ? "" : "s"} · {campaign.leadsPending.toLocaleString()} still to contact</small>
+              </span>
+              <data>{campaign.daysLeft === null ? "—" : campaign.daysLeft === 0 ? "Done" : `${campaign.daysLeft}d`}</data>
+            </button>
+          )) : <p className="empty-state">Nothing running right now.</p>}
+        </article>
+
+        <article className="analytics-card analytics-ranking">
+          <CardTitle title="Best performing campaigns" subtitle={`Over ${RANKABLE_MINIMUM} requests sent`} />
+          {/* Three buttons rather than a select, because the point is switching between them to compare. */}
+          <div className="metric-toggle">
+            {LEADER_METRICS.map((option) => (
+              <button type="button" key={option.id} className={option.id === view.metric.id ? "is-active" : ""} onClick={() => setLeaderMetric(option.id)}>
+                {option.label}
               </button>
             ))}
           </div>
+          {view.leaders.length ? view.leaders.map((campaign, index) => (
+            <button type="button" className="analytics-rank is-button" key={campaign.campaignId} onClick={() => setOpen(campaign)}>
+              <b>{index + 1}</b>
+              <span>
+                <strong>{campaign.name}</strong>
+                <small>{campaign.acceptanceRate.toFixed(1)}% accepted · {campaign.replyRate.toFixed(1)}% replied</small>
+                <i><em style={{ width: `${(view.metric.of(campaign) / view.leaderMax) * 100}%` }} /></i>
+              </span>
+              <data>{view.metric.of(campaign).toLocaleString()}</data>
+            </button>
+          )) : <p className="empty-state">No campaign has sent enough to rank yet.</p>}
+        </article>
+
+        <article className="analytics-card analytics-ranking">
+          <CardTitle title="Underperforming campaigns" subtitle="Lowest acceptance rate first" />
+          {view.laggards.length ? view.laggards.map((campaign) => (
+            <button type="button" className="analytics-rank is-button no-index" key={campaign.campaignId} onClick={() => setOpen(campaign)}>
+              <span>
+                <strong>{campaign.name}</strong>
+                <small>{campaign.connectionsSent.toLocaleString()} sent · {campaign.connectionsAccepted.toLocaleString()} accepted · {campaign.replies.toLocaleString()} replies</small>
+                <i><em className="is-warning" style={{ width: `${Math.min(100, campaign.acceptanceRate * 2)}%` }} /></i>
+              </span>
+              <data>{campaign.acceptanceRate.toFixed(1)}%</data>
+            </button>
+          )) : <p className="empty-state">No campaign has sent enough to rank yet.</p>}
+        </article>
+      </section>
+
+      {/* The copy next to the rates it produced. A campaign name means nothing to anybody who did not
+          write it, so ranking campaigns by acceptance without showing what they said answers "which
+          campaign" when the question was "which message". */}
+      <section className="analytics-card messaging-card">
+        <CardTitle title="Messaging that performed best" subtitle={`Connection request copy, ranked by acceptance rate · campaigns over ${RANKABLE_MINIMUM} requests sent`} />
+        {view.messaging.length ? view.messaging.map((campaign) => (
+          <button type="button" className="messaging-row" key={campaign.campaignId} onClick={() => setOpen(campaign)}>
+            <span className="messaging-rates">
+              <data>{campaign.acceptanceRate.toFixed(1)}%</data>
+              <small>accepted</small>
+              <data>{campaign.replyRate.toFixed(1)}%</data>
+              <small>replied</small>
+            </span>
+            <span className="messaging-copy">
+              <strong>{campaign.name}</strong>
+              <q>{excerpt(campaign.firstTouch)}</q>
+            </span>
+          </button>
+        )) : <p className="empty-state">Campaign copy is still being collected.</p>}
+      </section>
+
+      <section className="analytics-card campaign-metrics-card">
+        <header className="campaign-list-header">
+          <div>
+            <h2>All campaigns</h2>
+            <p>{view.campaigns.length} campaign{view.campaigns.length === 1 ? "" : "s"} tracked for {client.name}</p>
+          </div>
+          <label className="campaign-sort">
+            <span>Sort by</span>
+            <select value={sort} onChange={(event) => setSort(event.target.value)}>
+              {SORTS.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+            </select>
+          </label>
+        </header>
+        <div className="campaign-table-head">
+          <span>CAMPAIGN</span><span>LAUNCHED</span><span>REPLY RATE</span><span>ACCEPTED</span><span>POSITIVE</span><span>REPLIES</span><span />
         </div>
-
-        {error && <p className="error-note">{error}</p>}
-        {!loaded && <p className="loading">Loading…</p>}
-
-        <div className="inbox-metrics">
-          <Metric label="Conversations" value={stats.conversations.toLocaleString()} note={`In the last ${days} days`} tone="purple" />
-          <Metric label="Replies received" value={stats.replies.toLocaleString()} note="Across those conversations" tone="green" />
-          <Metric label="Waiting on a reply" value={stats.awaiting.toLocaleString()} note="They spoke last" tone="coral" />
-          <Metric label="Positive reply rate" value={`${stats.positiveRate}%`} note={`Of ${stats.scored} scored`} tone="green" />
-          <Metric label="Scored" value={`${stats.scored}/${stats.conversations}`} note="Replies we classified" tone="amber" />
+        <div className="campaign-metrics-list">
+          {sortCampaigns(view.campaigns, sort).map((campaign) => (
+            <button key={campaign.campaignId} onClick={() => setOpen(campaign)}>
+              <span className="campaign-name">
+                <strong>{campaign.name}</strong>
+                {campaign.status ? <small>{campaign.status.replace(/_/g, " ").toLowerCase()}</small> : null}
+              </span>
+              <span className="campaign-launched">{launchDate(campaign.launchedAt)}</span>
+              <data className="campaign-rate primary">{campaign.replyRate.toFixed(1)}<i>%</i></data>
+              <data className="campaign-rate">{campaign.acceptanceRate.toFixed(1)}<i>%</i></data>
+              <data className="campaign-rate">{campaign.positiveReplyRate.toFixed(1)}<i>%</i></data>
+              <span className="campaign-count">{campaign.replies.toLocaleString()}</span>
+              <b>›</b>
+            </button>
+          ))}
         </div>
+        {!view.campaigns.length && <p className="empty-state">No campaigns found for this client.</p>}
+      </section>
 
-        <div className="analytics-grid">
-          <div className="panel">
-            <div className="panel-head"><h2>Replies by day</h2><span>Last {days} days</span></div>
-            {stats.days.length === 0 ? <p className="empty">Nothing in range.</p> : (
-              <>
-                <div className="chart">
-                  {stats.days.map(([day, count]) => (
-                    <div key={day} className="chart-col" title={`${day}: ${count} repl${count === 1 ? "y" : "ies"}`}>
-                      <div className="chart-bar" style={{ height: `${(count / peak) * 100}%` }} />
-                    </div>
-                  ))}
-                </div>
-                <div className="chart-legend"><span><b style={{ background: "var(--accent)" }} />Replies</span></div>
-              </>
+      {open && (
+        <div className="campaign-modal-backdrop">
+          <button type="button" className="campaign-modal-dismiss" aria-label="Close campaign details" onClick={() => setOpen(null)} />
+          <div className="campaign-modal" role="dialog" aria-modal="true" aria-label={open.name}>
+            <header>
+              <div>
+                <span>{launchDate(open.launchedAt)}{open.status ? ` · ${open.status.replace(/_/g, " ").toLowerCase()}` : ""}</span>
+                <h3>{open.name}</h3>
+              </div>
+              <button aria-label="Close" onClick={() => setOpen(null)}>×</button>
+            </header>
+            <div className="campaign-modal-grid">
+              <Kpi label="Reply rate" value={`${open.replyRate.toFixed(1)}%`} />
+              <Kpi label="Acceptance rate" value={`${open.acceptanceRate.toFixed(1)}%`} />
+              <Kpi label="Positive reply rate" value={`${open.positiveReplyRate.toFixed(1)}%`} />
+              <Kpi label="Connections sent" value={open.connectionsSent.toLocaleString()} />
+              <Kpi label="Connections accepted" value={open.connectionsAccepted.toLocaleString()} />
+              <Kpi label="Replies" value={open.replies.toLocaleString()} />
+              <Kpi label="Positive replies" value={open.positiveReplies.toLocaleString()} />
+              <Kpi label="Messages started" value={open.messagesStarted.toLocaleString()} />
+              <Kpi label="Leads in list" value={open.totalLeads.toLocaleString()} />
+              <Kpi label="Still to contact" value={open.leadsPending.toLocaleString()} sub={open.daysLeft ? `about ${open.daysLeft} sending day${open.daysLeft === 1 ? "" : "s"} left` : undefined} />
+              <Kpi label="Senders assigned" value={open.senderIds.length.toLocaleString()} />
+              <Kpi label="Sequence steps" value={open.sequenceSteps == null ? "—" : open.sequenceSteps.toLocaleString()} />
+            </div>
+            {(open.firstTouch || open.followUp) && (
+              <div className="campaign-modal-copy">
+                {open.firstTouch && <div><span>Connection request</span><p>{open.firstTouch}</p></div>}
+                {open.followUp && <div><span>First message after acceptance</span><p>{open.followUp}</p></div>}
+              </div>
             )}
           </div>
-
-          <div className="panel">
-            <div className="panel-head"><h2>Sentiment</h2><span>How replies read</span></div>
-            <div className="sentiment-bars">
-              {([["positive", "var(--green)"], ["neutral", "var(--amber)"], ["negative", "var(--coral)"], ["unscored", "var(--muted-2)"]] as const).map(([key, color]) => (
-                <div key={key} className="sentiment-row">
-                  <span className="sentiment-name">{key}</span>
-                  <span className="sentiment-track">
-                    <span style={{ width: `${(stats.sentiment[key] / Math.max(1, stats.conversations)) * 100}%`, background: color }} />
-                  </span>
-                  <span className="sentiment-value">{stats.sentiment[key]}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-head"><h2>Replies by campaign</h2><span>Top 10</span></div>
-            <Bars rows={stats.campaigns} />
-          </div>
-
-          <div className="panel">
-            <div className="panel-head"><h2>Replies by sender</h2><span>Top 10</span></div>
-            <Bars rows={stats.senders} />
-          </div>
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value, note, tone }: { label: string; value: string; note: string; tone: string }) {
-  return (
-    <div className="metric-card">
-      <div className={`metric-icon ${tone}`} />
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{note}</small>
-    </div>
-  );
-}
-
-/** A ranked horizontal bar list — the shape that answers "which of these is biggest" fastest. */
-function Bars({ rows }: { rows: [string, number][] }) {
-  if (!rows.length) return <p className="empty">Nothing in range.</p>;
-  const peak = Math.max(1, ...rows.map(([, value]) => value));
-  return (
-    <div className="bars">
-      {rows.map(([label, value]) => (
-        <div key={label} className="bar-row">
-          <span className="bar-label" title={label}>{label}</span>
-          <span className="bar-track"><span style={{ width: `${(value / peak) * 100}%` }} /></span>
-          <span className="bar-value">{value}</span>
         </div>
-      ))}
+      )}
     </div>
   );
+}
+
+function Kpi({ label, value, sub }: { label: string; value: string | number | undefined; sub?: string }) {
+  return <div className="analytics-kpi"><span>{label}</span><strong>{value ?? "—"}</strong>{sub ? <small>{sub}</small> : null}</div>;
+}
+
+function CardTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  return <header className="analytics-card-title"><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</header>;
 }
 
 export default function Page() {
