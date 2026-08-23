@@ -47,6 +47,15 @@ export type CampaignRow = {
   connectionsAccepted: number;
   replies: number;
   positiveReplies: number;
+  /**
+   * How many of this campaign's replies have actually been through sentiment analysis.
+   *
+   * Not decoration: scoring was switched on partway through this account's history, so every campaign
+   * launched before that has replies nobody ever classified. Without this number, "0 positive" on a
+   * January campaign with 57 replies reads as a terrible campaign when it is really an unscored one —
+   * and that is a number a client would see and draw the wrong conclusion from.
+   */
+  scoredReplies: number;
   acceptanceRate: number;
   replyRate: number;
   positiveReplyRate: number;
@@ -185,8 +194,9 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
     if (id && name && !senderNames.has(id)) senderNames.set(id, name);
   }
 
-  // Positive replies, counted per campaign from the sentiment stored on each inbound message.
+  // Positive replies, and how many replies were scored at all, per campaign.
   const positiveByCampaign = new Map<string, number>();
+  const scoredByCampaign = new Map<string, number>();
   const conversationIds = conversations.map((row) => str(row.id)).filter(Boolean);
   if (conversationIds.length) {
     const inbound = await scopedByConversation(
@@ -205,8 +215,11 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       // Keyed on the lowercased, trimmed name, which is how Reply Radar joins these two sources.
       const key = str(message.campaign).trim().toLowerCase();
       if (!key) continue;
-      if (str(message.sentiment).toLowerCase() === "positive") {
-        positiveByCampaign.set(key, (positiveByCampaign.get(key) ?? 0) + 1);
+      const verdict = str(message.sentiment).toLowerCase();
+      // A message carries a sentiment only once it has been classified; absent is not "neutral".
+      if (verdict === "positive" || verdict === "neutral" || verdict === "negative") {
+        scoredByCampaign.set(key, (scoredByCampaign.get(key) ?? 0) + 1);
+        if (verdict === "positive") positiveByCampaign.set(key, (positiveByCampaign.get(key) ?? 0) + 1);
       }
     }
   }
@@ -217,7 +230,9 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       const sent = num(row.connections_sent);
       const accepted = num(row.connections_accepted);
       const replies = num(row.replies);
-      const positiveReplies = positiveByCampaign.get(name.trim().toLowerCase()) ?? 0;
+      const key = name.trim().toLowerCase();
+      const positiveReplies = positiveByCampaign.get(key) ?? 0;
+      const scoredReplies = scoredByCampaign.get(key) ?? 0;
       const senderIds = Array.isArray(row.sender_ids) ? row.sender_ids.map((value) => str(value)) : [];
 
       return {
@@ -231,6 +246,7 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
         connectionsAccepted: accepted,
         replies,
         positiveReplies,
+        scoredReplies,
         acceptanceRate: rate(accepted, sent),
         // Reply and positive-reply rates are both out of *accepted*, not sent — nobody can reply to a
         // request that was never accepted. Reply Radar's convention, reproduced so the two agree.

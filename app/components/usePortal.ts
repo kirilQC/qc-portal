@@ -29,6 +29,8 @@ export type Campaign = {
   senders: string[];
   totalLeads: number; connectionsSent: number; connectionsAccepted: number; replies: number;
   positiveReplies: number;
+  /** How many replies have been through sentiment analysis. Zero means the positive rate is unknown. */
+  scoredReplies: number;
   acceptanceRate: number; replyRate: number; positiveReplyRate: number;
 };
 
