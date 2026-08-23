@@ -12,11 +12,11 @@
  * switching an account off take effect immediately instead of at the end of a fourteen-day session.
  */
 import { NextResponse } from "next/server";
-import { currentSession } from "../../lib/auth-context";
+import { currentSession, resolveScope } from "../../lib/auth-context";
 import { getUser } from "../../lib/users";
 import { getClient } from "../../lib/portal-data";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await currentSession();
   if (!session) return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
 
@@ -25,7 +25,17 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "That account is no longer active." }, { status: 401 });
   }
 
-  const client = session.workspaceId ? await getClient(session, session.workspaceId) : null;
+  /**
+   * Which client the shell should wear.
+   *
+   * For a client session this is their own, always, and `?client=` is ignored — `resolveScope` sees to
+   * that. For staff it is whichever client they have opened, so the sidebar can show that client's logo
+   * and name rather than a slug. Resolved through the same scoped path as every other read, so this
+   * endpoint cannot become a way to look up a workspace the session has no claim on.
+   */
+  const slug = new URL(request.url).searchParams.get("client");
+  const { workspaceId } = await resolveScope(slug).catch(() => ({ workspaceId: session.workspaceId }));
+  const client = workspaceId ? await getClient(session, workspaceId).catch(() => null) : null;
 
   return NextResponse.json({
     ok: true,

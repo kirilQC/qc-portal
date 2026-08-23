@@ -143,3 +143,79 @@
   .db-row .db-cell { display: none; }
   .db-fields { grid-template-columns: 1fr; }
 }
+
+/* ── Drawer tabs, sections, timeline and threads ────────────────────────────────────────────────── */
+
+.db-tabs { display: flex; gap: 4px; padding: 12px 22px 0; border-bottom: 1px solid var(--border-soft); }
+.db-tabs button {
+  padding: 9px 14px; border-radius: 8px 8px 0 0;
+  color: var(--muted); font-size: 12.5px; font-weight: 600;
+}
+.db-tabs button:hover { color: var(--text); }
+.db-tabs button.active { background: var(--panel-2); color: var(--text); }
+
+.db-section { margin-top: 26px; }
+.db-section-title {
+  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-soft);
+  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--muted-2);
+}
+
+.db-company { display: flex; align-items: flex-start; gap: 16px; }
+.db-company-logo { flex: none; width: 52px; height: 52px; border-radius: 11px; object-fit: contain; background: #fff; padding: 4px; }
+.db-company .db-fields { flex: 1; min-width: 0; }
+
+/* An employer card, with every role held there stacked beneath it. */
+.db-employers { display: grid; gap: 12px; }
+.db-employers > article { padding: 15px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--panel); }
+.db-employers header { display: flex; align-items: center; gap: 12px; }
+.db-employers header img { flex: none; width: 44px; height: 44px; border-radius: 9px; object-fit: contain; background: #fff; padding: 4px; }
+.db-employers header > div { min-width: 0; }
+.db-employers header a, .db-employers header strong { display: block; color: var(--text); font-size: 13.5px; font-weight: 700; text-decoration: none; }
+.db-employers header a:hover { color: var(--accent); }
+.db-employers header span { display: block; margin-top: 2px; color: var(--muted-2); font-size: 11px; }
+.db-role { margin: 12px 0 0 56px; padding-top: 11px; border-top: 1px solid var(--border-soft); }
+.db-role h4 { margin: 0 0 4px; font-size: 12.5px; font-weight: 640; }
+.db-role p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.db-role-desc { margin-top: 7px !important; color: var(--muted) !important; white-space: pre-line; }
+
+/* A history reads as a line of events, so it gets a rule down the side and a marker per entry. */
+.db-timeline { list-style: none; margin: 0; padding: 0 0 0 20px; position: relative; }
+.db-timeline::before { content: ""; position: absolute; left: 4px; top: 5px; bottom: 5px; width: 1px; background: var(--border); }
+.db-timeline li { position: relative; padding-bottom: 18px; }
+.db-timeline li:last-child { padding-bottom: 0; }
+.db-timeline li::before {
+  content: ""; position: absolute; left: -20px; top: 5px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--panel); border: 2px solid var(--accent);
+}
+.db-timeline strong { display: block; font-size: 13px; font-weight: 640; }
+.db-timeline-org { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+.db-timeline-when { display: block; margin-top: 3px; color: var(--muted-2); font-size: 11px; }
+.db-timeline p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+.db-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.db-chip {
+  padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--muted); font-size: 11px;
+}
+
+.db-thread { margin-bottom: 22px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel); overflow: hidden; }
+.db-thread-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--border-soft);
+  font-size: 12px; font-weight: 600;
+}
+.db-thread-meta { color: var(--muted-2); font-weight: 500; }
+.db-thread-reason { margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--border-soft); color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.db-thread-body { padding: 16px; }
+
+/* The same bubbles as the inbox, so a conversation reads identically wherever it is shown. */
+.db-thread-body .bubble { position: relative; max-width: 88%; margin-bottom: 12px; padding: 10px 12px; border-radius: 9px; font-size: 11.5px; line-height: 1.5; }
+.db-thread-body .bubble p { margin: 0; white-space: pre-wrap; }
+.db-thread-body .bubble time { display: block; margin-top: 6px; font-size: 9px; color: var(--muted-2); }
+.db-thread-body .message-author { display: block; margin-bottom: 4px; font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; opacity: .75; }
+.db-thread-body .bubble.inbound { background: #1d212b; color: #d3d6df; }
+.db-thread-body .bubble.outbound { margin-left: auto; background: #292452; color: #dedbff; }
+.db-thread-body .bubble.outbound time { color: #8982bb; }
+body.light-mode .db-thread-body .bubble.inbound { background: #eff0f4; color: #272b36; }
+body.light-mode .db-thread-body .bubble.outbound { background: #ece9ff; color: #2c2856; }

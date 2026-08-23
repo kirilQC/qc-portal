@@ -131,7 +131,7 @@ function Admin() {
     <div className="content">
       <div className="page-head">
         <span className="eyebrow">QC team</span>
-        <h1>Logins</h1>
+        <h1>Admin</h1>
       </div>
 
       <div className="ops-tabs">
