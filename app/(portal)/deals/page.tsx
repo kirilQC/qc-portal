@@ -29,7 +29,7 @@ function Deals() {
 
   return (
     <div className="content">
-      <ClientHead client={client} sub="Pipeline attributed to outbound" />
+      <ClientHead client={client} />
 
       <div className="metrics">
         <div className="metric">

@@ -111,7 +111,11 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 .nav-item.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); font-weight: 600; }
 .nav-item.active svg { color: var(--accent); }
 
-.sidebar-foot { margin-top: auto; }
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; }
+/* Who you are, at the very foot. Quiet, but never in doubt. */
+.who { padding: 12px 11px 4px; margin-top: 8px; border-top: 1px solid var(--border-soft); }
+.who strong { display: block; font-size: 12px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who span { display: block; margin-top: 2px; color: var(--muted-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Settings sheet ─────────────────────────────────────────────────────────────────────────────── */
 
@@ -176,12 +180,31 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 .shell.is-collapsed .nav-item { justify-content: center; padding: 10px 0; gap: 0; }
 .shell.is-collapsed .settings-menu { left: calc(100% + 8px); bottom: 0; }
 
-.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/*
+ * The shell owns the viewport; only the page scrolls.
+ *
+ * Everything used to scroll together, so reading down a long inbox took the sidebar and the topbar off
+ * the screen with it — and getting back to another tab meant scrolling all the way up first. The shell
+ * is now a fixed-height frame with one scrolling region inside it.
+ */
+.shell { display: flex; height: 100vh; overflow: hidden; }
+.sidebar { height: 100vh; overflow-y: auto; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .topbar {
-  height: 66px; padding: 0 32px; flex: none;
+  height: 52px; padding: 0 22px; flex: none;
   border-bottom: 1px solid var(--border-soft);
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
 }
+.top-actions { display: flex; align-items: center; gap: 10px; }
+/* The one control that belongs to the whole app, kept small and out of the way. */
+.icon-button {
+  display: grid; place-items: center; width: 30px; height: 30px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel); color: var(--muted);
+}
+.icon-button:hover { color: var(--text); border-color: var(--accent); }
+
+.page-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .content { padding: 32px; max-width: 1320px; width: 100%; margin: 0 auto; }
 
 /* ── Page heading ───────────────────────────────────────────────────────────────────────────────── */
@@ -341,10 +364,12 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 
 @media (max-width: 900px) {
   .shell { flex-direction: column; }
+  .shell { height: auto; overflow: visible; }
   .sidebar {
-    width: 100%; flex: none; flex-direction: row; align-items: center; gap: 14px;
+    width: 100%; height: auto; flex: none; flex-direction: row; align-items: center; gap: 14px;
     padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--border-soft); overflow-x: auto;
   }
+  .page-scroll { overflow-y: visible; }
   .nav { flex-direction: row; gap: 4px; }
   .nav-label { display: none; }
   .sidebar-foot { margin-top: 0; margin-left: auto; }

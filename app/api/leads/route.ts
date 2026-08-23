@@ -15,7 +15,7 @@
  */
 import { NextResponse } from "next/server";
 import { resolveScope } from "../../lib/auth-context";
-import { num, scopedRows, str } from "../../lib/db";
+import { num, scopedCount, scopedRows, str } from "../../lib/db";
 
 export const maxDuration = 60;
 
@@ -69,7 +69,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rows = await scopedRows(session, "rr_lead_index", params, workspaceId);
+    // The page count and the client's actual total, fetched together — the header count costs nothing
+    // extra and is what the subheading should say.
+    const [rows, total] = await Promise.all([
+      scopedRows(session, "rr_lead_index", params, workspaceId),
+      scopedCount(session, "rr_lead_index", params.or ? { or: params.or } : {}, workspaceId),
+    ]);
 
     const asList = (value: unknown): string[] => {
       if (Array.isArray(value)) return value.map((item) => str(item)).filter(Boolean);
@@ -113,6 +118,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       leads,
+      total,
       // One more than asked for would have been cleaner, but PostgREST has already applied the limit —
       // a full page is therefore the signal that another may exist.
       hasMore: leads.length === limit,

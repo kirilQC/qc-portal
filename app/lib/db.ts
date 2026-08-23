@@ -246,6 +246,48 @@ export async function adminWrite(
   return { ok: true, rows: Array.isArray(payload) ? (payload as Row[]) : [], error: "" };
 }
 
+/**
+ * How many rows a scoped read *would* return, without fetching any of them.
+ *
+ * PostgREST answers this in the `content-range` header when asked for an exact count, so a table can
+ * say "4,182 leads" while only ever loading fifty. The alternative — counting what was fetched — can
+ * only ever say "50 loaded", which is a fact about the request rather than about the client.
+ */
+export async function scopedCount(
+  session: Session | null,
+  table: string,
+  params: Record<string, string> = {},
+  viewing?: string | null,
+): Promise<number> {
+  if (!session) throw new Error("A count was attempted without a session.");
+  // Reuse the scoping rules exactly by asking for a single row and reading the header off the same
+  // query — a second, differently-built query is a second chance to forget the tenancy filter.
+  const tenancyColumn = CLIENT_READABLE[table];
+  if (session.role === "client" && (!tenancyColumn || STAFF_ONLY.has(table))) {
+    throw new Error(`A client session may not read ${table}.`);
+  }
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "workspace_id" || key === tenancyColumn || key === "limit" || key === "offset" || key === "order") continue;
+    search.set(key, value);
+  }
+  const confineTo = session.role === "client" ? session.workspaceId : (viewing ?? null);
+  if (confineTo && tenancyColumn) search.set(tenancyColumn, `eq.${confineTo}`);
+  search.set("select", "id");
+  search.set("limit", "1");
+
+  const { url, key } = config();
+  const response = await fetch(`${url}/rest/v1/${table}?${search.toString()}`, {
+    headers: { ...authHeaders(key), Prefer: "count=exact" },
+    cache: "no-store",
+  });
+  if (!response.ok) return 0;
+  // "0-0/4182" — the total is what follows the slash. "*" means the server declined to count.
+  const total = (response.headers.get("content-range") ?? "").split("/")[1];
+  const parsed = Number(total);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 /** Small readers, so callers stop writing `String(row.x ?? "")` in every file. */
 export const str = (value: unknown): string => (typeof value === "string" ? value : value == null ? "" : String(value));
 export const num = (value: unknown): number => {

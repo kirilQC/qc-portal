@@ -86,6 +86,7 @@ function Database() {
   const [sort, setSort] = useState("recent");
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Lead | null>(null);
@@ -135,6 +136,7 @@ function Database() {
         setError("");
         setLeads((previous) => (append ? [...previous, ...(payload.leads ?? [])] : (payload.leads ?? [])));
         setHasMore(Boolean(payload.hasMore));
+        if (typeof payload.total === "number") setTotal(payload.total);
         setOffset(payload.nextOffset ?? nextOffset);
       } catch {
         setError("The database did not load.");
@@ -158,8 +160,11 @@ function Database() {
       <div className="db-head">
         <div>
           <h1>Lead database</h1>
+          {/* The client's actual total, not how many happen to be on screen. */}
           <p className="db-count">
-            {loading && leads.length === 0 ? "Loading…" : `${leads.length.toLocaleString()} lead${leads.length === 1 ? "" : "s"} loaded${hasMore ? ", more available" : ""}`}
+            {total === null
+              ? loading ? "Loading…" : ""
+              : `${total.toLocaleString()} lead${total === 1 ? "" : "s"}${debounced.trim() ? " matching" : ""}`}
           </p>
         </div>
       </div>

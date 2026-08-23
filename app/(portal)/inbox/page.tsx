@@ -31,7 +31,6 @@ type Lead = {
 };
 
 type Filter = "today" | "week" | "all" | "follow-ups";
-type View = "queue" | "analytics";
 
 const FILTERS: [string, Filter][] = [
   ["Today", "today"],
@@ -79,7 +78,6 @@ function Inbox() {
   const [senderFilter, setSenderFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [view, setView] = useState<View>("queue");
   const threadEnd = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -149,41 +147,6 @@ function Inbox() {
   const positiveRate = scored ? ((positive / scored) * 100).toFixed(1) : "0.0";
   const rangeWord = filter === "today" ? "today" : filter === "week" ? "this week" : filter === "follow-ups" ? "needing follow-up" : "all time";
 
-  /**
-   * The analytics view, derived from exactly the rows the queue is showing.
-   *
-   * Deliberately computed from `filtered` rather than from the whole set: if the filter says "this
-   * week", the chart says this week too. Analytics that quietly ignore the filter above them are how
-   * two numbers on one screen end up disagreeing.
-   */
-  const analytics = useMemo(() => {
-    const byDay = new Map<string, number>();
-    const byCampaign = new Map<string, number>();
-    const bySender = new Map<string, number>();
-    const sentiment = { positive: 0, neutral: 0, negative: 0, unscored: 0 };
-
-    for (const lead of filtered) {
-      const day = (lead.latestReplyAt || lead.lastMessageAt || "").slice(0, 10);
-      if (day) byDay.set(day, (byDay.get(day) ?? 0) + lead.replies);
-      const campaign = lead.campaignName || "No campaign";
-      byCampaign.set(campaign, (byCampaign.get(campaign) ?? 0) + lead.replies);
-      bySender.set(lead.senderName, (bySender.get(lead.senderName) ?? 0) + lead.replies);
-      const key = (lead.sentiment ?? "") as keyof typeof sentiment;
-      if (key === "positive" || key === "neutral" || key === "negative") sentiment[key] += 1;
-      else sentiment.unscored += 1;
-    }
-
-    const top = (map: Map<string, number>, limit: number) =>
-      [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
-
-    return {
-      days: [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-30),
-      campaigns: top(byCampaign, 10),
-      senders: top(bySender, 10),
-      sentiment,
-    };
-  }, [filtered]);
-
   const options = (pick: (lead: Lead) => string | null) =>
     [...new Set(leads.map(pick).filter((value): value is string => Boolean(value)))].sort();
 
@@ -204,13 +167,7 @@ function Inbox() {
       </div>
 
       <div className="inbox-bar">
-        <div className="inbox-title-row">
-          <h2 className="inbox-title">{view === "queue" ? "Reply queue" : "Analytics"} <b>{filtered.length}</b></h2>
-          <div className="segmented view-toggle">
-            <button className={view === "queue" ? "selected" : ""} onClick={() => setView("queue")}>Queue</button>
-            <button className={view === "analytics" ? "selected" : ""} onClick={() => setView("analytics")}>Analytics</button>
-          </div>
-        </div>
+        <h2 className="inbox-title">Reply queue <b>{filtered.length}</b></h2>
         <div className="inbox-controls">
           <label className="inbox-search">
             <span>⌕</span>
@@ -244,52 +201,6 @@ function Inbox() {
         </div>
       </div>
 
-      {view === "analytics" ? (
-        <div className="analytics-grid">
-          <div className="panel">
-            <div className="panel-head"><h2>Replies by day</h2><span>Last 30 days with activity</span></div>
-            {analytics.days.length === 0 ? <p className="empty">Nothing in range.</p> : (
-              <>
-                <div className="chart">
-                  {analytics.days.map(([day, count]) => (
-                    <div key={day} className="chart-col" title={`${day}: ${count} repl${count === 1 ? "y" : "ies"}`}>
-                      <div className="chart-bar" style={{ height: `${(count / Math.max(1, ...analytics.days.map((d) => d[1]))) * 100}%` }} />
-                    </div>
-                  ))}
-                </div>
-                <div className="chart-legend"><span><b style={{ background: "var(--accent)" }} />Replies</span></div>
-              </>
-            )}
-          </div>
-
-          <div className="panel">
-            <div className="panel-head"><h2>Sentiment</h2><span>Of replies we scored</span></div>
-            <div className="sentiment-bars">
-              {([["positive", "var(--green)"], ["neutral", "var(--amber)"], ["negative", "var(--coral)"], ["unscored", "var(--muted-2)"]] as const).map(([key, color]) => {
-                const value = analytics.sentiment[key];
-                const total = Math.max(1, filtered.length);
-                return (
-                  <div key={key} className="sentiment-row">
-                    <span className="sentiment-name">{key}</span>
-                    <span className="sentiment-track"><span style={{ width: `${(value / total) * 100}%`, background: color }} /></span>
-                    <span className="sentiment-value">{value}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-head"><h2>Replies by campaign</h2><span>Top 10</span></div>
-            <Bars rows={analytics.campaigns} />
-          </div>
-
-          <div className="panel">
-            <div className="panel-head"><h2>Replies by sender</h2><span>Top 10</span></div>
-            <Bars rows={analytics.senders} />
-          </div>
-        </div>
-      ) : (
       <div className="inbox-grid">
         <div className="queue-card">
           <div className="queue-scroll">
@@ -338,7 +249,7 @@ function Inbox() {
               })}
               {filtered.length > visible && (
                 <button className="see-more" onClick={() => setVisible((count) => count + 10)}>
-                  Show 10 more leads <span>{filtered.length - visible} left</span>
+                  Show 10 more leads
                 </button>
               )}
             </>
@@ -440,24 +351,6 @@ function Inbox() {
           )}
         </aside>
       </div>
-      )}
-    </div>
-  );
-}
-
-/** A ranked horizontal bar list — the shape that answers "which of these is biggest" fastest. */
-function Bars({ rows }: { rows: [string, number][] }) {
-  if (!rows.length) return <p className="empty">Nothing in range.</p>;
-  const peak = Math.max(1, ...rows.map(([, value]) => value));
-  return (
-    <div className="bars">
-      {rows.map(([label, value]) => (
-        <div key={label} className="bar-row">
-          <span className="bar-label" title={label}>{label}</span>
-          <span className="bar-track"><span style={{ width: `${(value / peak) * 100}%` }} /></span>
-          <span className="bar-value">{value}</span>
-        </div>
-      ))}
     </div>
   );
 }

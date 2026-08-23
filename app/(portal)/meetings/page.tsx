@@ -65,7 +65,7 @@ function Meetings() {
 
   return (
     <div className="content">
-      <ClientHead client={client} sub="Meetings booked" />
+      <ClientHead client={client} />
 
       <div className="panel">
         <div className="panel-head">

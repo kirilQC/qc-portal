@@ -34,13 +34,16 @@ type Me = {
 const ICONS: Record<string, string> = {
   overview: "M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z",
   campaigns: "M4 19V9m5 10V5m5 14v-7m5 7V8",
+  analytics: "M21 21H3V3M7 15l4-4 3 3 5-6",
   replies: "M20 15a3 3 0 0 1-3 3H8l-4 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z",
   database: "M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
   meetings: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4",
   deals: "M3 7h18v12H3zM3 11h18M8 7V5h8v2",
-  admin: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9 2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2 2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1z",
+  settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9 2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2 2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1z",
+  admin: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8",
   collapse: "M15 6l-6 6 6 6",
   signout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+  appearance: "M12 3a9 9 0 0 0 0 18zM12 3a9 9 0 0 1 0 18",
 };
 
 function Icon({ name }: { name: string }) {
@@ -81,6 +84,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(() => cachedMe(clientParam));
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const pathname = usePathname();
   const suffix = clientParam ? `?client=${encodeURIComponent(clientParam)}` : "";
 
@@ -91,7 +95,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       /* a browser refusing storage just gets the default */
     }
     // The chosen appearance, reapplied before anything is looked at.
-    applyTheme(readTheme());
+    const saved = readTheme();
+    setTheme(saved);
+    applyTheme(saved);
   }, []);
 
   const toggleCollapsed = useCallback(() => {
@@ -140,14 +146,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     { href: "/inbox", label: "Inbox", icon: "replies" },
     { href: "/database", label: "Database", icon: "database" },
     { href: "/campaigns", label: "Campaigns", icon: "campaigns" },
+    { href: "/analytics", label: "Analytics", icon: "analytics" },
     { href: "/meetings", label: "Meetings", icon: "meetings" },
     { href: "/deals", label: "Pipeline", icon: "deals" },
   ];
-
-  async function signOut() {
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-    window.location.href = "/login";
-  }
 
   /** The mark at the top left: the client's when there is one, QC's when there is not. */
   const brand = (() => {
@@ -195,14 +197,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {brand}
           </Link>
           <button
-            className="sidebar-icon"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Settings"
-            title="Settings"
-          >
-            <Icon name="admin" />
-          </button>
-          <button
             className="sidebar-icon sidebar-collapse"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand the menu" : "Collapse the menu"}
@@ -237,21 +231,48 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
         <div className="sidebar-foot">
           {me?.user.role === "staff" && (
-            <>
-              <Link href="/admin" className={`nav-item ${pathname.startsWith("/admin") ? "active" : ""}`} title="Admin">
-                <Icon name="admin" />
-                {!collapsed && "Admin"}
-              </Link>
-            </>
+            <Link href="/admin" className={`nav-item ${pathname.startsWith("/admin") ? "active" : ""}`} title="Admin">
+              <Icon name="admin" />
+              {!collapsed && "Admin"}
+            </Link>
           )}
-          <button className="nav-item" onClick={() => void signOut()} title="Sign out">
-            <Icon name="signout" />
-            {!collapsed && "Sign out"}
+          <button
+            className={`nav-item ${settingsOpen ? "active" : ""}`}
+            onClick={() => setSettingsOpen(true)}
+            title="Settings"
+          >
+            <Icon name="settings" />
+            {!collapsed && "Settings"}
           </button>
+
+          {/* Who you are signed in as, at the foot where it is out of the way but never in doubt. */}
+          {me && !collapsed && (
+            <div className="who">
+              <strong>{me.user.name || me.user.email}</strong>
+              <span>{me.user.role === "staff" ? "QC team" : (me.client?.name ?? "Client")}</span>
+            </div>
+          )}
         </div>
       </aside>
 
-      <main className="main">{children}</main>
+      <main className="main">
+        {/* Thin bar over every page, holding the one control that belongs to the whole app. */}
+        <header className="topbar">
+          <span />
+          <div className="top-actions">
+            <button
+              className="icon-button"
+              onClick={() => { const next = theme === "dark" ? "light" : "dark"; setTheme(next); applyTheme(next); }}
+              title={theme === "dark" ? "Switch to light" : "Switch to dark"}
+              aria-label="Appearance"
+            >
+              <Icon name="appearance" />
+            </button>
+          </div>
+        </header>
+        {/* The page scrolls inside this, so the sidebar and topbar never move. */}
+        <div className="page-scroll">{children}</div>
+      </main>
 
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>

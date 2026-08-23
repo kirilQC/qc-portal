@@ -21,7 +21,7 @@ function Campaigns() {
 
   return (
     <div className="content">
-      <ClientHead client={client} sub="Campaigns" />
+      <ClientHead client={client} />
       <div className="panel">
         <div className="panel-head">
           <h2>Campaigns</h2>

@@ -1,0 +1,6 @@
+/* Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
+   QC Portal — proprietary. Not licensed for redistribution or resale. */
+
+/* Analytics reuses the inbox's metric cards and bar lists; only the grid is its own. */
+.analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+.analytics-grid .panel + .panel { margin-top: 0; }

@@ -131,6 +131,11 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    window.location.href = "/login";
+  }
+
   return (
     <div className="sheet-backdrop">
       <button className="sheet-scrim" aria-label="Close settings" onClick={onClose} />
@@ -247,6 +252,10 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
               )}
             </>
           )}
+          <section className="sheet-section">
+            <h3>Session</h3>
+            <button className="button danger" onClick={() => void signOut()}>Sign out</button>
+          </section>
         </div>
       </section>
     </div>
