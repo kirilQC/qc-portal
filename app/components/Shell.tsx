@@ -39,7 +39,7 @@ const ICONS: Record<string, string> = {
   replies: "M20 15a3 3 0 0 1-3 3H8l-4 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z",
   database: "M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
   meetings: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4",
-  deals: "M3 7h18v12H3zM3 11h18M8 7V5h8v2",
+  calls: "M15.5 14.5 18 12a2 2 0 0 1 3 0l.5.5a2 2 0 0 1 0 3l-1 1a3 3 0 0 1-3.4.6A18 18 0 0 1 6.9 8.9 3 3 0 0 1 7.5 5.5l1-1a2 2 0 0 1 3 0l.5.5a2 2 0 0 1 0 3L9.5 10.5",
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9 2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2 2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1z",
   admin: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8",
   collapse: "M15 6l-6 6 6 6",
@@ -143,7 +143,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     { href: "/campaigns", label: "Campaigns", icon: "campaigns" },
     { href: "/analytics", label: "Analytics", icon: "analytics" },
     { href: "/meetings", label: "Meetings", icon: "meetings" },
-    { href: "/deals", label: "Pipeline", icon: "deals" },
+    { href: "/calls", label: "Weekly calls", icon: "calls" },
   ];
 
   /** The mark at the top left: the client's when there is one, QC's when there is not. */

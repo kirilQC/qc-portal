@@ -1,0 +1,67 @@
+/* Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
+   QC Portal — proprietary. Not licensed for redistribution or resale. */
+
+/*
+ * Weekly calls: an index beside a document.
+ *
+ * The note gets the reading treatment rather than the dashboard one — a comfortable measure, real
+ * heading hierarchy, prose line-height — because it is something a person wrote and somebody else is
+ * going to read from top to bottom. The list beside it stays dense, because its job is to be scanned.
+ */
+
+.calls-wide { max-width: 1480px; }
+
+.calls-layout { display: grid; grid-template-columns: 274px minmax(0, 1fr); gap: 16px; align-items: start; }
+
+.calls-list {
+  border: 1px solid var(--border); border-radius: 13px; background: var(--panel);
+  overflow: hidden; position: sticky; top: 0;
+  max-height: calc(100vh - 190px); overflow-y: auto;
+}
+.calls-list-head {
+  padding: 13px 16px; border-bottom: 1px solid var(--border-soft);
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--muted-2);
+}
+.call-row {
+  display: flex; flex-direction: column; gap: 3px;
+  width: 100%; text-align: left; padding: 12px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.call-row:last-child { border-bottom: 0; }
+.call-row:hover { background: var(--panel-2); }
+.call-row.is-open { background: color-mix(in srgb, var(--accent) 13%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.call-row strong { font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.call-row span { font-size: 11px; color: var(--muted-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.calls-reader { min-width: 0; }
+.calls-body { padding: 26px 30px 36px; }
+
+/* A reading column, capped near 70 characters rather than run to the panel's full width. */
+.call-note { max-width: 72ch; }
+.call-note h1 { margin: 0 0 16px; font-size: 25px; letter-spacing: -.025em; line-height: 1.2; }
+.call-note h2 {
+  margin: 30px 0 12px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 17px; letter-spacing: -.015em;
+}
+.call-note h3 { margin: 24px 0 9px; font-size: 14px; font-weight: 660; }
+.call-note h4 {
+  margin: 20px 0 7px;
+  font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--muted-2);
+}
+.call-note p { margin: 0 0 13px; font-size: 14px; line-height: 1.68; color: var(--muted); }
+.call-note ul { margin: 0 0 16px; padding-left: 21px; }
+.call-note li { margin: 6px 0; font-size: 14px; line-height: 1.62; color: var(--muted); }
+.call-note li::marker { color: var(--accent); }
+.call-note strong { color: var(--text); font-weight: 650; }
+.call-note code {
+  padding: 2px 6px; border-radius: 5px;
+  background: var(--panel-2); color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+}
+
+@media (max-width: 900px) {
+  .calls-layout { grid-template-columns: 1fr; }
+  .calls-list { position: static; max-height: 300px; }
+  .calls-body { padding: 20px; }
+}

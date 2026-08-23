@@ -135,85 +135,96 @@ body.light-mode {
   .cmp-tools { flex-wrap: wrap; gap: 10px; }
 }
 
-/* ── Timeline ───────────────────────────────────────────────────────────────────────────────────── */
+/* ── Timeline (Option A: name column + lanes) ───────────────────────────────────────────────────── */
 
 .tl-panel { margin-top: 22px; }
-.tl-key { display: flex; gap: 16px; font-size: 10.5px; color: var(--muted-2); }
-.tl-key i { display: inline-block; margin-right: 7px; vertical-align: 0; }
-.tl-key-bar { width: 16px; height: 8px; border-radius: 3px; background: var(--f-accepted); }
+.tl-tools { display: flex; align-items: center; gap: 18px; }
+
+.tl-key { display: flex; gap: 14px; font-size: 10.5px; color: var(--muted-2); }
+.tl-key i { display: inline-block; margin-right: 7px; }
+.tl-key-bar { width: 15px; height: 7px; border-radius: 3px; background: color-mix(in srgb, var(--f-accepted) 55%, transparent); }
 .tl-key-live {
-  width: 16px; height: 8px; border-radius: 3px;
-  background: linear-gradient(90deg, var(--f-replied), color-mix(in srgb, var(--f-replied) 20%, transparent));
+  width: 15px; height: 7px; border-radius: 3px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--f-replied) 60%, transparent), transparent);
 }
-.tl-key-point {
-  width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg);
-  background: var(--f-reached); vertical-align: -1px;
+.tl-key-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--f-reached); vertical-align: -1px; }
+
+.tl-range { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+.tl-range button { padding: 5px 11px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: var(--muted-2); }
+.tl-range button:hover { color: var(--text); }
+.tl-range button.on { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--text); }
+
+/*
+ * The name column is a real grid column rather than an overlay, so a lane and its label are the same
+ * row — which is the whole fix. It does not scroll, because a chart whose labels wander off is a chart
+ * you have to keep scrolling back on.
+ */
+.tl-grid-layout { display: grid; grid-template-columns: 232px minmax(0, 1fr); }
+
+.tl-names { border-right: 1px solid var(--border); background: color-mix(in srgb, var(--panel-2) 45%, transparent); }
+.tl-names-head { height: 32px; border-bottom: 1px solid var(--border-soft); }
+.tl-name {
+  height: 34px; display: flex; align-items: center; padding: 0 16px;
+  font-size: 12px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Banded rows, so the eye can travel from a name to its bar without losing the line. */
+.tl-name:nth-child(even) { background: color-mix(in srgb, var(--panel-2) 70%, transparent); }
 
-/* The scroll container. The canvas inside is as wide as the date range needs. */
-.tl-scroll { overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; }
-.tl-canvas { position: relative; padding: 0 0 18px; }
+.tl-chart { min-width: 0; }
 
-.tl-ruler { position: relative; height: 34px; border-bottom: 1px solid var(--border-soft); }
-.tl-month {
-  position: absolute; top: 11px;
-  padding-left: 9px;
-  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700;
+/* The axis fills the column — it no longer stops wherever the last bar happened to end. */
+.tl-ruler { position: relative; height: 32px; border-bottom: 1px solid var(--border-soft); }
+.tl-tick {
+  position: absolute; top: 10px; padding-left: 8px;
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700;
   color: var(--muted-2); white-space: nowrap;
-  border-left: 1px solid var(--border-soft);
+  border-left: 1px solid var(--border-soft); height: 22px;
 }
 
-/* Month rules and the today line sit behind the bars. */
-.tl-grid { position: absolute; inset: 34px 0 0; pointer-events: none; }
-.tl-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-soft); }
-.tl-today { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--accent) 70%, transparent); }
+.tl-lanes { position: relative; }
+.tl-rules { position: absolute; inset: 0; pointer-events: none; }
+.tl-rule { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-soft); }
+.tl-today { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--accent) 75%, transparent); }
 .tl-today::before {
   content: ""; position: absolute; top: -3px; left: -3px;
   width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
 }
 
-.tl-rows { position: relative; padding-top: 12px; display: flex; flex-direction: column; gap: 7px; }
-.tl-row { position: relative; height: 30px; }
+.tl-lane { position: relative; height: 34px; }
+.tl-lane:nth-child(even) { background: color-mix(in srgb, var(--panel-2) 70%, transparent); }
 
 .tl-bar {
-  position: absolute; top: 0; height: 30px;
-  display: flex; align-items: center;
-  padding: 0 11px; border-radius: 7px;
-  background: color-mix(in srgb, var(--f-accepted) 26%, var(--panel));
-  border: 1px solid color-mix(in srgb, var(--f-accepted) 55%, transparent);
-  overflow: hidden;
-}
-.tl-bar-name {
-  font-size: 11.5px; font-weight: 620; color: var(--text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  position: absolute; top: 8px; height: 18px; min-width: 4px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--f-accepted) 30%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--f-accepted) 58%, transparent);
 }
 /*
- * A running campaign has no end, so its bar does not draw one: the fill fades out to the right and the
- * border stops. A squared-off edge would assert a finish date that does not exist.
+ * A running campaign has no end, so its bar does not draw one: the fill fades out and the right border
+ * is dropped. A squared edge would assert a finish date that does not exist.
  */
 .tl-bar.is-live {
   background: linear-gradient(90deg,
-    color-mix(in srgb, var(--f-replied) 30%, var(--panel)) 0%,
-    color-mix(in srgb, var(--f-replied) 30%, var(--panel)) 72%,
+    color-mix(in srgb, var(--f-replied) 34%, var(--panel)) 0%,
+    color-mix(in srgb, var(--f-replied) 34%, var(--panel)) 70%,
     transparent 100%);
-  border-color: color-mix(in srgb, var(--f-replied) 55%, transparent);
+  border-color: color-mix(in srgb, var(--f-replied) 58%, transparent);
   border-right-color: transparent;
 }
 
-/* Launched, but nothing attributable happened — a point, not a duration. */
-.tl-point {
-  position: absolute; top: 8px;
-  width: 13px; height: 13px; transform: rotate(45deg);
+/* Launched, but nothing attributable followed — a point on its own lane, not a floating marker. */
+.tl-dot {
+  position: absolute; top: 12px; margin-left: -5px;
+  width: 10px; height: 10px; border-radius: 50%;
   background: var(--f-reached);
-  border: 1px solid color-mix(in srgb, var(--f-reached) 70%, #fff);
-  border-radius: 2px;
-}
-.tl-point-label {
-  position: absolute; top: 7px;
-  font-size: 11.5px; font-weight: 600; color: var(--muted);
-  white-space: nowrap;
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px color-mix(in srgb, var(--f-reached) 60%, transparent);
 }
 
+.tl-hidden { margin: 0; padding: 13px 20px; border-top: 1px solid var(--border-soft); color: var(--muted-2); font-size: 11.5px; }
+
 @media (max-width: 760px) {
+  .tl-grid-layout { grid-template-columns: 132px minmax(0, 1fr); }
   .tl-key { display: none; }
+  .tl-name { font-size: 11px; padding: 0 11px; }
 }
