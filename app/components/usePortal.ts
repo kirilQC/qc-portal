@@ -31,6 +31,8 @@ export type Campaign = {
   positiveReplies: number;
   /** How many replies have been through sentiment analysis. Zero means the positive rate is unknown. */
   scoredReplies: number;
+  /** The newest message attributable to this campaign — where its run is taken to have ended. */
+  lastActivityAt: string | null;
   acceptanceRate: number; replyRate: number; positiveReplyRate: number;
 };
 

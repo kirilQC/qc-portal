@@ -65,14 +65,19 @@ body.light-mode {
 
 .cmp-head { padding: 20px 22px; }
 .cmp-head h2 { font-size: 22px; font-weight: 660; letter-spacing: -.03em; }
-.cmp-tools { display: flex; align-items: center; gap: 16px; }
-.cmp-sort { display: flex; align-items: center; gap: 8px; }
-.cmp-sort > span { font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--muted-2); }
-.cmp-sort select {
-  height: 30px; padding: 0 9px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--panel-2); color: var(--text); font-size: 12px; font-weight: 600; outline: none;
+.cmp-tools { display: flex; align-items: center; gap: 12px; }
+.cmp-sort-select {
+  height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel-2); color: var(--text); font-size: 12.5px; font-weight: 600; outline: none;
 }
-.cmp-sort select:focus { border-color: var(--accent); }
+.cmp-sort-select:focus { border-color: var(--accent); }
+
+.cmp-more {
+  display: block; width: 100%; padding: 15px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--accent); font-size: 12.5px; font-weight: 650;
+}
+.cmp-more:hover { background: var(--panel-2); }
 
 .cmp-legend {
   display: flex; flex-wrap: wrap; gap: 8px 18px;
@@ -128,4 +133,87 @@ body.light-mode {
   .cmp-rates { grid-template-columns: repeat(3, 1fr); width: 100%; }
   .cmp-rate { text-align: left; }
   .cmp-tools { flex-wrap: wrap; gap: 10px; }
+}
+
+/* ── Timeline ───────────────────────────────────────────────────────────────────────────────────── */
+
+.tl-panel { margin-top: 22px; }
+.tl-key { display: flex; gap: 16px; font-size: 10.5px; color: var(--muted-2); }
+.tl-key i { display: inline-block; margin-right: 7px; vertical-align: 0; }
+.tl-key-bar { width: 16px; height: 8px; border-radius: 3px; background: var(--f-accepted); }
+.tl-key-live {
+  width: 16px; height: 8px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--f-replied), color-mix(in srgb, var(--f-replied) 20%, transparent));
+}
+.tl-key-point {
+  width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg);
+  background: var(--f-reached); vertical-align: -1px;
+}
+
+/* The scroll container. The canvas inside is as wide as the date range needs. */
+.tl-scroll { overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; }
+.tl-canvas { position: relative; padding: 0 0 18px; }
+
+.tl-ruler { position: relative; height: 34px; border-bottom: 1px solid var(--border-soft); }
+.tl-month {
+  position: absolute; top: 11px;
+  padding-left: 9px;
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700;
+  color: var(--muted-2); white-space: nowrap;
+  border-left: 1px solid var(--border-soft);
+}
+
+/* Month rules and the today line sit behind the bars. */
+.tl-grid { position: absolute; inset: 34px 0 0; pointer-events: none; }
+.tl-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-soft); }
+.tl-today { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--accent) 70%, transparent); }
+.tl-today::before {
+  content: ""; position: absolute; top: -3px; left: -3px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+}
+
+.tl-rows { position: relative; padding-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+.tl-row { position: relative; height: 30px; }
+
+.tl-bar {
+  position: absolute; top: 0; height: 30px;
+  display: flex; align-items: center;
+  padding: 0 11px; border-radius: 7px;
+  background: color-mix(in srgb, var(--f-accepted) 26%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--f-accepted) 55%, transparent);
+  overflow: hidden;
+}
+.tl-bar-name {
+  font-size: 11.5px; font-weight: 620; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/*
+ * A running campaign has no end, so its bar does not draw one: the fill fades out to the right and the
+ * border stops. A squared-off edge would assert a finish date that does not exist.
+ */
+.tl-bar.is-live {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--f-replied) 30%, var(--panel)) 0%,
+    color-mix(in srgb, var(--f-replied) 30%, var(--panel)) 72%,
+    transparent 100%);
+  border-color: color-mix(in srgb, var(--f-replied) 55%, transparent);
+  border-right-color: transparent;
+}
+
+/* Launched, but nothing attributable happened — a point, not a duration. */
+.tl-point {
+  position: absolute; top: 8px;
+  width: 13px; height: 13px; transform: rotate(45deg);
+  background: var(--f-reached);
+  border: 1px solid color-mix(in srgb, var(--f-reached) 70%, #fff);
+  border-radius: 2px;
+}
+.tl-point-label {
+  position: absolute; top: 7px;
+  font-size: 11.5px; font-weight: 600; color: var(--muted);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .tl-key { display: none; }
 }

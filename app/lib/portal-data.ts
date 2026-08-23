@@ -56,6 +56,16 @@ export type CampaignRow = {
    * and that is a number a client would see and draw the wrong conclusion from.
    */
   scoredReplies: number;
+  /**
+   * The last message this campaign is known to have produced, either direction.
+   *
+   * `rr_campaign_stats` records when a campaign launched and nothing about when it stopped — HeyReach
+   * does not report an end date, and `status` only says whether it is active now. So the end of a run is
+   * inferred from the newest message attributable to it, which is the last evidence the campaign did
+   * anything. Null when no message could be attributed, in which case the timeline draws the launch as
+   * a point rather than inventing a duration.
+   */
+  lastActivityAt: string | null;
   acceptanceRate: number;
   replyRate: number;
   positiveReplyRate: number;
@@ -197,6 +207,8 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
   // Positive replies, and how many replies were scored at all, per campaign.
   const positiveByCampaign = new Map<string, number>();
   const scoredByCampaign = new Map<string, number>();
+  /** The newest message seen per campaign — where a run is taken to have ended. */
+  const lastActivityByCampaign = new Map<string, string>();
   const conversationIds = conversations.map((row) => str(row.id)).filter(Boolean);
   if (conversationIds.length) {
     const inbound = await scopedByConversation(
@@ -204,8 +216,9 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       "rr_messages",
       conversationIds,
       {
-        select: "sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
-        direction: "eq.inbound",
+        // Both directions: inbound carries the sentiment, and either can be the last sign of life.
+        select:
+          "direction,sent_at,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
         limit: "1000",
       },
       workspaceId,
@@ -215,6 +228,15 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       // Keyed on the lowercased, trimmed name, which is how Reply Radar joins these two sources.
       const key = str(message.campaign).trim().toLowerCase();
       if (!key) continue;
+
+      const sentAt = str(message.sent_at);
+      if (sentAt) {
+        const seen = lastActivityByCampaign.get(key);
+        if (!seen || sentAt > seen) lastActivityByCampaign.set(key, sentAt);
+      }
+
+      // Sentiment is a judgement about a reply, so only inbound messages carry one.
+      if (str(message.direction) !== "inbound") continue;
       const verdict = str(message.sentiment).toLowerCase();
       // A message carries a sentiment only once it has been classified; absent is not "neutral".
       if (verdict === "positive" || verdict === "neutral" || verdict === "negative") {
@@ -233,6 +255,7 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       const key = name.trim().toLowerCase();
       const positiveReplies = positiveByCampaign.get(key) ?? 0;
       const scoredReplies = scoredByCampaign.get(key) ?? 0;
+      const lastActivityAt = lastActivityByCampaign.get(key) ?? null;
       const senderIds = Array.isArray(row.sender_ids) ? row.sender_ids.map((value) => str(value)) : [];
 
       return {
@@ -247,6 +270,7 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
         replies,
         positiveReplies,
         scoredReplies,
+        lastActivityAt,
         acceptanceRate: rate(accepted, sent),
         // Reply and positive-reply rates are both out of *accepted*, not sent — nobody can reply to a
         // request that was never accepted. Reply Radar's convention, reproduced so the two agree.

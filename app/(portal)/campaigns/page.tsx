@@ -5,6 +5,7 @@
 
 import { Suspense, useMemo, useState } from "react";
 import ClientHead from "../../components/ClientHead";
+import Timeline from "./Timeline";
 import { usePortal, type Campaign } from "../../components/usePortal";
 import "./campaigns.css";
 
@@ -36,6 +37,7 @@ const SORTS: [Sort, string][] = [
 function Campaigns() {
   const { data, error, loading } = usePortal();
   const [sort, setSort] = useState<Sort>("launched");
+  const [visible, setVisible] = useState(10);
 
   const campaigns = data?.campaigns ?? [];
 
@@ -104,15 +106,16 @@ function Campaigns() {
         <div className="panel-head cmp-head">
           <h2>Campaigns</h2>
           <div className="cmp-tools">
-            <span>{campaigns.length} total</span>
-            <label className="cmp-sort">
-              <span>Sort</span>
-              <select value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
-                {SORTS.map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </label>
+            <select
+              className="cmp-sort-select"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as Sort)}
+              aria-label="Sort campaigns"
+            >
+              {SORTS.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -127,13 +130,23 @@ function Campaigns() {
         {sorted.length === 0 ? (
           <p className="empty">No campaigns yet.</p>
         ) : (
-          <div className="cmp-rows">
-            {sorted.map((row) => (
-              <CampaignRow key={row.campaignId || row.name} row={row} />
-            ))}
-          </div>
+          <>
+            <div className="cmp-rows">
+              {sorted.slice(0, visible).map((row) => (
+                <CampaignRow key={row.campaignId || row.name} row={row} />
+              ))}
+            </div>
+            {sorted.length > visible && (
+              <button className="cmp-more" onClick={() => setVisible((count) => count + 10)}>
+                See 10 more
+              </button>
+            )}
+          </>
         )}
       </div>
+
+      {/* Every campaign, not just the ten on screen — a timeline with a page break in it is not one. */}
+      <Timeline campaigns={campaigns} />
     </div>
   );
 }
