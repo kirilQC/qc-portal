@@ -205,9 +205,25 @@ export async function scopedByConversation(
   const safe = wanted.filter((id) => allowed.has(id));
   if (!safe.length) return [];
 
-  const search = new URLSearchParams(params);
-  search.set("conversation_id", `in.(${safe.join(",")})`);
-  return read(table, search);
+  /*
+   * Batched, because a URL has a length limit and a uuid is 36 characters.
+   *
+   * Three hundred conversation ids in one `in.(…)` is an 11KB query string, which servers and proxies
+   * refuse well before that — Reply Radar batches at twenty for exactly this reason. The batches run
+   * concurrently and the rows are concatenated, so the caller sees one list either way.
+   */
+  const BATCH = 20;
+  const batches: string[][] = [];
+  for (let i = 0; i < safe.length; i += BATCH) batches.push(safe.slice(i, i + BATCH));
+
+  const results = await Promise.all(
+    batches.map((batch) => {
+      const search = new URLSearchParams(params);
+      search.set("conversation_id", `in.(${batch.join(",")})`);
+      return read(table, search);
+    }),
+  );
+  return results.flat();
 }
 
 /**

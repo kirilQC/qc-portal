@@ -26,8 +26,10 @@ export type Overview = {
 
 export type Campaign = {
   campaignId: string; name: string; status: string | null; launchedAt: string | null;
+  senders: string[];
   totalLeads: number; connectionsSent: number; connectionsAccepted: number; replies: number;
-  acceptanceRate: number; replyRate: number;
+  positiveReplies: number;
+  acceptanceRate: number; replyRate: number; positiveReplyRate: number;
 };
 
 export type DailyPoint = { day: string; connectionsSent: number; connectionsAccepted: number; replies: number };

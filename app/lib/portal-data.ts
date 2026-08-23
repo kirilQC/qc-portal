@@ -23,7 +23,7 @@
  * and the headline figure is the confirmed one. Overstating attribution to a client is the fastest way
  * to lose the argument about what outbound is worth.
  */
-import { num, scopedRows, str, type Row } from "./db";
+import { num, scopedByConversation, scopedRows, str, type Row } from "./db";
 import type { Session } from "./session";
 
 export type ClientSummary = {
@@ -40,12 +40,16 @@ export type CampaignRow = {
   name: string;
   status: string | null;
   launchedAt: string | null;
+  /** The people working this campaign, by name — never the raw sender ids. */
+  senders: string[];
   totalLeads: number;
   connectionsSent: number;
   connectionsAccepted: number;
   replies: number;
+  positiveReplies: number;
   acceptanceRate: number;
   replyRate: number;
+  positiveReplyRate: number;
 };
 
 export type DailyPoint = { day: string; connectionsSent: number; connectionsAccepted: number; replies: number };
@@ -145,33 +149,96 @@ export async function listClients(session: Session): Promise<ClientSummary[]> {
 
 const rate = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
 
-function toCampaign(row: Row): CampaignRow {
-  const sent = num(row.connections_sent);
-  const accepted = num(row.connections_accepted);
-  const replies = num(row.replies);
-  return {
-    campaignId: str(row.campaign_id),
-    name: str(row.name),
-    status: row.status ? str(row.status) : null,
-    launchedAt: row.launched_at ? str(row.launched_at) : null,
-    totalLeads: num(row.total_leads),
-    connectionsSent: sent,
-    connectionsAccepted: accepted,
-    replies,
-    acceptanceRate: rate(accepted, sent),
-    // Out of accepted, not sent — see the module note.
-    replyRate: rate(replies, accepted),
-  };
-}
-
+/**
+ * Every campaign, with the people running it and how its replies actually read.
+ *
+ * ── Three reads, not one ────────────────────────────────────────────────────────────────────────
+ * `rr_campaign_stats` holds the funnel but only sender *ids*, and knows nothing about sentiment. Sender
+ * names live on `rr_daily_stats`, and whether a reply was positive is a judgement this system made and
+ * stored on the message. So the campaign row is assembled from three places.
+ *
+ * ── Why the sentiment read selects JSON paths rather than the row ───────────────────────────────
+ * `raw_data` on a message is the entire stored HeyReach payload. Selecting it to read one string out of
+ * it is how Reply Radar's analytics route once came to move megabytes to count sentiments; PostgREST
+ * will extract the two fields server-side, so this fetches two short strings per message instead.
+ */
 export async function getCampaigns(session: Session, workspaceId: string): Promise<CampaignRow[]> {
-  const rows = await scopedRows(
-    session,
-    "rr_campaign_stats",
-    { select: "campaign_id,name,status,launched_at,total_leads,connections_sent,connections_accepted,replies" },
-    workspaceId,
-  );
-  return rows.map(toCampaign).sort((a, b) => b.connectionsSent - a.connectionsSent);
+  const [rows, dailyRows, conversations] = await Promise.all([
+    scopedRows(
+      session,
+      "rr_campaign_stats",
+      {
+        select:
+          "campaign_id,name,status,launched_at,sender_ids,total_leads,connections_sent,connections_accepted,replies",
+      },
+      workspaceId,
+    ),
+    scopedRows(session, "rr_daily_stats", { select: "sender_id,sender_name", limit: "5000" }, workspaceId),
+    scopedRows(session, "rr_conversations", { select: "id", limit: "5000" }, workspaceId),
+  ]);
+
+  /** Sender id → the person's name, so a campaign never shows an id where a name belongs. */
+  const senderNames = new Map<string, string>();
+  for (const row of dailyRows) {
+    const id = str(row.sender_id);
+    const name = str(row.sender_name);
+    if (id && name && !senderNames.has(id)) senderNames.set(id, name);
+  }
+
+  // Positive replies, counted per campaign from the sentiment stored on each inbound message.
+  const positiveByCampaign = new Map<string, number>();
+  const conversationIds = conversations.map((row) => str(row.id)).filter(Boolean);
+  if (conversationIds.length) {
+    const inbound = await scopedByConversation(
+      session,
+      "rr_messages",
+      conversationIds,
+      {
+        select: "sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
+        direction: "eq.inbound",
+        limit: "1000",
+      },
+      workspaceId,
+    ).catch(() => [] as Row[]);
+
+    for (const message of inbound) {
+      // Keyed on the lowercased, trimmed name, which is how Reply Radar joins these two sources.
+      const key = str(message.campaign).trim().toLowerCase();
+      if (!key) continue;
+      if (str(message.sentiment).toLowerCase() === "positive") {
+        positiveByCampaign.set(key, (positiveByCampaign.get(key) ?? 0) + 1);
+      }
+    }
+  }
+
+  return rows
+    .map((row) => {
+      const name = str(row.name);
+      const sent = num(row.connections_sent);
+      const accepted = num(row.connections_accepted);
+      const replies = num(row.replies);
+      const positiveReplies = positiveByCampaign.get(name.trim().toLowerCase()) ?? 0;
+      const senderIds = Array.isArray(row.sender_ids) ? row.sender_ids.map((value) => str(value)) : [];
+
+      return {
+        campaignId: str(row.campaign_id),
+        name,
+        status: row.status ? str(row.status) : null,
+        launchedAt: row.launched_at ? str(row.launched_at) : null,
+        senders: senderIds.map((id) => senderNames.get(id)).filter((value): value is string => Boolean(value)),
+        totalLeads: num(row.total_leads),
+        connectionsSent: sent,
+        connectionsAccepted: accepted,
+        replies,
+        positiveReplies,
+        acceptanceRate: rate(accepted, sent),
+        // Reply and positive-reply rates are both out of *accepted*, not sent — nobody can reply to a
+        // request that was never accepted. Reply Radar's convention, reproduced so the two agree.
+        replyRate: rate(replies, accepted),
+        positiveReplyRate: rate(positiveReplies, accepted),
+      };
+    })
+    .sort((a, b) => b.connectionsSent - a.connectionsSent);
 }
 
 /** The daily series, account-wide. `sender_id=''` is Reply Radar's reserved account-total row. */

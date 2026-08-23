@@ -1,0 +1,73 @@
+/* Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
+   QC Portal — proprietary. Not licensed for redistribution or resale. */
+
+/*
+ * Campaigns as funnel rows.
+ *
+ * The four segment colours are a sequence, not four unrelated hues: neutral for the people who never
+ * responded, then accent, then green, then a brighter green for the positives. Reading left to right is
+ * reading the funnel, and the bar gets visibly warmer the further a campaign carried people.
+ */
+
+.cmp-bench {
+  display: flex; flex-wrap: wrap; gap: 8px 26px;
+  padding: 13px 18px; margin-bottom: 16px;
+  border: 1px solid var(--border); border-radius: 11px; background: var(--panel);
+  font-size: 12px; color: var(--muted);
+}
+.cmp-bench b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+.cmp-legend {
+  display: flex; flex-wrap: wrap; gap: 18px;
+  padding: 13px 20px 0;
+  font-size: 10.5px; color: var(--muted-2);
+}
+.cmp-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; vertical-align: -1px; }
+
+/* The segment palette, shared by the legend and the bars. */
+.k-none { background: color-mix(in srgb, var(--muted-2) 32%, var(--panel-2)); }
+.k-accepted { background: var(--accent); }
+.k-replied { background: var(--green); }
+.k-positive { background: color-mix(in srgb, var(--green) 70%, #ffffff); }
+
+.cmp-rows { display: flex; flex-direction: column; }
+
+.cmp-row {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex; flex-direction: column; gap: 13px;
+}
+.cmp-row:last-child { border-bottom: 0; }
+.cmp-row:hover { background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+
+.cmp-row-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.cmp-id { min-width: 0; flex: 1; }
+.cmp-id h3 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 14.5px; font-weight: 650; letter-spacing: -.01em; }
+.cmp-id p { margin: 5px 0 0; color: var(--muted-2); font-size: 11.5px; line-height: 1.5; }
+.cmp-id p b { color: var(--muted); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* The three rates, on a fixed grid so they line up down the page however long a campaign name is. */
+.cmp-rates { display: grid; grid-template-columns: repeat(3, 92px); gap: 14px; flex: none; }
+.cmp-rate { display: flex; flex-direction: column; gap: 3px; text-align: right; }
+.cmp-rate-label { font-size: 8.5px; letter-spacing: .11em; text-transform: uppercase; font-weight: 700; color: var(--muted-2); }
+.cmp-rate strong { font-size: 19px; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.cmp-rate small { font-size: 10px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+.cmp-rate.positive strong { color: var(--green); }
+
+.cmp-funnel {
+  display: flex; height: 26px; width: 100%;
+  border-radius: 6px; overflow: hidden; background: var(--panel-2);
+}
+.cmp-funnel > span {
+  display: block; height: 100%;
+  /* A one-person segment on a two-thousand-person campaign is a hairline; keep it visible. */
+  min-width: 2px;
+  transition: filter .14s ease;
+}
+.cmp-row:hover .cmp-funnel > span { filter: brightness(1.12); }
+
+@media (max-width: 760px) {
+  .cmp-row-head { gap: 14px; }
+  .cmp-rates { grid-template-columns: repeat(3, 1fr); width: 100%; }
+  .cmp-rate { text-align: left; }
+}
