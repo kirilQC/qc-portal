@@ -2,67 +2,86 @@
 // QC Portal — proprietary. Not licensed for redistribution or resale.
 
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect -- the clock is read once on mount; it cannot be
-   read during render without making the window depend on when React re-rendered. */
+/* eslint-disable react-hooks/set-state-in-effect -- the clock and the panel width are read on mount;
+   reading either during render would make the scale depend on when React happened to re-render. */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Campaign } from "../../components/usePortal";
 
 /**
- * When each campaign ran, on one horizontal scale.
+ * When each campaign ran, on one scrollable scale.
  *
- * ── Why a name column rather than labels on the bars ────────────────────────────────────────────
- * The first version put a diamond on the canvas with its label floating to the right of it, which meant
- * nothing lined up: a reader tracking a campaign across the chart had no row to follow, and short
- * campaigns became a staircase of text at different heights. Names now live in a fixed column that does
- * not scroll away, every row is a banded lane, and the grid runs the full width of the panel rather than
- * stopping wherever the last bar happened to end.
+ * ── The range is a zoom, not a filter ───────────────────────────────────────────────────────────
+ * Every campaign is always on the chart. What the control changes is how much time one screen covers:
+ * "1M" means a month fills the viewport, so the detail is month-by-month and January is still there,
+ * several screens to the left. That is the difference between a magnification and a date filter, and
+ * the first version had it wrong — it dropped everything outside a window, which is why twenty-four
+ * campaigns disappeared at the default setting.
  *
  * ── Where the end of a run comes from ───────────────────────────────────────────────────────────
- * HeyReach records when a campaign launched and never when it stopped, so an end has to be inferred.
- * The newest message attributable to a campaign is the last evidence it did anything. Three cases, drawn
- * differently rather than flattened into one confident bar:
+ * HeyReach records when a campaign launched and never when it stopped, so an end has to be inferred:
+ * the newest message attributable to a campaign is the last evidence it did anything. A campaign still
+ * marked active runs to today, and its bar fades out rather than drawing an end it does not have.
  *
- *   · still active   → the bar runs to today and fades out, because it has not ended
- *   · has activity   → a closed bar from launch to the last message
- *   · launch only    → a dot on its own lane, because a duration would be invented
- *
- * ── Window and scroll, which are different controls ─────────────────────────────────────────────
- * The range picks *how much time* is in play; the horizontal scroll moves through it. They are separate
- * because one screen cannot hold a year at a density where a two-week campaign is still a bar you can
- * read a name inside. So the canvas is laid out at a fixed pixels-per-day and scrolls, but never
- * narrower than the panel — which is what stops the axis ending in the middle of the page as it did
- * before. The name column is sticky, so it stays put while the dates move under it.
+ * ── The runtime figure on each bar ──────────────────────────────────────────────────────────────
+ * Reply Radar's arithmetic: a sender sends twenty-five connection requests a day, so a campaign's
+ * planned length is its lead count divided by senders times twenty-five. Both numbers are on the bar
+ * because "ran six weeks" and "was always going to take six weeks" are different facts, and the gap
+ * between them is how a stalled campaign shows itself.
  */
-type Range = "1m" | "3m" | "6m" | "1y" | "all";
+type Zoom = "1m" | "3m" | "6m" | "1y";
 
-/** key, label, days in the window, pixels per day at that range. */
-const RANGES: [Range, string, number, number][] = [
-  ["1m", "1M", 30, 34],
-  ["3m", "3M", 91, 15],
-  ["6m", "6M", 182, 9],
-  ["1y", "1Y", 365, 5.5],
-  ["all", "All", 0, 4],
+/** key, label, days that fill one screen at that zoom. */
+const ZOOMS: [Zoom, string, number][] = [
+  ["1m", "1M", 30],
+  ["3m", "3M", 91],
+  ["6m", "6M", 182],
+  ["1y", "1Y", 365],
 ];
 
 const DAY_MS = 86_400_000;
+/** Reply Radar's constant: one sender sends twenty-five connection requests a day. */
+const PER_SENDER_PER_DAY = 25;
+
 const utcDay = (time: number) => {
   const date = new Date(time);
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 };
 
+/** The days a campaign needs to work its whole list, at twenty-five requests per sender per day. */
+function plannedDays(row: Campaign): number | null {
+  const senders = row.senders.length;
+  const leads = Math.max(row.totalLeads, row.connectionsSent);
+  if (!senders || !leads) return null;
+  return Math.max(1, Math.ceil(leads / (senders * PER_SENDER_PER_DAY)));
+}
+
 export default function Timeline({ campaigns }: { campaigns: Campaign[] }) {
-  const [range, setRange] = useState<Range>("1m");
-  /*
-   * "Now", pinned on mount.
-   *
-   * Reading the clock during render makes the window depend on when React happened to re-render, so a
-   * bar could shift under a hover. Fixed at mount, the window only moves on a reload or a range change.
-   */
+  const [zoom, setZoom] = useState<Zoom>("1m");
   const [now, setNow] = useState(0);
+  const [viewport, setViewport] = useState(0);
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const anchored = useRef("");
+
   useEffect(() => setNow(Date.now()), []);
 
+  /*
+   * Pixels-per-day is derived from the panel's actual width, so a zoom level means the same span of
+   * time on a laptop as on a wide monitor rather than a different one on each.
+   */
+  useEffect(() => {
+    const box = scroller.current;
+    if (!box) return;
+    const measure = () => setViewport(box.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+
   const model = useMemo(() => {
+    if (!now || !viewport) return null;
+
     const dated = campaigns
       .filter((row) => row.launchedAt && !Number.isNaN(Date.parse(row.launchedAt)))
       .map((row) => {
@@ -70,91 +89,57 @@ export default function Timeline({ campaigns }: { campaigns: Campaign[] }) {
         const active = (row.status ?? "").toLowerCase() === "active";
         const last = row.lastActivityAt ? Date.parse(row.lastActivityAt) : NaN;
         const hasActivity = !Number.isNaN(last) && last > start;
-        return {
-          row,
-          start,
-          end: active ? now : hasActivity ? last : start,
-          active,
-          isPoint: !active && !hasActivity,
-        };
-      });
+        return { row, start, end: active ? now : hasActivity ? last : start, active, isPoint: !active && !hasActivity };
+      })
+      // Oldest first, so the row order is stable while scrolling forward through time.
+      .sort((a, b) => a.start - b.start);
 
     if (!dated.length) return null;
 
-    const earliest = Math.min(...dated.map((entry) => entry.start));
-    const latest = Math.max(...dated.map((entry) => entry.end), now);
-    const spec = RANGES.find(([key]) => key === range);
-    const days = spec?.[2] ?? 30;
-    const perDay = spec?.[3] ?? 34;
+    // The whole history, always. The zoom sets the density; it never decides what is included.
+    const first = new Date(Math.min(...dated.map((entry) => entry.start)));
+    const scaleStart = Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 1);
+    const scaleEnd = utcDay(Math.max(...dated.map((entry) => entry.end), now)) + 10 * DAY_MS;
 
-    // The window: the last N days up to the newest thing on the chart, or everything.
-    const windowEnd = utcDay(latest) + DAY_MS;
-    const windowStart = days === 0 ? utcDay(earliest) : Math.max(utcDay(earliest), windowEnd - days * DAY_MS);
-    const span = Math.max(1, windowEnd - windowStart);
+    const days = ZOOMS.find(([key]) => key === zoom)?.[2] ?? 30;
+    const perDay = viewport / days;
+    const at = (time: number) => ((time - scaleStart) / DAY_MS) * perDay;
 
-    // Only campaigns whose run overlaps the window, newest launch first.
-    const rows = dated
-      .filter((entry) => entry.end >= windowStart && entry.start <= windowEnd)
-      .sort((a, b) => b.start - a.start);
-
-    /** Position in pixels from the left of the canvas, clamped to the window. */
-    const at = (time: number) => ((Math.min(Math.max(time, windowStart), windowEnd) - windowStart) / DAY_MS) * perDay;
-    const canvasWidth = (span / DAY_MS) * perDay;
-
-    /*
-     * Ticks. A month window is read in weeks and a year in months, so the unit follows the range rather
-     * than being fixed — a year of week labels is unreadable, and a month of month labels says nothing.
-     */
-    const ticks: { label: string; left: number }[] = [];
-    if (days !== 0 && days <= 31) {
-      for (let time = windowStart; time < windowEnd; time += 7 * DAY_MS) {
-        ticks.push({
-          label: new Date(time).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
-          left: at(time),
-        });
+    // Month ticks always; day ticks inside them only when there is room to read them.
+    const ticks: { label: string; left: number; month: boolean }[] = [];
+    for (let cursor = scaleStart; cursor < scaleEnd; ) {
+      const date = new Date(cursor);
+      ticks.push({
+        label: date.toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }),
+        left: at(cursor),
+        month: true,
+      });
+      const nextMonth = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
+      if (perDay > 11) {
+        for (let week = cursor + 7 * DAY_MS; week < nextMonth; week += 7 * DAY_MS) {
+          ticks.push({ label: String(new Date(week).getUTCDate()), left: at(week), month: false });
+        }
       }
-    } else {
-      const first = new Date(windowStart);
-      let cursor = Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 1);
-      if (cursor < windowStart) cursor = Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1);
-      while (cursor < windowEnd) {
-        const date = new Date(cursor);
-        ticks.push({
-          label: date.toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }),
-          left: at(cursor),
-        });
-        cursor = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
-      }
+      cursor = nextMonth;
     }
 
-    return {
-      rows,
-      ticks,
-      at,
-      canvasWidth,
-      today: now >= windowStart && now <= windowEnd ? at(now) : null,
-      hidden: dated.length - rows.length,
-    };
-  }, [campaigns, range, now]);
+    return { rows: dated, ticks, at, width: at(scaleEnd), today: at(now) };
+  }, [campaigns, zoom, now, viewport]);
 
-  const control = (
-    <div className="tl-range">
-      {RANGES.map(([key, label]) => (
-        <button key={key} className={range === key ? "on" : ""} onClick={() => setRange(key)}>
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-
-  if (!model) {
-    return (
-      <div className="panel tl-panel">
-        <div className="panel-head cmp-head"><h2>Timeline</h2></div>
-        <p className="empty">No campaign has a launch date recorded, so there is nothing to place on a timeline.</p>
-      </div>
-    );
-  }
+  /*
+   * Open on today, and re-anchor whenever the zoom changes.
+   *
+   * Keeping the pixel offset across a zoom change lands somewhere arbitrary, because the same offset is
+   * a different date at every magnification. Today is the one anchor that always means something.
+   */
+  useEffect(() => {
+    const box = scroller.current;
+    if (!box || !model) return;
+    const key = `${zoom}:${Math.round(model.width)}`;
+    if (anchored.current === key) return;
+    anchored.current = key;
+    box.scrollLeft = Math.max(0, model.today - box.clientWidth * 0.75);
+  }, [model, zoom]);
 
   return (
     <div className="panel tl-panel">
@@ -166,84 +151,86 @@ export default function Timeline({ campaigns }: { campaigns: Campaign[] }) {
             <span><i className="tl-key-live" />Running</span>
             <span><i className="tl-key-dot" />Launch only</span>
           </div>
-          {control}
+          <div className="tl-range">
+            {ZOOMS.map(([key, label]) => (
+              <button
+                key={key}
+                className={zoom === key ? "on" : ""}
+                onClick={() => setZoom(key)}
+                title={`${label} across the screen`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {model.rows.length === 0 ? (
-        <p className="empty">Nothing ran in this window. Try a longer range.</p>
-      ) : (
-        <>
-          <div className="tl-grid-layout">
-            {/* The name column. Fixed, so it never scrolls away from its own row. */}
-            <div className="tl-names">
-              <div className="tl-names-head" />
-              {model.rows.map(({ row }) => (
-                <div className="tl-name" key={row.campaignId || row.name} title={row.name}>
-                  {row.name || "Untitled campaign"}
-                </div>
+      {/* Always rendered, so it can be measured before there is anything to draw inside it. */}
+      <div className="tl-scroll" ref={scroller}>
+        {!model ? (
+          <p className="loading">Drawing the timeline…</p>
+        ) : (
+          <div className="tl-canvas" style={{ width: model.width }}>
+            <div className="tl-ruler">
+              {model.ticks.map((tick) => (
+                <span
+                  key={`${tick.label}-${Math.round(tick.left)}`}
+                  className={`tl-tick ${tick.month ? "is-month" : "is-day"}`}
+                  style={{ left: tick.left }}
+                >
+                  {tick.label}
+                </span>
               ))}
             </div>
 
-            <div className="tl-chart">
-              <div className="tl-canvas" style={{ width: model.canvasWidth }}>
-                <div className="tl-ruler">
-                  {model.ticks.map((tick) => (
-                    <span key={`${tick.label}-${tick.left}`} className="tl-tick" style={{ left: tick.left }}>
-                      {tick.label}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="tl-lanes">
-                  {/* Rules and the today line span every lane, behind the bars. */}
-                  <div className="tl-rules" aria-hidden="true">
-                    {model.ticks.map((tick) => (
-                      <span key={`rule-${tick.left}`} className="tl-rule" style={{ left: tick.left }} />
-                    ))}
-                    {model.today !== null && <span className="tl-today" style={{ left: model.today }} />}
-                  </div>
-
-                  {model.rows.map(({ row, start, end, active, isPoint }) => {
-                  const left = model.at(start);
-                  const width = Math.max(model.at(end) - left, 6);
-                  const days = Math.max(1, Math.round((end - start) / DAY_MS));
-                  const label = `${row.name} · launched ${new Date(start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${
-                    isPoint ? " · no activity recorded" : active ? ` · running ${days} days` : ` · ran ${days} days`
-                  }`;
-
-                  return (
-                    <div className="tl-lane" key={row.campaignId || row.name}>
-                      {isPoint ? (
-                        <>
-                          <span className="tl-dot" style={{ left }} title={label} />
-                          <span className="tl-dot-label" style={{ left: left + 13 }}>{row.name}</span>
-                        </>
-                      ) : (
-                        <span
-                          className={`tl-bar ${active ? "is-live" : ""}`}
-                          style={{ left, width }}
-                          title={label}
-                        >
-                          {/* The name rides inside its own bar, which is where the eye already is. */}
-                          <span className="tl-bar-name">{row.name}</span>
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-                </div>
+            <div className="tl-lanes">
+              <div className="tl-rules" aria-hidden="true">
+                {model.ticks.map((tick) => (
+                  <span
+                    key={`rule-${Math.round(tick.left)}`}
+                    className={`tl-rule ${tick.month ? "is-month" : ""}`}
+                    style={{ left: tick.left }}
+                  />
+                ))}
+                <span className="tl-today" style={{ left: model.today }} />
               </div>
+
+              {model.rows.map(({ row, start, end, active, isPoint }) => {
+                const left = model.at(start);
+                const width = Math.max(model.at(end) - left, 10);
+                const ran = Math.max(1, Math.round((end - start) / DAY_MS));
+                const planned = plannedDays(row);
+                const senders = row.senders.length;
+                const title = `${row.name} · launched ${new Date(start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${
+                  isPoint ? " · no activity recorded" : active ? ` · running, ${ran} days so far` : ` · ran ${ran} days`
+                }${planned ? ` · ${planned} days planned at ${senders} sender${senders === 1 ? "" : "s"} × 25/day` : ""}`;
+
+                return (
+                  <div className="tl-lane" key={row.campaignId || row.name}>
+                    {isPoint ? (
+                      <>
+                        <span className="tl-dot" style={{ left }} title={title} />
+                        <span className="tl-dot-label" style={{ left: left + 14 }}>
+                          {row.name}
+                          {planned ? <em>{planned}d planned</em> : null}
+                        </span>
+                      </>
+                    ) : (
+                      <span className={`tl-bar ${active ? "is-live" : ""}`} style={{ left, width }} title={title}>
+                        <span className="tl-bar-name">{row.name}</span>
+                        <span className="tl-bar-run">
+                          {ran}d{planned ? ` / ${planned}d` : ""}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-
-          {model.hidden > 0 && (
-            <p className="tl-hidden">
-              {model.hidden} campaign{model.hidden === 1 ? "" : "s"} ran outside this window.
-            </p>
-          )}
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }
