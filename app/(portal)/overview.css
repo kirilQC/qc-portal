@@ -1,0 +1,128 @@
+/* Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
+   QC Portal — proprietary. Not licensed for redistribution or resale. */
+
+/*
+ * The client overview.
+ *
+ * The briefing gets the only tinted surface on the page, because it is the one thing that should be
+ * read rather than scanned — everything below it is instrumentation and stays on the flat panel. The
+ * funnel reuses the campaign page's colour ramp so a reader who has seen one recognises the other.
+ */
+
+.ov-wide { max-width: 1560px; }
+
+/* ── The briefing ───────────────────────────────────────────────────────────────────────────────── */
+
+.ov-brief {
+  padding: 26px 28px; margin-bottom: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: 14px;
+  background: linear-gradient(152deg, color-mix(in srgb, var(--accent) 10%, var(--panel)), var(--panel));
+}
+.ov-brief-eyebrow {
+  font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--accent);
+}
+/* Set as prose: a comfortable measure and a real line-height, because this is a sentence. */
+.ov-brief p { margin: 12px 0 0; max-width: 68ch; font-size: 18px; line-height: 1.62; color: var(--text); }
+.ov-brief b { font-weight: 700; color: var(--text); }
+.ov-quiet { color: var(--muted); }
+.ov-brief-foot {
+  display: flex; gap: 8px 22px; flex-wrap: wrap;
+  margin-top: 19px; padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  font-size: 12px; color: var(--muted);
+}
+.ov-brief-foot b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* ── Sparkline tiles ────────────────────────────────────────────────────────────────────────────── */
+
+.ov-sparks { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 13px; margin-bottom: 16px; }
+.ov-spark {
+  display: flex; flex-direction: column; gap: 9px;
+  padding: 16px 17px; min-height: 122px;
+  border: 1px solid var(--border); border-radius: 13px; background: var(--panel);
+}
+.ov-spark > span { font-size: 11.5px; color: var(--muted); }
+.ov-spark strong { font-size: 26px; font-weight: 650; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.ov-spark em { font-style: normal; font-size: 10.5px; color: var(--muted-2); margin-top: auto; }
+.ov-spark-bars { display: flex; align-items: flex-end; gap: 3px; height: 30px; margin-top: auto; }
+.ov-spark-bars i { flex: 1; border-radius: 2px 2px 0 0; }
+/* Each tile's shape wears the colour of the funnel stage it measures. */
+.ov-spark-bars.is-reached i { background: color-mix(in srgb, var(--f-reached) 85%, transparent); }
+.ov-spark-bars.is-accepted i { background: color-mix(in srgb, var(--f-accepted) 75%, transparent); }
+.ov-spark-bars.is-replied i { background: color-mix(in srgb, var(--f-replied) 80%, transparent); }
+.ov-spark-bars.is-positive i { background: color-mix(in srgb, var(--f-positive) 80%, transparent); }
+
+/* ── The two columns ────────────────────────────────────────────────────────────────────────────── */
+
+.ov-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.85fr); gap: 16px; align-items: start; }
+.ov-column { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ov-column .panel + .panel { margin-top: 0; }
+
+/* ── The all-time funnel ────────────────────────────────────────────────────────────────────────── */
+
+.ov-funnel { display: flex; flex-direction: column; gap: 5px; padding: 18px 20px; }
+.ov-fstep { display: grid; grid-template-columns: 132px minmax(0, 1fr) 108px; align-items: center; gap: 13px; }
+.ov-fstep > span { font-size: 12px; color: var(--muted); }
+.ov-fbar {
+  height: 30px; border-radius: 6px;
+  display: flex; align-items: center; padding: 0 11px;
+  font-size: 12.5px; font-weight: 650; color: #0a0b0f; font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden;
+}
+/* The darkest band needs light text on it; the rest are bright enough to take dark. */
+.ov-fbar.k-untouched, .ov-fbar.k-reached { color: var(--text); }
+.ov-fstep > em { font-style: normal; font-size: 11px; color: var(--muted-2); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Lists ──────────────────────────────────────────────────────────────────────────────────────── */
+
+.ov-list { display: flex; flex-direction: column; }
+.ov-lrow {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 13px 20px; border-bottom: 1px solid var(--border-soft);
+}
+.ov-lrow:last-child { border-bottom: 0; }
+.ov-lrow strong { display: block; font-size: 12.5px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-lrow small { display: block; margin-top: 3px; font-size: 10.5px; color: var(--muted-2); }
+.ov-lrow data { font-size: 14px; font-weight: 700; color: var(--f-positive); font-variant-numeric: tabular-nums; }
+
+.ov-mini-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ov-mini { display: flex; flex-direction: column; gap: 9px; padding: 17px 19px; min-height: 108px; }
+.ov-mini > span { font-size: 11.5px; color: var(--muted); }
+.ov-mini strong { font-size: 26px; font-weight: 650; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.ov-mini em { font-style: normal; font-size: 10.5px; color: var(--muted-2); margin-top: auto; }
+
+/* ── The activity feed ──────────────────────────────────────────────────────────────────────────── */
+
+.ov-feed-panel { position: sticky; top: 0; display: flex; flex-direction: column; max-height: calc(100vh - 130px); }
+.ov-feed { flex: 1; min-height: 0; overflow-y: auto; }
+.ov-event {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: start; gap: 12px;
+  padding: 13px 18px; border-bottom: 1px solid var(--border-soft);
+}
+.ov-event:last-child { border-bottom: 0; }
+.ov-dot {
+  display: grid; place-items: center; flex: none;
+  width: 26px; height: 26px; border-radius: 8px; font-size: 11px; line-height: 1;
+}
+/* Kind, encoded in colour as well as glyph, so a screen of replies and a launch are distinguishable. */
+.ov-dot.is-positive { background: color-mix(in srgb, var(--f-positive) 20%, transparent); color: var(--f-positive); }
+.ov-dot.is-reply { background: color-mix(in srgb, var(--f-replied) 20%, transparent); color: var(--f-replied); }
+.ov-dot.is-launch { background: color-mix(in srgb, var(--f-accepted) 24%, transparent); color: var(--f-accepted); }
+.ov-dot.is-meeting { background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); }
+.ov-event-words { min-width: 0; }
+.ov-event-words strong { display: block; font-size: 12.5px; font-weight: 620; line-height: 1.35; }
+.ov-event-words small { display: block; margin-top: 3px; font-size: 11px; color: var(--muted-2); line-height: 1.45; }
+.ov-event time { font-size: 10.5px; color: var(--muted-2); white-space: nowrap; padding-top: 1px; }
+
+@media (max-width: 1100px) {
+  .ov-grid { grid-template-columns: minmax(0, 1fr); }
+  .ov-feed-panel { position: static; max-height: 560px; }
+}
+@media (max-width: 700px) {
+  .ov-brief { padding: 20px; }
+  .ov-brief p { font-size: 16px; }
+  .ov-fstep { grid-template-columns: 96px minmax(0, 1fr); }
+  .ov-fstep > em { display: none; }
+  .ov-mini-row { grid-template-columns: 1fr; }
+}
