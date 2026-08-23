@@ -29,6 +29,7 @@ const ICONS: Record<string, string> = {
   overview: "M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z",
   campaigns: "M4 19V9m5 10V5m5 14v-7m5 7V8",
   replies: "M20 15a3 3 0 0 1-3 3H8l-4 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z",
+  database: "M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
   meetings: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4",
   deals: "M3 7h18v12H3zM3 11h18M8 7V5h8v2",
   admin: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9 2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2 2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1z",
@@ -63,8 +64,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   const items: { href: string; label: string; icon: string }[] = [
     { href: "/", label: "Overview", icon: "overview" },
+    { href: "/inbox", label: "Inbox", icon: "replies" },
+    { href: "/database", label: "Database", icon: "database" },
     { href: "/campaigns", label: "Campaigns", icon: "campaigns" },
-    { href: "/replies", label: "Replies", icon: "replies" },
     { href: "/meetings", label: "Meetings", icon: "meetings" },
     { href: "/deals", label: "Pipeline", icon: "deals" },
   ];

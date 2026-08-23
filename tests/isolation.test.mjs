@@ -22,14 +22,28 @@ const CLIENT_READABLE = {
   rr_daily_stats: "workspace_id",
   rr_conversations: "workspace_id",
   rr_leads: "workspace_id",
+  rr_lead_index: "workspace_id",
   rr_meetings: "workspace_id",
   rr_deals: "workspace_id",
+  rr_sync_runs: "workspace_id",
+  rr_webhook_events: "workspace_id",
 };
-const STAFF_ONLY = new Set(["qc_portal_users", "rr_onboarding_template_steps", "rr_app_config"]);
+const STAFF_ONLY = new Set([
+  "qc_portal_users",
+  "rr_onboarding_template_steps",
+  "rr_app_config",
+  "rr_global_config",
+  "rr_granola_heartbeats",
+  "rr_profiles",
+]);
+const CONVERSATION_CHILDREN = new Set(["rr_messages", "rr_scores"]);
 
 /** The scoping decision from db.ts, isolated: what filter would this read actually carry? */
 function scopeFor(session, table, params = {}, viewing = null) {
   if (!session) throw new Error("A database read was attempted without a session.");
+  if (CONVERSATION_CHILDREN.has(table)) {
+    throw new Error(`${table} must be read through scopedByConversation, which proves ownership first.`);
+  }
   const tenancyColumn = CLIENT_READABLE[table];
   if (session.role === "client") {
     if (STAFF_ONLY.has(table) || !tenancyColumn) throw new Error(`A client session may not read ${table}.`);
@@ -110,6 +124,41 @@ test("staff viewing one client get exactly the scoping that client would get", (
   assert.equal(staffView, clientView);
 });
 
+test("messages and scores cannot be read through the ordinary scoped path at all", () => {
+  // They have no workspace_id, so there is nothing to filter on. Refused for staff as well as clients,
+  // because an accidentally unscoped read of every client's messages is the worst case in the app.
+  for (const table of ["rr_messages", "rr_scores"]) {
+    assert.throws(() => scopeFor(willow, table, { select: "*" }), /scopedByConversation/);
+    assert.throws(() => scopeFor(staff, table, { select: "*" }), /scopedByConversation/);
+  }
+});
+
+test("conversation ownership is proved by a scoped read, so foreign ids drop out", () => {
+  // Reproduces the filtering step of scopedByConversation: what the proof read can return is bounded
+  // by the session, and anything absent from it is discarded before messages are fetched.
+  const conversationsOwnedByWillow = new Set(["c-w1", "c-w2"]);
+  const asked = ["c-w1", "c-bluevia-1", "c-bluevia-2"];
+
+  const proof = asked.filter((id) => conversationsOwnedByWillow.has(id)); // the scoped read
+  const safe = asked.filter((id) => new Set(proof).has(id));
+
+  assert.deepEqual(safe, ["c-w1"]);
+  assert.ok(!safe.includes("c-bluevia-1"), "a foreign conversation id survived the ownership proof");
+});
+
+test("the new tables added for the inbox and database views are scoped like the rest", () => {
+  for (const table of ["rr_lead_index", "rr_sync_runs", "rr_webhook_events"]) {
+    const query = scopeFor(willow, table, { select: "*" });
+    assert.ok(query.includes("workspace_id=eq.ws-willow"), `${table} was not scoped`);
+  }
+});
+
+test("global tables stay staff-only", () => {
+  for (const table of ["rr_granola_heartbeats", "rr_global_config", "rr_profiles"]) {
+    assert.throws(() => scopeFor(willow, table, { select: "*" }), /may not read/);
+  }
+});
+
 test("the allowlists here still match the ones in db.ts", () => {
   // The guard against this file drifting away from the code it is asserting about.
   const source = readFileSync(new URL("../app/lib/db.ts", import.meta.url), "utf8");
@@ -119,4 +168,9 @@ test("the allowlists here still match the ones in db.ts", () => {
   for (const table of STAFF_ONLY) {
     assert.ok(source.includes(`"${table}"`), `${table} is no longer staff-only in db.ts`);
   }
+  for (const table of CONVERSATION_CHILDREN) {
+    assert.ok(source.includes(`"${table}"`), `${table} is no longer a conversation child in db.ts`);
+  }
+  // The refusal itself, not just the list — the list is inert if scopedRows stops honouring it.
+  assert.ok(source.includes("must be read through scopedByConversation"), "the conversation-child refusal is gone");
 });

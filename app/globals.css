@@ -133,6 +133,12 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 .client-logo img { width: 100%; height: 100%; object-fit: cover; }
 .client-head h1 { font-size: 32px; }
 .client-head p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+/* The way back out of a client, for staff only. Above the name, so it reads as the level above. */
+.back-link {
+  display: inline-block; margin-bottom: 7px;
+  font-size: 12px; color: var(--muted); text-decoration: none;
+}
+.back-link:hover { color: var(--text); }
 
 /* ── Cards and metrics ──────────────────────────────────────────────────────────────────────────── */
 
@@ -234,6 +240,28 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
   color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--coral) 30%, transparent);
 }
+
+/* ── Staff ops view ─────────────────────────────────────────────────────────────────────────────── */
+
+.ops-tabs { display: flex; gap: 6px; margin-bottom: 22px; }
+.ops-tab {
+  padding: 7px 14px; border-radius: 9px; font-size: 12px; font-weight: 600;
+  color: var(--muted); text-decoration: none; border: 1px solid var(--border);
+}
+.ops-tab:hover { color: var(--text); }
+.ops-tab.active { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--text); border-color: transparent; }
+
+.pill.health-healthy { color: var(--green); background: color-mix(in srgb, var(--green) 15%, transparent); }
+.pill.health-attention { color: var(--amber); background: color-mix(in srgb, var(--amber) 15%, transparent); }
+.pill.health-missing { color: var(--coral); background: color-mix(in srgb, var(--coral) 15%, transparent); }
+
+.ops-config {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px 26px; padding: 18px 20px;
+}
+.ops-config-row { display: flex; justify-content: space-between; gap: 14px; font-size: 12px; border-bottom: 1px solid var(--border-soft); padding-bottom: 7px; }
+.ops-config-row span { color: var(--muted-2); }
+.ops-config-row strong { font-weight: 600; text-align: right; word-break: break-word; }
 
 /* ── Chart ──────────────────────────────────────────────────────────────────────────────────────── */
 

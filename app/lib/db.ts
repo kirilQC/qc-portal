@@ -41,12 +41,32 @@ const CLIENT_READABLE: Record<string, string> = {
   rr_daily_stats: "workspace_id",
   rr_conversations: "workspace_id",
   rr_leads: "workspace_id",
+  rr_lead_index: "workspace_id",
   rr_meetings: "workspace_id",
   rr_deals: "workspace_id",
+  rr_sync_runs: "workspace_id",
+  rr_webhook_events: "workspace_id",
 };
 
 /** Tables only a staff session may read. Never reachable from a client session, filtered or not. */
-const STAFF_ONLY = new Set(["qc_portal_users", "rr_onboarding_template_steps", "rr_app_config"]);
+const STAFF_ONLY = new Set([
+  "qc_portal_users",
+  "rr_onboarding_template_steps",
+  "rr_app_config",
+  "rr_global_config",
+  "rr_granola_heartbeats",
+  "rr_profiles",
+]);
+
+/**
+ * Tables that carry no `workspace_id` of their own and hang off a conversation instead.
+ *
+ * `rr_messages` and `rr_scores` are reached only through `conversation_id`, so there is no column on
+ * them to filter by — which makes them exactly the shape of table that leaks. They are readable only
+ * via {@link scopedByConversation}, which proves ownership of every conversation id through a scoped
+ * read *before* touching them, and never from {@link scopedRows}.
+ */
+const CONVERSATION_CHILDREN = new Set(["rr_messages", "rr_scores"]);
 
 export type Row = Record<string, unknown>;
 
@@ -95,6 +115,13 @@ export async function scopedRows(
 ): Promise<Row[]> {
   if (!session) throw new Error("A database read was attempted without a session.");
 
+  // Conversation children have no tenancy column, so scoping them here is impossible by construction.
+  // Refused for staff too: a staff read that silently spans every client's messages is not something
+  // any caller should get by accident.
+  if (CONVERSATION_CHILDREN.has(table)) {
+    throw new Error(`${table} must be read through scopedByConversation, which proves ownership first.`);
+  }
+
   const tenancyColumn = CLIENT_READABLE[table];
   if (session.role === "client") {
     if (STAFF_ONLY.has(table) || !tenancyColumn) {
@@ -118,6 +145,53 @@ export async function scopedRows(
   }
 
   const { url, key } = config();
+  const response = await fetch(`${url}/rest/v1/${table}?${search.toString()}`, {
+    headers: authHeaders(key),
+    cache: "no-store",
+  });
+  if (!response.ok) return [];
+  const body = await response.json().catch(() => []);
+  return Array.isArray(body) ? (body as Row[]) : [];
+}
+
+/**
+ * Reads a conversation's children — messages, scores — for conversations the session actually owns.
+ *
+ * ── Why this is not just another entry in the allowlist ─────────────────────────────────────────
+ * `rr_messages` has no `workspace_id`. Its tenancy is one join away, which means a filter on it is a
+ * filter the caller supplies rather than one the wall derives — and that is precisely the arrangement
+ * this module exists to forbid. So ownership is *proved* first: the ids are run through a scoped read
+ * of `rr_conversations`, which can only ever return conversations belonging to this session, and
+ * anything not in that result is dropped before a single message is fetched. Passing another client's
+ * conversation id yields an empty list, not their messages.
+ */
+export async function scopedByConversation(
+  session: Session | null,
+  table: string,
+  conversationIds: string[],
+  params: Record<string, string> = {},
+  viewing?: string | null,
+): Promise<Row[]> {
+  if (!session) throw new Error("A database read was attempted without a session.");
+  if (!CONVERSATION_CHILDREN.has(table)) throw new Error(`${table} is not a conversation child table.`);
+
+  const wanted = [...new Set(conversationIds.filter(Boolean))];
+  if (!wanted.length) return [];
+
+  // The proof. A scoped read, so it is bounded by the session no matter what was asked for.
+  const owned = await scopedRows(
+    session,
+    "rr_conversations",
+    { select: "id", id: `in.(${wanted.join(",")})`, limit: String(wanted.length) },
+    viewing,
+  );
+  const allowed = new Set(owned.map((row) => str(row.id)));
+  const safe = wanted.filter((id) => allowed.has(id));
+  if (!safe.length) return [];
+
+  const { url, key } = config();
+  const search = new URLSearchParams(params);
+  search.set("conversation_id", `in.(${safe.join(",")})`);
   const response = await fetch(`${url}/rest/v1/${table}?${search.toString()}`, {
     headers: authHeaders(key),
     cache: "no-store",

@@ -6,6 +6,7 @@
    nothing to derive it from, and the setState is inside an async callback rather than the effect body. */
 
 import { Suspense, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import Shell from "../components/Shell";
 
 /**
@@ -131,6 +132,11 @@ function Admin() {
       <div className="page-head">
         <span className="eyebrow">QC team</span>
         <h1>Logins</h1>
+      </div>
+
+      <div className="ops-tabs">
+        <span className="ops-tab active">Logins</span>
+        <Link href="/admin/ops" className="ops-tab">System health</Link>
       </div>
 
       {error && <p className="error-note" style={{ marginBottom: 20 }}>{error}</p>}

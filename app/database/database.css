@@ -1,0 +1,145 @@
+/* Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
+   QC Portal — proprietary. Not licensed for redistribution or resale. */
+
+/*
+ * The lead database, styled from Reply Radar's own grid and drawer.
+ *
+ * Reply Radar runs seven columns including a client column, because it spans every client. This is one
+ * client's database, so that column is gone and its width goes to the campaign and sender columns —
+ * which is where the useful variation actually is once the client is fixed.
+ */
+
+.db-wrap { padding: 26px 32px 60px; max-width: 1600px; margin: 0 auto; width: 100%; }
+
+.db-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+.db-head h1 { font-size: 28px; letter-spacing: -.04em; }
+.db-count { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+
+.db-toolbar {
+  display: flex; align-items: center; gap: 11px; flex-wrap: wrap;
+  padding: 13px; margin-bottom: 14px;
+  border: 1px solid var(--border); border-radius: 11px; background: var(--panel);
+}
+.db-search {
+  display: flex; align-items: center; gap: 9px; flex: 1; min-width: 260px; max-width: 560px;
+  height: 34px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--muted-2);
+}
+.db-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 12.5px; }
+
+.db-select { display: flex; align-items: center; gap: 8px; }
+.db-select span { font-size: 9px; letter-spacing: .11em; text-transform: uppercase; font-weight: 700; color: var(--muted-2); }
+.db-select select {
+  height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel-2); color: var(--text); font-size: 12.5px; outline: none;
+}
+.db-clear { color: var(--coral); font-size: 12px; font-weight: 600; }
+
+.db-card { border: 1px solid var(--border); border-radius: 11px; background: var(--panel); overflow: hidden; }
+
+/* Six data columns plus the arrow. */
+.db-table-head, .db-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) minmax(0, 1.05fr) minmax(0, .95fr) 62px 70px 130px 24px;
+  gap: 15px;
+  align-items: center;
+}
+.db-table-head {
+  height: 36px; padding: 0 16px;
+  color: var(--muted-2); font-size: 8.5px; letter-spacing: .11em; text-transform: uppercase; font-weight: 700;
+  border-bottom: 1px solid var(--border-soft);
+}
+.db-row {
+  width: 100%; min-height: 82px; padding: 13px 16px; text-align: left;
+  border-bottom: 1px solid var(--border-soft); background: transparent; cursor: pointer;
+}
+.db-row:last-child { border-bottom: 0; }
+.db-row:hover { background: var(--panel-2); }
+
+.db-person { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.db-person > i {
+  display: grid; place-items: center; flex: none; overflow: hidden;
+  width: 46px; height: 46px; border-radius: 11px;
+  background: var(--panel-2); color: var(--text); font-size: 12px; font-weight: 750; font-style: normal;
+}
+.db-person > i img { width: 100%; height: 100%; object-fit: cover; }
+.db-person > span { min-width: 0; }
+.db-person strong { display: block; font-size: 13px; font-weight: 640; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-person small { display: block; margin-top: 3px; color: var(--muted-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.db-cell { min-width: 0; }
+.db-cell b { display: block; font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-cell small { display: block; margin-top: 2px; color: var(--muted-2); font-size: 10px; }
+.db-num b { font-variant-numeric: tabular-nums; }
+.db-arrow { color: var(--accent); font-size: 16px; }
+
+.db-more {
+  display: block; width: 100%; margin-top: 14px; padding: 14px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+  color: var(--accent); font-size: 12.5px; font-weight: 650;
+}
+.db-more:hover { border-color: var(--accent); }
+
+/* ── The detail drawer ──────────────────────────────────────────────────────────────────────────── */
+
+.db-drawer-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; justify-content: flex-end; }
+/* The click-away target, sized to the whole viewport and sitting behind the panel. */
+.db-drawer-scrim {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.58); backdrop-filter: blur(2px);
+  border: 0; padding: 0; cursor: default;
+}
+.db-drawer {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  width: min(680px, 94vw); height: 100%;
+  border-left: 1px solid var(--border); background: var(--bg);
+  box-shadow: -20px 0 60px rgba(0,0,0,.5);
+  text-align: left;
+}
+.db-drawer-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 22px; border-bottom: 1px solid var(--border-soft);
+}
+.db-drawer-avatar {
+  display: grid; place-items: center; flex: none; overflow: hidden;
+  width: 56px; height: 56px; border-radius: 13px;
+  background: var(--panel-2); color: var(--text); font-size: 16px; font-weight: 750;
+}
+.db-drawer-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.db-drawer-head h2 { font-size: 19px; }
+.db-drawer-head p { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+.db-drawer-close { margin-left: auto; align-self: flex-start; color: var(--muted); font-size: 24px; line-height: 1; }
+.db-drawer-close:hover { color: var(--text); }
+
+.db-drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 22px; }
+.db-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.db-field { min-width: 0; }
+.db-field.wide { grid-column: 1 / -1; }
+.db-field-label { display: block; margin-bottom: 4px; font-size: 9px; letter-spacing: .11em; text-transform: uppercase; font-weight: 700; color: var(--muted-2); }
+.db-field-value { display: block; font-size: 12.5px; line-height: 1.5; word-break: break-word; }
+.db-field-value em { color: var(--muted-2); font-style: normal; }
+.db-field-value a { color: var(--accent); text-decoration: none; }
+
+.db-reason {
+  margin-top: 22px; padding: 14px 16px;
+  border-radius: 9px; border: 1px solid var(--border); background: var(--panel);
+}
+.db-reason small { display: block; margin-bottom: 6px; color: var(--accent); font-size: 8.5px; letter-spacing: .1em; font-weight: 750; }
+.db-reason p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+/* ── Responsive ─────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  /* Campaign and sender fold away first — they are the widest and are both in the drawer. */
+  .db-table-head, .db-row { grid-template-columns: minmax(200px, 1.6fr) 60px 66px 120px 24px; }
+  .db-table-head span:nth-child(2), .db-table-head span:nth-child(3),
+  .db-row .db-cell:nth-child(2), .db-row .db-cell:nth-child(3) { display: none; }
+}
+@media (max-width: 760px) {
+  .db-wrap { padding: 20px 18px 50px; }
+  .db-table-head { display: none; }
+  .db-row { grid-template-columns: 1fr auto; }
+  .db-row .db-cell { display: none; }
+  .db-fields { grid-template-columns: 1fr; }
+}
