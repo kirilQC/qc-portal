@@ -144,12 +144,28 @@ export async function scopedRows(
     search.set(tenancyColumn, `eq.${confineTo}`);
   }
 
+  return read(table, search);
+}
+
+/**
+ * The one place a PostgREST read actually happens, and the one place its failures are reported.
+ *
+ * ── Why this throws instead of returning [] ─────────────────────────────────────────────────────
+ * It used to swallow every non-OK response and hand back an empty array. That is indistinguishable, on
+ * screen, from "this client genuinely has no leads" — so a single mistyped column name renders as a
+ * plausible empty table and nobody learns anything. A thrown error reaches the route, which turns it
+ * into a message on the page naming the column. An empty list must only ever mean an empty list.
+ */
+async function read(table: string, search: URLSearchParams): Promise<Row[]> {
   const { url, key } = config();
   const response = await fetch(`${url}/rest/v1/${table}?${search.toString()}`, {
     headers: authHeaders(key),
     cache: "no-store",
   });
-  if (!response.ok) return [];
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Reading ${table} failed (${response.status}): ${detail.slice(0, 300)}`);
+  }
   const body = await response.json().catch(() => []);
   return Array.isArray(body) ? (body as Row[]) : [];
 }
@@ -189,16 +205,9 @@ export async function scopedByConversation(
   const safe = wanted.filter((id) => allowed.has(id));
   if (!safe.length) return [];
 
-  const { url, key } = config();
   const search = new URLSearchParams(params);
   search.set("conversation_id", `in.(${safe.join(",")})`);
-  const response = await fetch(`${url}/rest/v1/${table}?${search.toString()}`, {
-    headers: authHeaders(key),
-    cache: "no-store",
-  });
-  if (!response.ok) return [];
-  const body = await response.json().catch(() => []);
-  return Array.isArray(body) ? (body as Row[]) : [];
+  return read(table, search);
 }
 
 /**
@@ -209,15 +218,7 @@ export async function scopedByConversation(
  * never reachable with a client session.
  */
 export async function adminRows(table: string, params: Record<string, string> = {}): Promise<Row[]> {
-  const { url, key } = config();
-  const search = new URLSearchParams(params);
-  const response = await fetch(`${url}/rest/v1/${table}?${search.toString()}`, {
-    headers: authHeaders(key),
-    cache: "no-store",
-  });
-  if (!response.ok) return [];
-  const body = await response.json().catch(() => []);
-  return Array.isArray(body) ? (body as Row[]) : [];
+  return read(table, new URLSearchParams(params));
 }
 
 /** A write to the portal's own tables. Client sessions never reach this — routes gate on role first. */
