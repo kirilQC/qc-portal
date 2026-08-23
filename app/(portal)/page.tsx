@@ -5,9 +5,8 @@
 
 import { Suspense } from "react";
 import Link from "next/link";
-import Shell from "./components/Shell";
-import ClientHead from "./components/ClientHead";
-import { money, shortDate, usePortal } from "./components/usePortal";
+import ClientHead from "../components/ClientHead";
+import { money, shortDate, usePortal } from "../components/usePortal";
 
 /**
  * The front page, which is two different pages depending on who is looking.
@@ -125,10 +124,8 @@ function Overview() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="loading">Loading…</div>}>
-      <Shell>
-        <Overview />
-      </Shell>
+    <Suspense fallback={null}>
+      <Overview />
     </Suspense>
   );
 }

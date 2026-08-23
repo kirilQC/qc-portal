@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import SettingsPanel, { applyTheme, readTheme } from "./SettingsPanel";
 
 /**
  * The frame every signed-in page sits in.
@@ -39,6 +40,7 @@ const ICONS: Record<string, string> = {
   deals: "M3 7h18v12H3zM3 11h18M8 7V5h8v2",
   admin: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9 2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2 2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1z",
   collapse: "M15 6l-6 6 6 6",
+  signout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
 };
 
 function Icon({ name }: { name: string }) {
@@ -51,14 +53,35 @@ function Icon({ name }: { name: string }) {
 
 /** Remembered per browser, because a sidebar that reopens on every navigation is not collapsed. */
 const COLLAPSE_KEY = "qc-portal:sidebar-collapsed";
+/**
+ * Who the sidebar last knew you to be, per client.
+ *
+ * The layout keeps the shell mounted, so this only matters on a hard load — but on a hard load the
+ * answer takes a round trip, and until it lands the brand would fall back to QC's mark. A client
+ * opening their own portal should never see another company's branding, not even for 200ms, so the
+ * last answer is read back synchronously and shown while the fresh one is fetched.
+ */
+const ME_KEY = "qc-portal:me";
+
+function cachedMe(clientParam: string | null): Me | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(`${ME_KEY}:${clientParam ?? ""}`);
+    return raw ? (JSON.parse(raw) as Me) : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function Shell({ children }: { children: React.ReactNode }) {
-  const [me, setMe] = useState<Me | null>(null);
+  const params = useSearchParams();
+  const clientParam = params.get("client");
+
+  // Seeded from the cache in the initialiser, so the first paint already carries the right brand.
+  const [me, setMe] = useState<Me | null>(() => cachedMe(clientParam));
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const pathname = usePathname();
-  const params = useSearchParams();
-  const clientParam = params.get("client");
   const suffix = clientParam ? `?client=${encodeURIComponent(clientParam)}` : "";
 
   useEffect(() => {
@@ -67,6 +90,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     } catch {
       /* a browser refusing storage just gets the default */
     }
+    // The chosen appearance, reapplied before anything is looked at.
+    applyTheme(readTheme());
   }, []);
 
   const toggleCollapsed = useCallback(() => {
@@ -86,7 +111,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       try {
         const query = clientParam ? `?client=${encodeURIComponent(clientParam)}` : "";
         const response = await fetch(`/api/me${query}`, { cache: "no-store" });
-        if (response.ok) setMe((await response.json()) as Me);
+        if (!response.ok) return;
+        const payload = (await response.json()) as Me;
+        setMe(payload);
+        try {
+          window.sessionStorage.setItem(`${ME_KEY}:${clientParam ?? ""}`, JSON.stringify(payload));
+        } catch {
+          /* the cache is a nicety; the fetch above is the source of truth */
+        }
       } catch {
         /* the shell renders without a name rather than not at all */
       }
@@ -119,6 +151,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   /** The mark at the top left: the client's when there is one, QC's when there is not. */
   const brand = (() => {
+    // Nothing known yet, and no cache to answer from. A neutral placeholder rather than QC's mark,
+    // because guessing wrong here means a client watches another company's branding appear on their
+    // own portal — better to show a shape for one frame than the wrong answer.
+    if (!me) {
+      return (
+        <>
+          <span className="brand-mark brand-mark-pending" aria-hidden="true" />
+          {!collapsed && <span className="brand-name brand-name-pending" aria-hidden="true" />}
+        </>
+      );
+    }
     if (inClient && brandClient) {
       return (
         <>
@@ -152,7 +195,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {brand}
           </Link>
           <button
-            className="sidebar-collapse"
+            className="sidebar-icon"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Settings"
+            title="Settings"
+          >
+            <Icon name="admin" />
+          </button>
+          <button
+            className="sidebar-icon sidebar-collapse"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand the menu" : "Collapse the menu"}
             title={collapsed ? "Expand" : "Collapse"}
@@ -185,43 +236,24 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="sidebar-foot">
-          {/* Settings: everyone has it, and sign-out lives inside it rather than as a bare button. */}
-          <div className="settings-wrap">
-            <button
-              className={`nav-item settings-toggle ${settingsOpen ? "active" : ""}`}
-              onClick={() => setSettingsOpen((open) => !open)}
-              title="Settings"
-              aria-expanded={settingsOpen}
-            >
-              <Icon name="admin" />
-              {!collapsed && "Settings"}
-            </button>
-
-            {settingsOpen && (
-              <div className="settings-menu">
-                {me && (
-                  <div className="settings-who">
-                    <strong>{me.user.name || me.user.email}</strong>
-                    <span>{me.user.email}</span>
-                    <span className={`pill ${me.user.role}`}>{me.user.role === "staff" ? "QC team" : "Client"}</span>
-                  </div>
-                )}
-                {me?.user.role === "staff" && (
-                  <>
-                    <Link href="/admin" className="settings-item">Admin · logins</Link>
-                    <Link href="/admin/ops" className="settings-item">Admin · system health</Link>
-                  </>
-                )}
-                <button className="settings-item danger" onClick={() => void signOut()}>
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
+          {me?.user.role === "staff" && (
+            <>
+              <Link href="/admin" className={`nav-item ${pathname.startsWith("/admin") ? "active" : ""}`} title="Admin">
+                <Icon name="admin" />
+                {!collapsed && "Admin"}
+              </Link>
+            </>
+          )}
+          <button className="nav-item" onClick={() => void signOut()} title="Sign out">
+            <Icon name="signout" />
+            {!collapsed && "Sign out"}
+          </button>
         </div>
       </aside>
 
       <main className="main">{children}</main>
+
+      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

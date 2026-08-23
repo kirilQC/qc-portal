@@ -4,9 +4,8 @@
 "use client";
 
 import { Suspense } from "react";
-import Shell from "../components/Shell";
-import ClientHead from "../components/ClientHead";
-import { dateTime, usePortal } from "../components/usePortal";
+import ClientHead from "../../components/ClientHead";
+import { dateTime, usePortal } from "../../components/usePortal";
 
 /** Every meeting booked, upcoming first — for most clients this is the number that matters. */
 function Meetings() {
@@ -89,10 +88,8 @@ function Meetings() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="loading">Loading…</div>}>
-      <Shell>
-        <Meetings />
-      </Shell>
+    <Suspense fallback={null}>
+      <Meetings />
     </Suspense>
   );
 }

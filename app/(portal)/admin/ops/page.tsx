@@ -5,7 +5,6 @@
 
 import { Fragment, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import Shell from "../../components/Shell";
 
 /**
  * Every client's configuration and heartbeats on one screen.
@@ -274,10 +273,8 @@ function Row({ label, value, bad }: { label: string; value: string; bad?: boolea
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="loading">Loading…</div>}>
-      <Shell>
-        <Ops />
-      </Shell>
+    <Suspense fallback={null}>
+      <Ops />
     </Suspense>
   );
 }

@@ -7,7 +7,6 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import Shell from "../components/Shell";
 
 /**
  * Who can sign in, and as what. Staff only — the middleware and the API both refuse anyone else.
@@ -49,6 +48,8 @@ function Admin() {
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+  /** The login whose password is being changed, and what it is being changed to. */
+  const [resetting, setResetting] = useState<{ user: User; password: string } | null>(null);
 
   const [form, setForm] = useState({ email: "", name: "", role: "client", workspaceId: "", password: "" });
 
@@ -107,15 +108,34 @@ function Admin() {
     await load();
   }
 
-  async function reset(user: User) {
-    const password = suggestPassword();
-    const response = await fetch("/api/admin/users", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: user.id, password }),
-    }).catch(() => null);
-    if (response?.ok) setCreated({ email: user.email, password });
-    await load();
+  /**
+   * Resetting somebody else's password.
+   *
+   * Two steps on purpose. It used to generate a new password and apply it on a single click, which
+   * meant a mis-click silently locked somebody out of their account with no way back — the old password
+   * cannot be recovered, only replaced again. Now the row opens a small form: choose a password or take
+   * a generated one, and confirm the name of the person it belongs to before it is applied.
+   */
+  async function applyReset(user: User, password: string) {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: user.id, password }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(payload.error || "That password could not be set.");
+        return;
+      }
+      setCreated({ email: user.email, password });
+      setResetting(null);
+      await load();
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function remove(user: User) {
@@ -140,6 +160,45 @@ function Admin() {
       </div>
 
       {error && <p className="error-note" style={{ marginBottom: 20 }}>{error}</p>}
+
+      {resetting && (
+        <div className="sheet-backdrop">
+          <button className="sheet-scrim" aria-label="Cancel" onClick={() => setResetting(null)} />
+          <section className="confirm-card" role="dialog" aria-label="Reset password">
+            <h2>Reset the password for {resetting.user.name || resetting.user.email}?</h2>
+            <p>
+              Their current password stops working immediately and cannot be recovered. You will need to
+              send them the new one.
+            </p>
+            <div className="field">
+              <label htmlFor="r-pass">New password</label>
+              <input
+                id="r-pass"
+                className="input"
+                value={resetting.password}
+                placeholder="At least 12 characters"
+                onChange={(event) => setResetting({ ...resetting, password: event.target.value })}
+              />
+            </div>
+            <button
+              className="button ghost small"
+              onClick={() => setResetting({ ...resetting, password: suggestPassword() })}
+            >
+              Generate one for me
+            </button>
+            <div className="confirm-actions">
+              <button className="button ghost" onClick={() => setResetting(null)}>Cancel</button>
+              <button
+                className="button primary"
+                disabled={busy || resetting.password.trim().length < 12}
+                onClick={() => void applyReset(resetting.user, resetting.password)}
+              >
+                {busy ? "Setting…" : "Set this password"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {created && (
         <div className="panel" style={{ marginBottom: 22 }}>
@@ -248,7 +307,7 @@ function Admin() {
                       {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Never"}
                     </td>
                     <td className="num" style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      <button className="button ghost small" onClick={() => void reset(user)}>Reset password</button>
+                      <button className="button ghost small" onClick={() => setResetting({ user, password: "" })}>Reset password</button>
                       <button className="button ghost small" onClick={() => void toggle(user)}>{user.isActive ? "Switch off" : "Switch on"}</button>
                       <button className="button danger small" onClick={() => void remove(user)}>Delete</button>
                     </td>
@@ -265,10 +324,8 @@ function Admin() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="loading">Loading…</div>}>
-      <Shell>
-        <Admin />
-      </Shell>
+    <Suspense fallback={null}>
+      <Admin />
     </Suspense>
   );
 }

@@ -4,9 +4,8 @@
 "use client";
 
 import { Suspense } from "react";
-import Shell from "../components/Shell";
-import ClientHead from "../components/ClientHead";
-import { shortDate, usePortal } from "../components/usePortal";
+import ClientHead from "../../components/ClientHead";
+import { shortDate, usePortal } from "../../components/usePortal";
 
 /** What is running, and how each one is performing. */
 function Campaigns() {
@@ -71,10 +70,8 @@ function Campaigns() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="loading">Loading…</div>}>
-      <Shell>
-        <Campaigns />
-      </Shell>
+    <Suspense fallback={null}>
+      <Campaigns />
     </Suspense>
   );
 }

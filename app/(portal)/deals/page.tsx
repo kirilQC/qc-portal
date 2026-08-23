@@ -4,9 +4,8 @@
 "use client";
 
 import { Suspense } from "react";
-import Shell from "../components/Shell";
-import ClientHead from "../components/ClientHead";
-import { money, shortDate, usePortal } from "../components/usePortal";
+import ClientHead from "../../components/ClientHead";
+import { money, shortDate, usePortal } from "../../components/usePortal";
 
 /**
  * Pipeline, with the strength of the claim shown next to every line.
@@ -98,10 +97,8 @@ function Deals() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="loading">Loading…</div>}>
-      <Shell>
-        <Deals />
-      </Shell>
+    <Suspense fallback={null}>
+      <Deals />
     </Suspense>
   );
 }

@@ -7,7 +7,6 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Shell from "../components/Shell";
 import "./database.css";
 
 /**
@@ -446,10 +445,8 @@ function Field({ label, value, link, wide }: { label: string; value: string | nu
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="loading">Loading…</div>}>
-      <Shell>
-        <Database />
-      </Shell>
+    <Suspense fallback={null}>
+      <Database />
     </Suspense>
   );
 }
