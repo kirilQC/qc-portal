@@ -50,8 +50,10 @@ export async function GET(request: Request) {
   const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
 
   const params: Record<string, string> = {
-    select:
-      "id,name,role,company,linkedin_profile_url,linkedin_id,created_at,last_reply_at,reply_count,icp_score,icp_reason,ai_title,ai_company,enrichment_status,campaign_names,sender_names,conversation_count,raw_data",
+    // Base columns plus the two the view adds. The generated columns Reply Radar's schema.sql documents
+    // (icp_score, ai_title, campaign_names, …) do not exist on the live table — `create table if not
+    // exists` never patched it — so everything they would have carried is read out of raw_data below.
+    select: "id,name,role,company,linkedin_profile_url,linkedin_id,created_at,last_reply_at,reply_count,raw_data",
     order: sort,
     limit: String(limit),
     offset: String(offset),
@@ -69,18 +71,25 @@ export async function GET(request: Request) {
   try {
     const rows = await scopedRows(session, "rr_lead_index", params, workspaceId);
 
-    const asList = (value: unknown): string[] =>
-      typeof value === "string" && value.trim() ? value.split(";").map((part) => part.trim()).filter(Boolean) : [];
+    const asList = (value: unknown): string[] => {
+      if (Array.isArray(value)) return value.map((item) => str(item)).filter(Boolean);
+      return typeof value === "string" && value.trim()
+        ? value.split(";").map((part) => part.trim()).filter(Boolean)
+        : [];
+    };
 
     const leads = rows.map((row) => {
       const raw = (row.raw_data ?? {}) as Record<string, unknown>;
       const radar = (raw.reply_radar ?? {}) as Record<string, unknown>;
       const enrichment = (radar.ai_ark ?? {}) as Record<string, unknown>;
+      const rollup = (radar.rollup ?? {}) as Record<string, unknown>;
+      const enrichedCompany = (enrichment.company ?? {}) as Record<string, unknown>;
+      const companySummary = (enrichedCompany.summary ?? {}) as Record<string, unknown>;
       return {
         id: str(row.id),
         name: str(row.name) || "Unnamed",
-        role: str(row.role) || str(row.ai_title) || str(enrichment.title),
-        company: str(row.company) || str(row.ai_company),
+        role: str(row.role) || str(enrichment.title),
+        company: str(row.company) || str(companySummary.name),
         linkedinId: row.linkedin_id ? str(row.linkedin_id) : null,
         profileUrl: row.linkedin_profile_url ? str(row.linkedin_profile_url) : null,
         photoUrl: enrichment.profilePhotoSource ? str(enrichment.profilePhotoSource) : null,
@@ -88,13 +97,13 @@ export async function GET(request: Request) {
         location: enrichment.location ? str(enrichment.location) : null,
         headline: enrichment.headline ? str(enrichment.headline) : null,
         industry: enrichment.industry ? str(enrichment.industry) : null,
-        campaignNames: asList(row.campaign_names),
-        senderNames: asList(row.sender_names),
-        icpScore: row.icp_score == null ? null : num(row.icp_score),
-        icpReason: row.icp_reason ? str(row.icp_reason) : null,
-        enrichmentStatus: row.enrichment_status ? str(row.enrichment_status) : null,
+        campaignNames: asList(rollup.campaign_names),
+        senderNames: asList(rollup.sender_names),
+        icpScore: radar.icp_score == null ? null : num(radar.icp_score),
+        icpReason: radar.icp_reason ? str(radar.icp_reason) : null,
+        enrichmentStatus: radar.enrichment_status ? str(radar.enrichment_status) : null,
         enriched: Object.keys(enrichment).length > 0,
-        conversationCount: num(row.conversation_count),
+        conversationCount: num(rollup.conversation_count),
         replyCount: num(row.reply_count),
         lastReplyAt: row.last_reply_at ? str(row.last_reply_at) : null,
         createdAt: str(row.created_at),

@@ -86,7 +86,12 @@ async function buildInbox(session: Session, workspaceId: string) {
           session,
           "rr_leads",
           {
-            select: "id,name,role,company,linkedin_profile_url,linkedin_id,raw_data,icp_score,icp_reason,campaign_names,sender_names",
+            // Only the columns the original CREATE TABLE defines. Reply Radar's schema.sql documents a
+            // set of generated columns (icp_score, campaign_names, …) that were never added to the live
+            // table — `create table if not exists` does not patch an existing one — so asking for them
+            // is a 400. Everything they would have held is derived from raw_data below instead, which
+            // is where the importer actually writes it.
+            select: "id,name,role,company,linkedin_profile_url,linkedin_id,raw_data",
             id: `in.(${leadIds.join(",")})`,
             limit: String(leadIds.length),
           },
@@ -149,8 +154,14 @@ async function buildInbox(session: Session, workspaceId: string) {
       const score = num(row.score);
       const lastMessageAt = str(row.last_message_at);
 
-      const asList = (value: unknown): string[] =>
-        typeof value === "string" && value.trim() ? value.split(";").map((part) => part.trim()).filter(Boolean) : [];
+      /** The rollup the importer writes onto raw_data, in place of the generated columns. */
+      const rollup = (leadRadar.rollup ?? {}) as Record<string, unknown>;
+      const asList = (value: unknown): string[] => {
+        if (Array.isArray(value)) return value.map((item) => str(item)).filter(Boolean);
+        return typeof value === "string" && value.trim()
+          ? value.split(";").map((part) => part.trim()).filter(Boolean)
+          : [];
+      };
 
       return {
         id,
@@ -166,12 +177,15 @@ async function buildInbox(session: Session, workspaceId: string) {
         industry: enrichment.industry ? str(enrichment.industry) : null,
         enriched: Object.keys(enrichment).length > 0,
 
-        campaignName: asList(lead.campaign_names)[0] ?? null,
-        senderName: asList(lead.sender_names)[0] ?? "Unknown sender",
+        campaignName:
+          asList(rollup.campaign_names)[0] ??
+          str((leadRadar.campaign as Record<string, unknown>)?.name) ??
+          null,
+        senderName: asList(rollup.sender_names)[0] || "Unknown sender",
 
         // The number in the LEAD SCORE column is the ICP score, exactly as Reply Radar shows it.
-        leadScore: lead.icp_score == null ? null : num(lead.icp_score),
-        icpReason: lead.icp_reason ? str(lead.icp_reason) : null,
+        leadScore: leadRadar.icp_score == null ? null : num(leadRadar.icp_score),
+        icpReason: leadRadar.icp_reason ? str(leadRadar.icp_reason) : null,
 
         score,
         tier: (str(row.tier) as "hot" | "warm" | "nurture") || tierFor(score),
