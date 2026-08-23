@@ -444,5 +444,13 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 .appearance-actions { display: flex; align-items: center; gap: 10px; }
 .appearance-actions .button.primary { flex: 1; height: 44px; font-size: 14px; }
 
-/* Zoom scales the page content only — the sidebar and topbar keep their own geometry. */
-.page-scroll { zoom: var(--zoom, 1); }
+/*
+ * Page scale.
+ *
+ * `--ui-base` is the app's own density, and it is 0.9 rather than 1 on purpose: the portal was drawn a
+ * notch larger than it wanted to be, and every screen read as slightly zoomed-in. Correcting it here
+ * rather than editing three hundred px values keeps the whole design in proportion, and means the
+ * slider's "100%" is the size the app is meant to be — which is what a person setting it expects.
+ */
+:root { --ui-base: 0.9; }
+.page-scroll { zoom: calc(var(--ui-base) * var(--zoom, 1)); }

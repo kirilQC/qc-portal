@@ -33,6 +33,20 @@ type Lead = {
 
 type Filter = "today" | "week" | "all" | "follow-ups";
 
+/** Where the pane divider was left. */
+const SPLIT_KEY = "qc-portal:inbox-split";
+/** Which leads have been starred. Per browser, as Reply Radar keeps them in its layout preferences. */
+const STARS_KEY = "qc-portal:inbox-stars";
+
+type Sort = "recent" | "oldest" | "score-desc" | "name";
+const SORTS: [Sort, string][] = [
+  ["recent", "Newest reply"],
+  ["oldest", "Oldest reply"],
+  ["score-desc", "Highest lead score"],
+  ["name", "Name A–Z"],
+];
+const TIERS = ["hot", "warm", "nurture"];
+
 const FILTERS: [string, Filter][] = [
   ["Today", "today"],
   ["This week", "week"],
@@ -94,9 +108,80 @@ function Inbox() {
   const [sentimentFilter, setSentimentFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sort, setSort] = useState<Sort>("recent");
+  const [tierFilter, setTierFilter] = useState("");
+  const [starredOnly, setStarredOnly] = useState(false);
+  const [stars, setStars] = useState<string[]>([]);
+  const [submenu, setSubmenu] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STARS_KEY);
+      if (raw) setStars(JSON.parse(raw) as string[]);
+    } catch {
+      /* no stars is a fine starting point */
+    }
+  }, []);
+
+  const toggleStar = (leadId: string) => {
+    setStars((was) => {
+      const next = was.includes(leadId) ? was.filter((id) => id !== leadId) : [...was, leadId];
+      try {
+        window.localStorage.setItem(STARS_KEY, JSON.stringify(next));
+      } catch {
+        /* the star is a convenience */
+      }
+      return next;
+    });
+  };
   const searchInput = useRef<HTMLInputElement | null>(null);
   const [timeZone, setTimeZone] = useState("America/New_York");
   useEffect(() => setTimeZone(activeTimeZone()), []);
+
+  /**
+   * Where the queue ends and the conversation begins, as a percentage, dragged by the divider.
+   *
+   * Remembered per browser because it is a working preference, not a setting: somebody triaging a long
+   * queue wants the table wide, and somebody reading one thread wants the pane wide, and they are the
+   * same person twenty minutes apart. Clamped so neither side can be dragged to nothing.
+   */
+  const [split, setSplit] = useState(62);
+  const dragging = useRef(false);
+  const grid = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(SPLIT_KEY));
+      if (Number.isFinite(saved) && saved >= 35 && saved <= 80) setSplit(saved);
+    } catch {
+      /* the default split is fine */
+    }
+  }, []);
+
+  useEffect(() => {
+    const move = (event: MouseEvent) => {
+      if (!dragging.current || !grid.current) return;
+      const box = grid.current.getBoundingClientRect();
+      const next = Math.min(80, Math.max(35, ((event.clientX - box.left) / box.width) * 100));
+      setSplit(next);
+    };
+    const stop = () => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      document.body.classList.remove("is-dragging");
+      try {
+        window.localStorage.setItem(SPLIT_KEY, String(Math.round(split)));
+      } catch {
+        /* the preference is a convenience */
+      }
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", stop);
+    return () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", stop);
+    };
+  }, [split]);
   const threadEnd = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -138,6 +223,8 @@ function Inbox() {
         if (campaignFilter && lead.campaignName !== campaignFilter) return false;
         if (senderFilter && lead.senderName !== senderFilter) return false;
         if (sentimentFilter && lead.sentiment !== sentimentFilter) return false;
+        if (tierFilter && lead.tier !== tierFilter) return false;
+        if (starredOnly && !stars.includes(lead.leadId)) return false;
 
         const when = Date.parse(lead.latestReplyAt || lead.lastMessageAt);
         if (filter === "today") return when >= todayStart;
@@ -145,12 +232,14 @@ function Inbox() {
         if (filter === "follow-ups") return lead.score > 0;
         return true;
       })
-      .sort((a, b) =>
-        filter === "follow-ups"
-          ? b.score - a.score
-          : Date.parse(b.latestReplyAt || b.lastMessageAt) - Date.parse(a.latestReplyAt || a.lastMessageAt),
-      );
-  }, [leads, search, filter, campaignFilter, senderFilter, sentimentFilter]);
+      .sort((a, b) => {
+        if (filter === "follow-ups") return b.score - a.score;
+        if (sort === "oldest") return Date.parse(a.latestReplyAt || a.lastMessageAt) - Date.parse(b.latestReplyAt || b.lastMessageAt);
+        if (sort === "score-desc") return (b.leadScore ?? -1) - (a.leadScore ?? -1);
+        if (sort === "name") return a.name.localeCompare(b.name);
+        return Date.parse(b.latestReplyAt || b.lastMessageAt) - Date.parse(a.latestReplyAt || a.lastMessageAt);
+      });
+  }, [leads, search, filter, campaignFilter, senderFilter, sentimentFilter, tierFilter, starredOnly, stars, sort]);
 
   const current = filtered.find((lead) => lead.id === selectedId) ?? filtered[0] ?? null;
 
@@ -224,23 +313,53 @@ function Inbox() {
               Filters{campaignFilter || senderFilter || sentimentFilter ? " ●" : ""}
             </button>
             {filtersOpen && (
-              <div className="filter-dropdown">
-                <Picker label="Campaign" value={campaignFilter} onPick={setCampaignFilter} values={options((l) => l.campaignName)} />
-                <Picker label="Sender" value={senderFilter} onPick={setSenderFilter} values={options((l) => l.senderName)} />
-                <Picker label="Sentiment" value={sentimentFilter} onPick={setSentimentFilter} values={["positive", "neutral", "negative"]} />
+              <div className="filter-dropdown" onMouseLeave={() => setSubmenu(null)}>
                 <button
-                  className="filter-clear"
-                  onClick={() => { setCampaignFilter(""); setSenderFilter(""); setSentimentFilter(""); setFiltersOpen(false); }}
+                  className={`uf-item ${starredOnly ? "uf-active" : ""}`}
+                  onMouseEnter={() => setSubmenu(null)}
+                  onClick={() => setStarredOnly((was) => !was)}
+                >
+                  Starred {starredOnly ? "✓" : ""}
+                </button>
+
+                <FilterRow label="Campaign" value={campaignFilter} onOpen={() => setSubmenu("campaign")} />
+                <FilterRow label="Sender" value={senderFilter} onOpen={() => setSubmenu("sender")} />
+                <FilterRow label="Sentiment" value={sentimentFilter} onOpen={() => setSubmenu("sentiment")} />
+                <FilterRow label="Tier" value={tierFilter} onOpen={() => setSubmenu("tier")} />
+                <FilterRow label="Sort" value={sort === "recent" ? "" : (SORTS.find(([key]) => key === sort)?.[1] ?? "")} onOpen={() => setSubmenu("sort")} />
+
+                <div className="uf-divider" />
+                <button
+                  className="uf-item uf-clear"
+                  onClick={() => {
+                    setCampaignFilter(""); setSenderFilter(""); setSentimentFilter("");
+                    setTierFilter(""); setStarredOnly(false); setSort("recent");
+                    setSubmenu(null); setFiltersOpen(false);
+                  }}
                 >
                   Clear all filters
                 </button>
+
+                {submenu === "campaign" && <Submenu current={campaignFilter} values={options((l) => l.campaignName)} onPick={setCampaignFilter} allLabel="All campaigns" />}
+                {submenu === "sender" && <Submenu current={senderFilter} values={options((l) => l.senderName)} onPick={setSenderFilter} allLabel="All senders" />}
+                {submenu === "sentiment" && <Submenu current={sentimentFilter} values={["positive", "neutral", "negative"]} onPick={setSentimentFilter} allLabel="Any sentiment" />}
+                {submenu === "tier" && <Submenu current={tierFilter} values={TIERS} onPick={setTierFilter} allLabel="Any tier" />}
+                {submenu === "sort" && (
+                  <div className="uf-sub">
+                    {SORTS.map(([key, label]) => (
+                      <button key={key} className={`uf-sub-item ${sort === key ? "uf-active" : ""}`} onClick={() => setSort(key)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      <div className="inbox-grid">
+      <div className="inbox-grid" ref={grid} style={{ gridTemplateColumns: `minmax(0, ${split}fr) 10px minmax(300px, ${100 - split}fr)` }}>
         <div className="queue-card">
           <div className="queue-scroll">
           <div className="table-head">
@@ -278,6 +397,18 @@ function Inbox() {
                           {lead.messages.at(-1)?.direction === "outbound" && (
                             <span className="responded-check" title="Already replied">✓</span>
                           )}
+                          <span
+                            className={`lead-star ${stars.includes(lead.leadId) ? "is-starred" : ""}`}
+                            role="button"
+                            tabIndex={0}
+                            title={stars.includes(lead.leadId) ? "Unstar" : "Star"}
+                            onClick={(event) => { event.stopPropagation(); toggleStar(lead.leadId); }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); toggleStar(lead.leadId); }
+                            }}
+                          >
+                            ★
+                          </span>
                         </strong>
                         <span>{[lead.role, lead.company].filter(Boolean).join(" @ ") || "No title or company"}</span>
                       </div>
@@ -299,6 +430,17 @@ function Inbox() {
           )}
           </div>
         </div>
+
+        {/* The divider. A button so it is reachable from the keyboard, where the arrows nudge it. */}
+        <button
+          className="pane-divider"
+          aria-label="Resize the panes"
+          onMouseDown={() => { dragging.current = true; document.body.classList.add("is-dragging"); }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft") setSplit((was) => Math.max(35, was - 2));
+            if (event.key === "ArrowRight") setSplit((was) => Math.min(80, was + 2));
+          }}
+        />
 
         <aside className="detail-card">
           {!current ? (
@@ -408,13 +550,23 @@ function Metric({ label, value, tone }: { label: string; value: string; tone: st
   );
 }
 
-function Picker({ label, value, onPick, values }: { label: string; value: string; onPick: (next: string) => void; values: string[] }) {
+/** One row of the Filters menu: a label, what it is currently set to, and a chevron into its submenu. */
+function FilterRow({ label, value, onOpen }: { label: string; value: string; onOpen: () => void }) {
   return (
-    <div className="filter-group">
-      <span className="filter-group-label">{label}</span>
-      <button className={`filter-item ${!value ? "active" : ""}`} onClick={() => onPick("")}>All</button>
-      {values.slice(0, 40).map((option) => (
-        <button key={option} className={`filter-item ${value === option ? "active" : ""}`} onClick={() => onPick(option)}>
+    <button className="uf-item" onMouseEnter={onOpen} onClick={onOpen}>
+      <span>{label}{value ? ` · ${value.slice(0, 18)}` : ""}</span>
+      <b>›</b>
+    </button>
+  );
+}
+
+/** The panel a Filters row opens, listing every value plus a way back to all of them. */
+function Submenu({ current, values, onPick, allLabel }: { current: string; values: string[]; onPick: (next: string) => void; allLabel: string }) {
+  return (
+    <div className="uf-sub">
+      <button className={`uf-sub-item ${!current ? "uf-active" : ""}`} onClick={() => onPick("")}>{allLabel}</button>
+      {values.slice(0, 60).map((option) => (
+        <button key={option} className={`uf-sub-item ${current === option ? "uf-active" : ""}`} onClick={() => onPick(option)}>
           {option}
         </button>
       ))}
