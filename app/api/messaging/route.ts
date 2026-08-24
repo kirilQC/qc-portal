@@ -102,12 +102,26 @@ export async function GET(request: Request) {
       });
     }
 
-    // The campaigns are fetched alongside the listing rather than after it: neither depends on the
-    // other, and this screen is already waiting on a folder-full of file reads.
-    const [listing, campaigns] = await Promise.all([
+    // All three are fetched together: none depends on the others, and this screen is already waiting on
+    // a folder-full of file reads.
+    const [listing, campaigns, links] = await Promise.all([
       listDocs(clientFolder, subfolder),
       getCampaigns(scoped, workspaceId).catch(() => []),
+      scopedRows(scoped, "qc_portal_messaging_links", { select: "doc_path,campaign_id" }, workspaceId).catch(() => []),
     ]);
+
+    /**
+     * Attributions a person set by hand, which always beat the matcher.
+     *
+     * A row whose campaign is null is not a missing entry — it records that somebody looked and decided
+     * the document belongs to no campaign, which has to stop the matcher re-suggesting the link they
+     * just rejected. So presence in the map is what matters, not truthiness of the value.
+     */
+    const manual = new Map<string, string | null>();
+    for (const row of links) {
+      const path = str(row.doc_path);
+      if (path) manual.set(path, row.campaign_id ? str(row.campaign_id) : null);
+    }
 
     const capped = listing.slice(0, MAX_DOCS);
     const forMatching = campaigns.map((c) => ({ campaignId: c.campaignId, name: c.name }));
@@ -125,7 +139,16 @@ export async function GET(request: Request) {
         // The heading inside the document beats the file name: the file is a slug, the heading is what
         // somebody actually typed.
         const title = str(meta.title) || parsed.title || doc.title;
-        const campaign = matchCampaign(title, forMatching) ?? matchCampaign(doc.title, forMatching);
+        let campaign = null;
+        if (manual.has(doc.path)) {
+          const chosen = manual.get(doc.path);
+          const found = chosen ? byId.get(chosen) : null;
+          // A campaign that has since been deleted leaves the override pointing at nothing; fall back to
+          // unlinked rather than showing a campaign name the client cannot see anywhere else.
+          campaign = found ? { campaignId: found.campaignId, name: found.name, confidence: "manual", score: 1 } : null;
+        } else {
+          campaign = matchCampaign(title, forMatching) ?? matchCampaign(doc.title, forMatching);
+        }
         const stats = campaign ? byId.get(campaign.campaignId) ?? null : null;
         return { ...base, title, meta, senders: parsed.senders, preamble: parsed.preamble, steps: parsed.steps, campaign, stats };
       } catch (error) {
@@ -140,7 +163,12 @@ export async function GET(request: Request) {
       docs,
       // Said out loud rather than silently dropped, so a folder that outgrows the cap is visible.
       truncated: listing.length > capped.length ? listing.length - capped.length : 0,
-      campaignsKnown: campaigns.length,
+      // For the attribution menu. Only what is needed to name and order the options — the numbers for
+      // whichever one gets picked are already on the document that matched it.
+      campaigns: campaigns
+        .map((c) => ({ campaignId: c.campaignId, name: c.name, launchedAt: c.launchedAt, status: c.status }))
+        .sort((a, b) => (b.launchedAt ?? "").localeCompare(a.launchedAt ?? "") || a.name.localeCompare(b.name)),
+      canAttribute: scoped.role === "staff",
     });
   } catch (error) {
     return NextResponse.json(

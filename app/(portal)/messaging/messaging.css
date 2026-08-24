@@ -4,65 +4,129 @@
 /*
  * Campaign messaging, drawn as sequences.
  *
- * The funnel colours are the same four the campaigns page uses, deliberately: a rate here and the same
- * rate there must be the same colour, or the two screens teach different languages for one thing.
+ * The funnel colours and the `.k-*` segment classes come from campaigns.css, which this page imports
+ * rather than copies — the same band has to be the same colour on both screens by construction, not by
+ * two lists of hexes agreeing with each other today.
  */
 
-.msg-wide { max-width: 1480px; }
+.msg-wide { max-width: 1560px; }
+
+.msg-page-head { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+
+.msg-sort, .msg-attribute { display: flex; align-items: center; gap: 8px; }
+.msg-sort select, .msg-attribute select {
+  height: 32px; padding: 0 9px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel-2); color: var(--text);
+  font-size: 12px; font-family: inherit; cursor: pointer;
+  max-width: 260px;
+}
+.msg-sort select:focus-visible, .msg-attribute select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
 
 .msg-layout {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: 262px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
 
 /* ── The index ──────────────────────────────────────────────────────────────────────────────────
-   Grouped by whether the campaign is still running, because that is the first thing you want to know
-   and it also pushes the unattached drafts out of the way of the live work. */
+ *
+ * Rebuilt around one problem: every row was three lines of similar-weight grey, so fifteen documents
+ * read as a wall of text with nothing to aim at. Now the title is the only thing at full contrast, the
+ * campaign sits under it at small size in the colour of its own confidence, and the step count is a
+ * fixed-width badge on the right — which gives the column a hard edge to scan down instead of ragged
+ * text. Selection is a filled row with a left rail rather than a wash, so the current document is
+ * obvious in peripheral vision.
+ */
 
-.msg-index { position: sticky; top: 20px; }
-.msg-group + .msg-group { margin-top: 18px; }
+.msg-index {
+  position: sticky; top: 20px;
+  border: 1px solid var(--border); border-radius: 13px;
+  background: var(--panel); padding: 7px;
+  max-height: calc(100vh - 132px); overflow-y: auto;
+  /* The list scrolls inside its own box; the page behind it must not move with it. */
+  overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+.msg-index::-webkit-scrollbar { width: 8px; }
+.msg-index::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.msg-index::-webkit-scrollbar-track { background: transparent; }
+
+.msg-group + .msg-group { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--border); }
 
 .msg-group-head {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 0 4px 8px;
+  padding: 7px 9px 8px;
   font-size: 9.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
   color: var(--muted-2);
 }
+.msg-group-live { display: inline-flex; align-items: center; gap: 6px; color: var(--f-positive); }
+.msg-pulse {
+  width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--f-positive) 22%, transparent);
+}
 
 .msg-item {
-  display: block; width: 100%; text-align: left;
-  padding: 9px 11px; border-radius: 9px;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px;
+  width: 100%; text-align: left;
+  padding: 8px 10px; border-radius: 9px;
   border: 1px solid transparent; background: transparent;
   color: inherit; font: inherit; cursor: pointer;
-  transition: background .12s ease, border-color .12s ease;
+  position: relative;
+  transition: background .12s ease;
 }
-.msg-item + .msg-item { margin-top: 3px; }
+.msg-item + .msg-item { margin-top: 2px; }
 .msg-item:hover { background: var(--panel-2); }
-.msg-item.is-open {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+
+.msg-item.is-open { background: color-mix(in srgb, var(--accent) 17%, transparent); }
+/* A rail rather than a border, so the selected row reads at a glance without a box drawn round it. */
+.msg-item.is-open::before {
+  content: ""; position: absolute; left: 0; top: 7px; bottom: 7px;
+  width: 2px; border-radius: 0 2px 2px 0; background: var(--accent);
 }
-.msg-item strong { display: block; font-size: 12.5px; font-weight: 600; letter-spacing: -.01em; }
-.msg-item span {
-  display: block; margin-top: 2px; font-size: 10.5px; color: var(--muted-2);
+
+.msg-item-title {
+  display: block; font-size: 12.5px; font-weight: 600; letter-spacing: -.012em;
+  line-height: 1.32; color: var(--muted);
+}
+.msg-item.is-open .msg-item-title, .msg-item:hover .msg-item-title { color: var(--text); }
+
+.msg-item-meta { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.msg-item-camp, .msg-item-metric {
+  flex: 1; min-width: 0;
+  font-size: 10.5px; line-height: 1.3; color: var(--muted-2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.msg-item.is-open span { color: var(--muted); }
+/* The campaign's colour is its confidence: linked, inferred, or set by hand. */
+.msg-item-camp.exact { color: color-mix(in srgb, var(--f-positive) 76%, var(--muted-2)); }
+.msg-item-camp.manual { color: color-mix(in srgb, var(--f-positive) 76%, var(--muted-2)); }
+.msg-item-camp.suggested { color: color-mix(in srgb, var(--accent) 82%, var(--muted-2)); font-style: italic; }
+.msg-item-camp.none { color: var(--muted-2); opacity: .72; }
+.msg-item-metric { color: var(--muted); font-variant-numeric: tabular-nums; }
 
-.msg-trunc { margin: 14px 4px 0; font-size: 10.5px; color: var(--muted-2); }
+/* A fixed slot on the right, so the counts line up into a column instead of trailing the text. */
+.msg-item-steps {
+  flex: none; min-width: 17px; height: 17px; padding: 0 4px;
+  display: grid; place-items: center; border-radius: 5px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  font-size: 9.5px; font-weight: 700; color: var(--muted-2); font-variant-numeric: tabular-nums;
+}
+.msg-item.is-open .msg-item-steps { background: transparent; border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--text); }
+
+.msg-trunc { margin: 10px 9px 4px; font-size: 10.5px; color: var(--muted-2); }
 
 /* ── The document header ────────────────────────────────────────────────────────────────────── */
 
 .msg-doc { min-width: 0; }
 
-.msg-head {
-  border: 1px solid var(--border); border-radius: 13px;
-  background: var(--panel); padding: 18px 20px;
-}
-.msg-head-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
-.msg-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+.msg-head { border: 1px solid var(--border); border-radius: 13px; background: var(--panel); padding: 18px 20px; }
+.msg-head-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+.msg-head-id { min-width: 0; }
+.msg-head h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.025em; }
+.msg-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 
 .msg-chips { display: flex; gap: 7px; margin-top: 9px; flex-wrap: wrap; }
 
@@ -75,12 +139,12 @@
 .msg-chip em { font-style: normal; opacity: .7; }
 .msg-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
 
-/* An exact code match and an inferred one must never look alike: a fuzzy join dressed as a fact leaves
-   no way to tell which links can be trusted. */
-.msg-chip.is-linked {
-  color: var(--positive, #63dfa4);
-  border-color: color-mix(in srgb, var(--positive, #63dfa4) 40%, transparent);
-  background: color-mix(in srgb, var(--positive, #63dfa4) 12%, transparent);
+/* Three grades of link, three appearances. A fuzzy join dressed as a fact leaves no way to tell which
+   ones can be trusted; a hand-set one should look at least as settled as a code match. */
+.msg-chip.is-exact, .msg-chip.is-manual {
+  color: var(--f-positive);
+  border-color: color-mix(in srgb, var(--f-positive) 40%, transparent);
+  background: color-mix(in srgb, var(--f-positive) 12%, transparent);
 }
 .msg-chip.is-suggested {
   color: var(--accent);
@@ -90,17 +154,11 @@
 }
 .msg-chip.is-none { color: var(--muted-2); border-style: dashed; background: transparent; }
 
-.msg-chip.ch-linkedin {
-  color: #4a8fd8; border-color: rgba(74, 143, 216, .4); background: rgba(74, 143, 216, .12);
-}
-.msg-chip.ch-email {
-  color: #d8954a; border-color: rgba(216, 149, 74, .4); background: rgba(216, 149, 74, .12);
-}
-.msg-chip.ch-inmail {
-  color: #9d7ad8; border-color: rgba(157, 122, 216, .4); background: rgba(157, 122, 216, .12);
-}
+.msg-chip.ch-linkedin { color: #4a8fd8; border-color: rgba(74, 143, 216, .4); background: rgba(74, 143, 216, .12); }
+.msg-chip.ch-email { color: #d8954a; border-color: rgba(216, 149, 74, .4); background: rgba(216, 149, 74, .12); }
+.msg-chip.ch-inmail { color: #9d7ad8; border-color: rgba(157, 122, 216, .4); background: rgba(157, 122, 216, .12); }
 
-.msg-synced { display: flex; flex-direction: column; gap: 3px; align-items: flex-end; text-align: right; font-size: 11px; color: var(--muted); }
+.msg-synced { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; text-align: right; font-size: 11px; color: var(--muted); }
 .msg-synced a { color: var(--accent); text-decoration: none; }
 .msg-synced a:hover { text-decoration: underline; }
 
@@ -108,31 +166,39 @@
 
 /* ── The campaign's numbers ─────────────────────────────────────────────────────────────────── */
 
-.msg-stats {
-  display: flex; gap: 30px; flex-wrap: wrap;
-  margin-top: 16px; padding-top: 15px; border-top: 1px solid var(--border);
-}
-.msg-stat { display: flex; flex-direction: column; gap: 3px; min-width: 96px; }
-.msg-stat strong { font-size: 19px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.msg-perf { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+.msg-stats { display: flex; gap: 34px; flex-wrap: wrap; margin-bottom: 14px; }
+.msg-stat { display: flex; flex-direction: column; gap: 2px; min-width: 92px; }
+.msg-stat strong { font-size: 25px; font-weight: 660; letter-spacing: -.04em; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .msg-sub { font-size: 10.5px; color: var(--muted-2); }
 
-.msg-bar { display: block; width: 62px; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; margin: 2px 0 1px; }
-.msg-bar i { display: block; height: 100%; border-radius: 2px; background: currentColor; }
-
-.t-accepted { color: #6f68d8; }
-.t-replied { color: #2ea99b; }
-.t-positive { color: #63dfa4; }
+/* A figure wears the colour of the funnel band it measures, so the number and the bar are one thing. */
+.t-accepted { color: var(--f-accepted); }
+.t-replied { color: var(--f-replied); }
+.t-positive { color: var(--f-positive); }
 .t-muted { color: var(--muted-2); }
+
+/* .cmp-funnel carries the geometry; this only sets the height for a single row rather than a table. */
+.msg-funnel { height: 26px; }
+.msg-funnel > span { transition: filter .14s ease; }
+.msg-funnel:hover > span { filter: brightness(1.1); }
+
+.msg-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 10.5px; color: var(--muted-2); }
+.msg-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.msg-legend i { width: 8px; height: 8px; border-radius: 2px; }
+
+.msg-nostats {
+  margin: 15px 0 0; padding-top: 14px; border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--muted-2); line-height: 1.6;
+}
 
 /* ── The sequence ───────────────────────────────────────────────────────────────────────────────
    One continuous rail with each step hung off it, so the number of touches is countable at a glance
    rather than something you work out by reading. */
 
 .msg-seq { position: relative; margin-top: 16px; padding-left: 26px; }
-.msg-seq::before {
-  content: ""; position: absolute; left: 7px; top: 14px; bottom: 22px;
-  width: 1px; background: var(--border);
-}
+.msg-seq::before { content: ""; position: absolute; left: 7px; top: 14px; bottom: 22px; width: 1px; background: var(--border); }
 
 .msg-step { position: relative; }
 .msg-step + .msg-step { margin-top: 12px; }
@@ -154,11 +220,10 @@
 .msg-card-head b { font-size: 12.5px; font-weight: 600; }
 .msg-card-body { padding: 13px 15px; }
 
-.msg-count {
-  margin-left: auto; font-size: 10.5px; color: var(--muted-2);
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-/* A connection request over LinkedIn's limit will simply not send, so it is worth saying loudly. */
+.msg-counts { margin-left: auto; display: inline-flex; align-items: baseline; gap: 10px; }
+.msg-count { font-size: 10.5px; color: var(--muted-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The document's own target, kept visible but never able to raise an alarm — only LinkedIn's 300 can. */
+.msg-target { font-size: 10px; color: var(--muted-2); opacity: .6; white-space: nowrap; }
 .msg-count.is-near { color: #d8954a; }
 .msg-count.is-over { color: var(--coral, #ed8a77); font-weight: 700; }
 
@@ -183,24 +248,32 @@
   white-space: pre-wrap; word-break: break-word;
 }
 
-.msg-var {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  border-radius: 3px; padding: 1px 3px;
-}
+.msg-var { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); border-radius: 3px; padding: 1px 3px; }
 
 .msg-variant { margin-top: 14px; padding-top: 13px; border-top: 1px dashed var(--border); }
 .msg-variant-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; }
 
-/* Anything before the first step — a document that is a note rather than a sequence lands here whole. */
+/* Anything before the first step: targeting notes, reference lists. Prose, unlike the message copy,
+   so it gets real typesetting rather than a monospace block. */
 .msg-preamble {
-  margin-top: 16px; padding: 16px 18px;
+  margin-top: 16px; padding: 16px 20px;
   border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
-  font-size: 13px; line-height: 1.7; color: var(--muted); white-space: pre-wrap;
+  font-size: 12.5px; line-height: 1.65; color: var(--muted);
 }
+.msg-preamble h4 {
+  margin: 16px 0 8px; font-size: 10px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted-2);
+}
+.msg-preamble h4:first-child { margin-top: 0; }
+.msg-preamble p { margin: 0 0 8px; }
+.msg-preamble ul { margin: 0 0 10px; padding-left: 16px; }
+.msg-preamble li { margin-bottom: 3px; }
+.msg-preamble strong { color: var(--text); font-weight: 650; }
+.msg-preamble > *:last-child { margin-bottom: 0; }
 
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .msg-layout { grid-template-columns: minmax(0, 1fr); }
-  .msg-index { position: static; }
-  .msg-stats { gap: 20px; }
+  .msg-index { position: static; max-height: none; }
+  .msg-stats { gap: 22px; }
+  .msg-head-side { align-items: flex-start; }
 }

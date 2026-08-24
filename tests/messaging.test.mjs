@@ -16,8 +16,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CONNECTION_LIMIT, campaignCode, matchCampaign, messageLength, nameSimilarity, nameTokens,
-  parseSequence, splitFrontmatter, variablesIn,
+  CONNECTION_LIMIT, SORTS, campaignCode, matchCampaign, messageLength, nameSimilarity, nameTokens,
+  parseSequence, positiveRateOf, sortDocs, splitFrontmatter, totalChars, variablesIn,
 } from "../shared/messaging.mjs";
 
 const ACOS_V2 = `---
@@ -104,13 +104,20 @@ test("the title and senders are read off the document, not out of a step", () =>
   assert.ok(!parsed.steps[0].body.toLowerCase().includes("senders"));
 });
 
-test("a stated character budget is honoured over LinkedIn's ceiling", () => {
+test("the limit is always LinkedIn's 300, never the document's house target", () => {
   const { steps } = parseSequence(splitFrontmatter(ACOS_V2).body);
-  assert.equal(steps[0].budget, 250);
-  // A connection request with no stated target still gets the real limit.
-  const bare = parseSequence("**Connection request**\n\nHi there!");
-  assert.equal(bare.steps[0].budget, CONNECTION_LIMIT);
+  // "(250)" in the header is a preference. Measuring against it flagged a perfectly sendable
+  // 260-character request red, as though it were broken.
+  assert.equal(steps[0].budget, 300);
+  assert.equal(steps[0].target, 250);
   assert.equal(CONNECTION_LIMIT, 300);
+
+  const bare = parseSequence("**Connection request**\n\nHi there!");
+  assert.equal(bare.steps[0].budget, 300);
+  assert.equal(bare.steps[0].target, null);
+
+  // Only connection requests have a ceiling at all — nothing else can fail to send on length.
+  assert.equal(parseSequence("**LI Follow Up 1**\n\nHi").steps[0].budget, null);
 });
 
 test("an email step keeps its subject line out of the body", () => {
@@ -235,4 +242,62 @@ test("similarity ignores filler words and matches singular against plural", () =
 
 test("no campaigns at all is not an error", () => {
   assert.equal(matchCampaign("Sw001 business leaders", []), null);
+});
+
+/* ── Ordering the index ─────────────────────────────────────────────────────────────────────── */
+
+const DOCS = [
+  // A campaign that ran before sentiment scoring existed: 40 replies, none of them ever classified.
+  { title: "Zulu", steps: [{ chars: 100 }], stats: { replyRate: 22, positiveReplyRate: 0, scoredReplies: 0, replies: 40 } },
+  { title: "Alpha", steps: [{ chars: 300 }, { chars: 200 }], stats: { replyRate: 9, positiveReplyRate: 2, scoredReplies: 30, replies: 30 } },
+  { title: "Mike", steps: [{ chars: 50 }], stats: { replyRate: 18, positiveReplyRate: 7, scoredReplies: 12, replies: 12 } },
+  // No campaign matched at all, so no rates of any kind.
+  { title: "Bravo", steps: [{ chars: 400 }], stats: null },
+];
+
+const order = (mode) => sortDocs(DOCS, mode).map((doc) => doc.title);
+
+test("alphabetical is alphabetical, and does not mutate the input", () => {
+  const before = DOCS.map((doc) => doc.title);
+  assert.deepEqual(order("az"), ["Alpha", "Bravo", "Mike", "Zulu"]);
+  assert.deepEqual(DOCS.map((doc) => doc.title), before);
+});
+
+test("length counts the whole sequence, not the longest message in it", () => {
+  // Alpha is two messages totalling 500; Bravo is one of 400.
+  assert.deepEqual(order("longest"), ["Alpha", "Bravo", "Zulu", "Mike"]);
+  assert.deepEqual(order("shortest"), ["Mike", "Zulu", "Bravo", "Alpha"]);
+});
+
+test("per-sender variants do not inflate the length", () => {
+  // Two versions of one message is not more messaging than one version of it.
+  const doc = { title: "x", steps: [{ chars: 100, variants: [{ chars: 100 }, { chars: 100 }] }] };
+  assert.equal(totalChars(doc), 100);
+});
+
+test("reply rate sorts both ways, with no campaign sinking to the bottom", () => {
+  assert.deepEqual(order("reply-best"), ["Zulu", "Mike", "Alpha", "Bravo"]);
+  assert.deepEqual(order("reply-worst"), ["Alpha", "Mike", "Zulu", "Bravo"]);
+});
+
+test("an unscored campaign is unknown, not worst", () => {
+  // Zulu's positive rate reads 0 in the database only because nobody classified its replies. Sorting it
+  // as the worst performer would be an accusation the data does not support.
+  assert.equal(positiveRateOf(DOCS[0]), null);
+  // Zulu and Bravo are both unknown for different reasons, so they tie and fall back to alphabetical —
+  // and they sit together at the bottom whichever direction the known rates point.
+  assert.deepEqual(order("positive-worst"), ["Alpha", "Mike", "Bravo", "Zulu"]);
+  assert.deepEqual(order("positive-best"), ["Mike", "Alpha", "Bravo", "Zulu"]);
+});
+
+test("a scored campaign that genuinely got no positive replies still sorts as zero", () => {
+  // The distinction that matters: classified and zero is a real result; unclassified is not.
+  const scored = { title: "s", stats: { replyRate: 5, positiveReplyRate: 0, scoredReplies: 20, replies: 20 } };
+  assert.equal(positiveRateOf(scored), 0);
+});
+
+test("every offered sort returns every document", () => {
+  for (const [mode] of SORTS) {
+    assert.equal(sortDocs(DOCS, mode).length, DOCS.length, `${mode} lost a document`);
+  }
 });

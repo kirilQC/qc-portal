@@ -70,3 +70,30 @@ alter table qc_portal_users enable row level security;
 -- insert into qc_portal_users (email, password_hash, role, name)
 -- values ('kiril@qcgrowth.com', 'pbkdf2$210000$...$...', 'staff', 'Kiril Ivlev')
 -- on conflict (email) do nothing;
+
+-- ── Manual campaign attribution for messaging documents ────────────────────────────────────────
+--
+-- The messaging tab joins a document to its campaign by name: an exact match on the campaign code,
+-- then a similarity pass for the documents that carry no code. Neither can help a document whose name
+-- shares nothing with the campaign it was written for, and there are several of those. This table is
+-- where a human overrides the guess.
+--
+-- A row here always wins over whatever the matcher decided, and `campaign_id = null` is meaningful
+-- rather than absent: it records "a person looked at this and it belongs to no campaign", which stops
+-- the matcher re-suggesting a link that has already been rejected.
+--
+-- RLS on with no policies, like every other table here: the service key bypasses it and the app layer
+-- is the wall. Writes are gated to staff in the route.
+create table if not exists qc_portal_messaging_links (
+  workspace_id  uuid not null,
+  doc_path      text not null,
+  campaign_id   text,
+  set_by        text,
+  set_at        timestamptz not null default now(),
+  primary key (workspace_id, doc_path)
+);
+
+alter table qc_portal_messaging_links enable row level security;
+
+create index if not exists qc_portal_messaging_links_workspace
+  on qc_portal_messaging_links (workspace_id);

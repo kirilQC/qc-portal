@@ -46,6 +46,9 @@ const CLIENT_READABLE: Record<string, string> = {
   rr_deals: "workspace_id",
   rr_sync_runs: "workspace_id",
   rr_webhook_events: "workspace_id",
+  // A client reads its own manual campaign attributions so the corrected link shows on their screen;
+  // writing one is staff work and is gated in the route, not here.
+  qc_portal_messaging_links: "workspace_id",
 };
 
 /** Tables only a staff session may read. Never reachable from a client session, filtered or not. */
@@ -243,12 +246,19 @@ export async function adminWrite(
   method: "POST" | "PATCH" | "DELETE",
   body: unknown,
   params: Record<string, string> = {},
+  /**
+   * Extra `Prefer` directives. `resolution=merge-duplicates` turns a POST into an upsert, which is the
+   * only way PostgREST offers to write a row that may or may not already exist without a read first.
+   */
+  prefer: string[] = [],
 ): Promise<{ ok: boolean; rows: Row[]; error: string }> {
   const { url, key } = config();
   const search = new URLSearchParams(params);
+  const headers = authHeaders(key, true);
+  if (prefer.length) headers.Prefer = [headers.Prefer, ...prefer].filter(Boolean).join(",");
   const response = await fetch(`${url}/rest/v1/${table}?${search.toString()}`, {
     method,
-    headers: authHeaders(key, true),
+    headers,
     body: method === "DELETE" ? undefined : JSON.stringify(body),
   });
   const payload = await response.json().catch(() => null);

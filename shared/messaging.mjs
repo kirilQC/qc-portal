@@ -73,7 +73,14 @@ export function splitFrontmatter(markdown) {
  * whichever way it was marked up.
  */
 
-/** LinkedIn's own ceiling on a connection request note. A document may state a tighter target. */
+/**
+ * LinkedIn's ceiling on a connection request note.
+ *
+ * This is the only number that can make a message fail to send, so it is the only one the character
+ * count is ever measured against. A document that writes "(250)" after the header is stating its own
+ * house target — worth keeping and worth showing, but treating it as the limit meant a perfectly
+ * sendable 260-character request was flagged red as if it were broken.
+ */
 export const CONNECTION_LIMIT = 300;
 
 /**
@@ -102,36 +109,39 @@ function looksLikeHeader(line) {
  * Order matters: "EMAIL Follow Up" must be tested before the generic follow-up pattern, or it would be
  * classified as a LinkedIn touch and shown with the wrong channel and the wrong limit.
  *
- * @returns {{ kind: string, channel: string, label: string, order: number, budget: number|null } | null}
+ * @returns {{ kind, channel, label, order, budget: number|null, target: number|null } | null}
+ *   `budget` is the hard limit a message must stay under to send at all; `target` is the document's own
+ *   stated preference. Only the first can make copy red.
  */
 function classifyStep(headerText) {
   const text = headerText.trim();
   const lower = text.toLowerCase();
 
-  // "(250)" after a header is the writer's own character target for that message.
-  const budgetMatch = text.match(/\((\d{2,4})\s*(?:chars?|characters?)?\)/i);
-  const budget = budgetMatch ? Number(budgetMatch[1]) : null;
+  // "(250)" after a header is the writer's own character target — a preference, never the limit.
+  const targetMatch = text.match(/\((\d{2,4})\s*(?:chars?|characters?)?\)/i);
+  const target = targetMatch ? Number(targetMatch[1]) : null;
+  const budget = null;
   const nth = () => {
     const found = lower.match(/(?:follow\s*-?\s*up|fu|message|msg|touch)\s*#?\s*(\d+)/);
     return found ? Number(found[1]) : 1;
   };
 
   if (/^(li\s+)?connection\s*(request|note|message)?\b/.test(lower) || /^cr\b/.test(lower)) {
-    return { kind: "connection", channel: "linkedin", label: "Connection request", order: 0, budget: budget ?? CONNECTION_LIMIT };
+    return { kind: "connection", channel: "linkedin", label: "Connection request", order: 0, budget: CONNECTION_LIMIT, target };
   }
   if (/\binmail\b/.test(lower)) {
-    return { kind: "inmail", channel: "inmail", label: text.replace(/\s*\(\d+.*?\)\s*/i, "").trim() || "InMail", order: 5, budget };
+    return { kind: "inmail", channel: "inmail", label: text.replace(/\s*\(\d+.*?\)\s*/i, "").trim() || "InMail", order: 5, budget, target };
   }
   if (/\bemail\b/.test(lower) || /^subject\s*line/.test(lower)) {
     const n = nth();
-    return { kind: "email", channel: "email", label: n > 1 ? `Email follow-up ${n}` : "Email follow-up", order: 90 + n, budget };
+    return { kind: "email", channel: "email", label: n > 1 ? `Email follow-up ${n}` : "Email follow-up", order: 90 + n, budget, target };
   }
   if (/\bvoice\s*note\b|\bvoicenote\b/.test(lower)) {
-    return { kind: "voice", channel: "linkedin", label: "Voice note", order: 50, budget };
+    return { kind: "voice", channel: "linkedin", label: "Voice note", order: 50, budget, target };
   }
   if (/(?:^|\b)(?:li|linkedin)?\s*follow\s*-?\s*up\b/.test(lower) || /^(?:li\s*)?fu\s*#?\s*\d/.test(lower)) {
     const n = nth();
-    return { kind: "followup", channel: "linkedin", label: `Follow-up ${n}`, order: 10 + n, budget };
+    return { kind: "followup", channel: "linkedin", label: `Follow-up ${n}`, order: 10 + n, budget, target };
   }
   return null;
 }
@@ -206,7 +216,7 @@ export function parseSequence(markdown) {
         // header of its own — start it, rather than hanging a subject off a LinkedIn message.
         if (!step || step.channel !== "email") {
           if (step) steps.push(step);
-          step = { kind: "email", channel: "email", label: "Email follow-up", order: 91, budget: null, heading: header, subject: null, lines: [], variants: [] };
+          step = { kind: "email", channel: "email", label: "Email follow-up", order: 91, budget: null, target: null, heading: header, subject: null, lines: [], variants: [] };
           variant = null;
         }
         step.subject = subject[1].trim();
@@ -262,6 +272,7 @@ export function parseSequence(markdown) {
       body: shown,
       chars: messageLength(shown),
       budget: s.budget,
+      target: s.target ?? null,
       variables: variablesIn(`${shown}\n${s.subject ?? ""}`),
       variants: body ? variants : variants.slice(1),
     };
@@ -391,4 +402,88 @@ export function matchCampaign(docTitle, campaigns) {
   if (ranked.length > 1 && ranked[0].score - ranked[1].score < 0.01) return null;
 
   return { campaignId: ranked[0].c.campaignId, name: ranked[0].c.name, confidence: "suggested", score: ranked[0].score };
+}
+
+/* ── Ordering the index ─────────────────────────────────────────────────────────────────────────
+ *
+ * The subtle part is not the comparison, it is what counts as missing.
+ *
+ * A document with no matched campaign has no reply rate; a campaign whose replies were never put
+ * through sentiment analysis has no positive rate. Neither is zero. Sorted naively, "worst positive
+ * reply rate" would be topped by campaigns that simply predate scoring — a ranking that reads as an
+ * accusation and is really a gap in the data. So anything unknown sinks to the bottom of every rate
+ * sort, ascending and descending alike, and is labelled rather than scored.
+ */
+
+/** The sorts offered, in the order they appear in the menu. */
+export const SORTS = [
+  ["status", "Campaign status"],
+  ["az", "A–Z"],
+  ["longest", "Longest messaging"],
+  ["shortest", "Shortest messaging"],
+  ["reply-best", "Best reply rate"],
+  ["reply-worst", "Worst reply rate"],
+  ["positive-best", "Best positive rate"],
+  ["positive-worst", "Worst positive rate"],
+];
+
+/**
+ * How many characters a sequence actually sends.
+ *
+ * Per-sender variants are deliberately excluded: they are the same touch written twice, so counting
+ * them would make a document look longer for having two versions of one message rather than more
+ * messaging in it.
+ */
+export function totalChars(doc) {
+  return (doc?.steps ?? []).reduce((sum, step) => sum + (Number(step?.chars) || 0), 0);
+}
+
+/** A campaign's reply rate, or null when no campaign is attached. */
+export function replyRateOf(doc) {
+  const stats = doc?.stats;
+  return stats && typeof stats.replyRate === "number" ? stats.replyRate : null;
+}
+
+/**
+ * A campaign's positive reply rate, or null when it cannot be known.
+ *
+ * Null covers two different gaps that both have to sort the same way: no campaign attached at all, and
+ * a campaign with replies that nobody ever classified.
+ */
+export function positiveRateOf(doc) {
+  const stats = doc?.stats;
+  if (!stats || typeof stats.positiveReplyRate !== "number") return null;
+  if ((stats.scoredReplies ?? 0) === 0 && (stats.replies ?? 0) > 0) return null;
+  return stats.positiveReplyRate;
+}
+
+/**
+ * Order documents for the index.
+ *
+ * Returns a new array; `mode` "status" is returned untouched because grouping does that ordering.
+ *
+ * @param {Array<object>} docs
+ * @param {string} mode  one of the keys in SORTS
+ */
+export function sortDocs(docs, mode) {
+  const list = [...(docs ?? [])];
+  const byTitle = (a, b) => String(a.title ?? "").localeCompare(String(b.title ?? ""), undefined, { sensitivity: "base" });
+
+  if (mode === "az") return list.sort(byTitle);
+  if (mode === "longest" || mode === "shortest") {
+    const sign = mode === "longest" ? -1 : 1;
+    return list.sort((a, b) => sign * (totalChars(a) - totalChars(b)) || byTitle(a, b));
+  }
+
+  const read = mode.startsWith("positive") ? positiveRateOf : replyRateOf;
+  const sign = mode.endsWith("-best") ? -1 : 1;
+  return list.sort((a, b) => {
+    const left = read(a);
+    const right = read(b);
+    // Unknown is not a score. It goes last whichever way the known values are pointing.
+    if (left === null && right === null) return byTitle(a, b);
+    if (left === null) return 1;
+    if (right === null) return -1;
+    return sign * (left - right) || byTitle(a, b);
+  });
 }
