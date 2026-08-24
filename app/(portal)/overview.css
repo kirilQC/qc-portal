@@ -14,7 +14,7 @@
 /* ── The briefing ───────────────────────────────────────────────────────────────────────────────── */
 
 .ov-brief {
-  padding: 26px 28px; margin-bottom: 16px;
+  padding: 28px 30px; margin-bottom: 18px;
   border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
   border-radius: 14px;
   background: linear-gradient(152deg, color-mix(in srgb, var(--accent) 10%, var(--panel)), var(--panel));
@@ -22,8 +22,14 @@
 .ov-brief-eyebrow {
   font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--accent);
 }
-/* Set as prose: a comfortable measure and a real line-height, because this is a sentence. */
-.ov-brief p { margin: 12px 0 0; max-width: 68ch; font-size: 18px; line-height: 1.62; color: var(--text); }
+/*
+ * Set as prose, sized to fill the box.
+ *
+ * The measure was capped at 68ch, which left the right third of a wide panel empty. This is one or two
+ * sentences, not a column of body text, so a longer measure is fine — the cap comes off and a slightly
+ * larger face takes the space the panel actually gives it.
+ */
+.ov-brief p { margin: 14px 0 0; max-width: 92ch; font-size: 20px; line-height: 1.55; letter-spacing: -.01em; color: var(--text); }
 .ov-brief b { font-weight: 700; color: var(--text); }
 .ov-quiet { color: var(--muted); }
 .ov-brief-foot {
@@ -40,8 +46,13 @@
 
 /* ── The two columns ────────────────────────────────────────────────────────────────────────────── */
 
-.ov-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.85fr); gap: 16px; align-items: start; }
-.ov-column { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* The stacked sections — briefing, tiles, strip, grid — each set off from the next by the same gap, so
+   nothing reads as clipping into what follows it. */
+.ov-strip { margin-bottom: 18px; }
+.ov-tiles { margin-bottom: 18px; }
+
+.ov-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.85fr); gap: 18px; align-items: start; }
+.ov-column { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .ov-column .panel + .panel { margin-top: 0; }
 
 /* ── The all-time funnel ────────────────────────────────────────────────────────────────────────── */

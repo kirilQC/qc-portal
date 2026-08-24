@@ -244,12 +244,19 @@ function Overview() {
       <section className="ov-brief">
         <span className="ov-brief-eyebrow">{data.rangeLabel ?? "This week"}</span>
         <p>{briefing(data)}</p>
-        <div className="ov-brief-foot">
-          {data.bestCampaigns?.[0] && (
-            <span>Best campaign <b>{data.bestCampaigns[0].name}</b> at {data.bestCampaigns[0].replyRate}% reply rate</span>
-          )}
-          {data.busiestSender && <span>Busiest sender <b>{data.busiestSender.name}</b>, {n(data.busiestSender.sent)} requests</span>}
-        </div>
+      </section>
+
+      {/* The way on to everything else, directly under the summary — the first thing after "how is it
+          going" is "take me to it". */}
+      <section className="ov-tiles">
+        {tiles.map((tile) => (
+          <Link key={tile.href} href={`${tile.href}${clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : ""}`} className="ov-tile">
+            <span className="ov-tile-label">{tile.label}</span>
+            {tile.value && <strong>{tile.value}</strong>}
+            <em>{tile.note}</em>
+            <span className="ov-tile-go">→</span>
+          </Link>
+        ))}
       </section>
 
       {/*
@@ -331,27 +338,6 @@ function Overview() {
             )}
           </section>
 
-          <section className="panel">
-            <div className="panel-head">
-              <h2>Best performing campaigns</h2>
-              <span>By reply rate</span>
-            </div>
-            {data.bestCampaigns?.length ? (
-              <div className="ov-list">
-                {data.bestCampaigns.map((campaign) => (
-                  <div className="ov-lrow" key={campaign.name}>
-                    <span>
-                      <strong>{campaign.name}</strong>
-                      <small>{n(campaign.reached)} reached · {n(campaign.accepted)} accepted</small>
-                    </span>
-                    <data>{campaign.replyRate}%</data>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="empty">No campaign has sent enough for a rate to mean much yet.</p>
-            )}
-          </section>
         </div>
 
         <ActivityNetwork
@@ -361,18 +347,6 @@ function Overview() {
         />
       </div>
 
-      {/* The way on to everything else. The left column used to end here and leave a screen-height of
-          empty space beside a feed that ran on. */}
-      <section className="ov-tiles">
-        {tiles.map((tile) => (
-          <Link key={tile.href} href={`${tile.href}${clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : ""}`} className="ov-tile">
-            <span className="ov-tile-label">{tile.label}</span>
-            {tile.value && <strong>{tile.value}</strong>}
-            <em>{tile.note}</em>
-            <span className="ov-tile-go">→</span>
-          </Link>
-        ))}
-      </section>
     </div>
   );
 }
