@@ -176,17 +176,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </>
       );
     }
-    return (
-      <>
-        <span className="brand-mark brand-mark-qc">
-          <img src="/qc-growth-logo.png" alt="" />
-        </span>
-        {!collapsed && (
-          <span className="brand-name">
-            QC <span>Growth</span>
-          </span>
-        )}
-      </>
+    /*
+     * The banner lockup rather than the mark beside typed-out "QC Growth".
+     *
+     * Collapsed, the sidebar is too narrow for a 3.9:1 image, so the square mark stands in — the same
+     * artwork the favicon uses, which is what the collapsed rail wants anyway: a recognisable dot.
+     */
+    return collapsed ? (
+      <span className="brand-mark brand-mark-qc">
+        <img src="/qc-growth-logo.png" alt="QC Growth" />
+      </span>
+    ) : (
+      <img className="brand-banner" src="/qc-growth-banner.png" alt="QC Growth" />
     );
   })();
 

@@ -3,8 +3,8 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useCachedJson } from "./cache";
 
 /**
  * The one fetch every page makes.
@@ -71,35 +71,20 @@ export type PortalData = {
   error?: string;
 };
 
+/**
+ * The one fetch every page makes, served from cache while it revalidates.
+ *
+ * Each tab is its own route, so this hook used to remount and start from nothing on every navigation —
+ * a blank "Loading…" for a payload the previous tab had fetched a second earlier. It now hands back the
+ * last good answer immediately and replaces it when the request returns, so moving between tabs after
+ * the first load costs nothing on screen.
+ */
 export function usePortal() {
-  const [data, setData] = useState<PortalData | null>(null);
-  const [error, setError] = useState("");
   const params = useSearchParams();
   const client = params.get("client");
-
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const query = client ? `?client=${encodeURIComponent(client)}` : "";
-        const response = await fetch(`/api/portal${query}`, { cache: "no-store" });
-        const payload = (await response.json().catch(() => ({}))) as PortalData;
-        if (!live) return;
-        if (!response.ok) {
-          setError(payload.error || "That did not load.");
-          return;
-        }
-        setData(payload);
-      } catch {
-        if (live) setError("That did not load.");
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [client]);
-
-  return { data, error, loading: !data && !error, clientSlug: client };
+  const url = `/api/portal${client ? `?client=${encodeURIComponent(client)}` : ""}`;
+  const { data, error, loading } = useCachedJson<PortalData>(url);
+  return { data, error, loading, clientSlug: client };
 }
 
 /** Money, the way a client expects to read it: no cents, grouped, with the symbol. */

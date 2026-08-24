@@ -33,6 +33,8 @@
  * silently returned unfiltered.
  */
 import type { Session } from "./session";
+// Plain ESM, shared with the test runner; see shared/tenancy.mjs.
+import { scopeRows } from "../../shared/tenancy.mjs";
 
 /** Tables a client session may read, each keyed by the column that carries tenancy. */
 const CLIENT_READABLE: Record<string, string> = {
@@ -147,7 +149,17 @@ export async function scopedRows(
     search.set(tenancyColumn, `eq.${confineTo}`);
   }
 
-  return read(table, search);
+  /*
+   * Row selection is only half of tenancy.
+   *
+   * A lead row belongs to one workspace and is filtered above, but the blob inside it does not: Reply
+   * Radar stamps every lead with `raw_data.reply_radar.attributions` covering *every* client that has
+   * ever prospected that person, and flattens them into a rollup of campaign, sender and client names.
+   * Arcjet's lead database was rendering Cotool's campaigns and Cotool's senders on a row Arcjet
+   * legitimately owned. So what comes back is cut down to this workspace before it leaves this
+   * function, which is the only arrangement under which a route cannot forget to do it.
+   */
+  return scopeRows(await read(table, search), confineTo) as Row[];
 }
 
 /**

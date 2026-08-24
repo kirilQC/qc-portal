@@ -7,6 +7,7 @@
    from. */
 
 import { useCallback, useEffect, useState } from "react";
+import { clearCache } from "./cache";
 
 /**
  * Settings: your own details, your team, and how the portal looks.
@@ -108,6 +109,9 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
 
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    // The cached payloads live as long as the page does, and signing out does not reload it. Without
+    // this, signing straight back in as somebody else would paint the previous session's numbers first.
+    clearCache();
     window.location.href = "/login";
   }
 
