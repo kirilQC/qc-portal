@@ -466,3 +466,60 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
  */
 :root { --ui-base: 0.9; }
 .page-scroll { zoom: calc(var(--ui-base) * var(--zoom, 1)); }
+
+/* ── System health: the tether ──────────────────────────────────────────────────────────────────
+   The dependency strip and the two heartbeat panels — the live proof that data is moving from Reply
+   Radar into this portal, which is the whole reason the page exists. */
+
+.ops-checked { margin: -8px 0 22px; font-size: 11.5px; color: var(--muted-2); }
+
+.ops-deps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.ops-dep {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 15px 17px; border-radius: 13px; border: 1px solid var(--border); background: var(--panel);
+  border-left: 3px solid var(--muted-2);
+}
+.ops-dep-top { display: flex; align-items: center; gap: 8px; }
+.ops-dep-top b { font-size: 13px; font-weight: 620; letter-spacing: -.01em; }
+.ops-dep-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-2); flex: none; }
+.ops-dep-status { margin-left: auto; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2); }
+.ops-dep-detail { font-size: 12px; color: var(--muted); }
+.ops-dep-from { font-size: 10.5px; color: var(--muted-2); line-height: 1.45; }
+
+/* A dependency wears its verdict on its rail, dot and status word all at once. */
+.ops-dep.is-healthy { border-left-color: var(--green); }
+.ops-dep.is-healthy .ops-dep-dot { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 20%, transparent); }
+.ops-dep.is-healthy .ops-dep-status { color: var(--green); }
+.ops-dep.is-attention { border-left-color: var(--amber); }
+.ops-dep.is-attention .ops-dep-dot { background: var(--amber); }
+.ops-dep.is-attention .ops-dep-status { color: var(--amber); }
+.ops-dep.is-down { border-left-color: var(--coral); }
+.ops-dep.is-down .ops-dep-dot { background: var(--coral); box-shadow: 0 0 0 3px color-mix(in srgb, var(--coral) 22%, transparent); }
+.ops-dep.is-down .ops-dep-status { color: var(--coral); }
+.ops-dep.is-idle { opacity: .82; }
+
+/* The two heartbeat panels sit side by side, dropping to one column when narrow. */
+.ops-hb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-bottom: 30px; }
+.ops-hb-body { padding: 16px 18px 18px; }
+.ops-hb-stats { display: flex; gap: 28px; margin-bottom: 14px; }
+.ops-hb-stats > div { display: flex; flex-direction: column; gap: 2px; }
+.ops-hb-stats span { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2); }
+.ops-hb-stats b { font-size: 19px; font-weight: 680; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.ops-hb-note { margin: 0 0 12px; font-size: 11.5px; color: var(--muted-2); }
+.ops-hb-err {
+  margin: 0 0 12px; padding: 9px 12px; border-radius: 9px; font-size: 11.5px; line-height: 1.5;
+  color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--coral) 28%, transparent);
+}
+
+/* The recent-runs strip: one row per tick, the record count on the right so a "+0" stands out. */
+.ops-hb-runs { display: flex; flex-direction: column; gap: 1px; border-top: 1px solid var(--border-soft); padding-top: 10px; }
+.ops-hb-run { display: grid; grid-template-columns: 8px minmax(0, 88px) minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 6px 0; font-size: 11.5px; }
+.ops-hb-run i { width: 6px; height: 6px; border-radius: 50%; }
+.ops-hb-run i.ok { background: var(--green); }
+.ops-hb-run i.bad { background: var(--coral); }
+.ops-hb-run i.idle { background: var(--muted-2); }
+.ops-hb-run-src { color: var(--muted); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ops-hb-run-c { color: var(--muted-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ops-hb-run-w { font-size: 10.5px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+.ops-hb-run time { font-size: 10.5px; color: var(--muted-2); white-space: nowrap; }
