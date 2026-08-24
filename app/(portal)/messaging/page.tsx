@@ -29,7 +29,7 @@ import { SORTS, positiveRateOf, replyRateOf, sortDocs, totalChars } from "../../
  * dressed as a fact leaves no way to tell which links can be trusted.
  */
 
-type Variant = { author: string; body: string; chars: number };
+type Variant = { label: string; author: string; body: string; chars: number };
 type Step = {
   index: number;
   kind: string;
@@ -290,6 +290,10 @@ function Group({ label, tone, docs, openPath, onOpen, sort }: {
         <span>{docs.length}</span>
       </div>
       {docs.map((doc) => {
+        // The row is the document's name and nothing else. The campaign and the step count were
+        // repeating what the header says the moment you click, and two lines of grey under every title
+        // turned the column into a wall. The one exception is the figure being sorted by: rank fifteen
+        // documents by reply rate without showing the rate and the order looks arbitrary.
         const metric = metricFor(doc, sort);
         return (
           <button
@@ -298,16 +302,7 @@ function Group({ label, tone, docs, openPath, onOpen, sort }: {
             onClick={() => onOpen(doc.path)}
           >
             <span className="msg-item-title">{doc.title}</span>
-            <span className="msg-item-meta">
-              {metric ? (
-                <span className="msg-item-metric">{metric}</span>
-              ) : doc.campaign ? (
-                <span className={`msg-item-camp ${doc.campaign.confidence}`}>{doc.campaign.name}</span>
-              ) : (
-                <span className="msg-item-camp none">{doc.steps.length ? "Unattributed" : "Note"}</span>
-              )}
-              {doc.steps.length > 0 && <span className="msg-item-steps">{doc.steps.length}</span>}
-            </span>
+            {metric && <span className="msg-item-metric">{metric}</span>}
           </button>
         );
       })}
@@ -472,10 +467,11 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
 }
 
 function StepCard({ step }: { step: Step }) {
-  // Only a hard limit can make a count red: over it, the message will not send. A house target of 250
-  // is a preference, and flagging a sendable 265-character request as broken was simply wrong.
-  const over = step.budget !== null && step.chars > step.budget;
-  const near = step.budget !== null && !over && step.chars > step.budget * 0.92;
+  // A step may hold one message, or several A/B versions of the same message. Where there are versions
+  // there is no single character count to show — three messages do not have one length — so the header
+  // says how many there are and each version carries its own count.
+  const versions = step.variants;
+  const hasBody = step.body.trim().length > 0;
 
   return (
     <article className={`msg-step ch-${step.channel}`}>
@@ -483,14 +479,12 @@ function StepCard({ step }: { step: Step }) {
         <div className="msg-card-head">
           <span className={`msg-chip ch-${step.channel}`}><i className="msg-dot" />{CHANNEL_LABEL[step.channel] ?? step.channel}</span>
           <b>{step.label}</b>
-          {step.variants.length > 0 && <span className="msg-chip is-none">{step.variants.length + 1} versions</span>}
+          {versions.length > 1 && <span className="msg-chip is-none">{versions.length} versions</span>}
           <span className="msg-counts">
             {step.target !== null && step.target !== step.budget && (
               <span className="msg-target" title="The target this document sets for itself">target {step.target}</span>
             )}
-            <span className={`msg-count ${over ? "is-over" : near ? "is-near" : ""}`}>
-              {step.budget !== null ? `${step.chars} / ${step.budget}` : `${step.chars} chars`}
-            </span>
+            {hasBody && <Count chars={step.chars} budget={step.budget} />}
           </span>
         </div>
         <div className="msg-card-body">
@@ -500,19 +494,35 @@ function StepCard({ step }: { step: Step }) {
               <span>{step.subject}</span>
             </div>
           )}
-          <Copy body={step.body} />
-          {step.variants.map((variant) => (
-            <div className="msg-variant" key={variant.author}>
+          {hasBody && <Copy body={step.body} />}
+          {versions.map((version, index) => (
+            <div className={`msg-variant ${!hasBody && index === 0 ? "is-first" : ""}`} key={`${version.label}-${index}`}>
               <div className="msg-variant-head">
-                <span className="msg-lbl">Version from {variant.author}</span>
-                <span className="msg-count">{variant.chars} chars</span>
+                <span className="msg-variant-label">{version.label}</span>
+                <Count chars={version.chars} budget={step.budget} />
               </div>
-              <Copy body={variant.body} />
+              <Copy body={version.body} />
             </div>
           ))}
         </div>
       </div>
     </article>
+  );
+}
+
+/**
+ * A character count, measured against a hard limit where one exists.
+ *
+ * Only a limit can turn this red: over it the message will not send. A house target of 250 is a
+ * preference, and flagging a sendable 265-character request as broken was simply wrong.
+ */
+function Count({ chars, budget }: { chars: number; budget: number | null }) {
+  const over = budget !== null && chars > budget;
+  const near = budget !== null && !over && chars > budget * 0.92;
+  return (
+    <span className={`msg-count ${over ? "is-over" : near ? "is-near" : ""}`}>
+      {budget !== null ? `${chars} / ${budget}` : `${chars} chars`}
+    </span>
   );
 }
 

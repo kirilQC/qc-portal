@@ -64,7 +64,20 @@ export async function POST(request: Request) {
     { on_conflict: "workspace_id,doc_path" },
     ["resolution=merge-duplicates"],
   );
-  if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 502 });
+  if (!result.ok) {
+    // PostgREST answers 404 for a table it cannot find, which reached the screen as "The database
+    // returned 404." — true, unhelpful, and indistinguishable from a bug. Name the actual cause.
+    const missing = /404|does not exist|schema cache/i.test(result.error);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: missing
+          ? "The attribution table has not been created yet. Run the qc_portal_messaging_links migration in Supabase, then try again."
+          : result.error,
+      },
+      { status: 502 },
+    );
+  }
 
   return NextResponse.json({ ok: true, docPath, campaignId });
 }

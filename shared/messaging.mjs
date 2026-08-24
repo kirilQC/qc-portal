@@ -67,10 +67,33 @@ export function splitFrontmatter(markdown) {
 
 /* ── The sequence ───────────────────────────────────────────────────────────────────────────────
  *
- * Step headers arrive in three disguises — a markdown heading, a bold-only line, or a bare line — and
- * the writer is a person, so "LI Follow Up 1 |", "LinkedIn follow-up #1" and "Follow up 1" all mean the
- * same thing. Matching is therefore done on the *text* of any line that is structurally a header,
- * whichever way it was marked up.
+ * The first version of this parser assumed a document was a list of single messages under tidy bold
+ * headers. Two real documents killed that assumption at once.
+ *
+ * Steadywell's "COOs (Retarget)" writes its second follow-up header as `**Follow Up 1** _|_`. The
+ * trailing `_|_` meant the line did not match "a line that is entirely bold", so the header was never
+ * recognised and the whole follow-up was swallowed into the connection request above it — which is why
+ * that card read 794 characters against a 300 limit.
+ *
+ * Cotool's "Social Signals" is worse and more instructive. Its connection request is headed
+ * `DAY 0 + 1 HR — CONNECT REQUEST NOTE`, which is not bold at all and does not begin with the word
+ * "connection". Under it are three A/B/C variants written as `Test A:`, `Test B:`, `Test C:` — the
+ * prefix sharing a line with the copy. Then a bare `EMAIL` line, then `STEP 1`, `STEP 2`, `STEP 3`,
+ * which are three separate emails and were arriving as one enormous follow-up.
+ *
+ * So this version works differently in three ways.
+ *
+ * A header does not have to be bold. A markdown heading, an all-bold line, an ALL-CAPS line and a short
+ * line matching a known step word all count, with guards so a sentence of body copy cannot be mistaken
+ * for one.
+ *
+ * A step can hold several variants, and a variant marker may share its line with the copy that follows
+ * it. `Test A:`, `Option 2`, `Variation 3`, `VERSION FROM TIM:` and a bare `-` between two message
+ * bodies all open a new variant rather than a new step.
+ *
+ * There is a running channel context. A line that is just `EMAIL` does not start a step, it says that
+ * what follows is email — so the `STEP 1` under it becomes "Email 1" rather than an untyped step, and
+ * a "Follow up" under it is an email follow-up rather than a LinkedIn one.
  */
 
 /**
@@ -84,64 +107,132 @@ export function splitFrontmatter(markdown) {
 export const CONNECTION_LIMIT = 300;
 
 /**
- * Strip markdown emphasis and trailing separators from a candidate header.
- * "**LI Follow Up 1 |**" → "LI Follow Up 1"
+ * A header line reduced to its words.
+ *
+ * Strips the heading marks, every emphasis character, and any leading or trailing decoration. The
+ * decoration set has to include `_` and `|`: the real header `**Follow Up 1** _|_` is why this parser
+ * was rewritten, and a trailing-character class that omits them silently loses the step.
  */
-function bareHeader(line) {
-  let text = line.trim();
-  const heading = text.match(/^#{1,6}\s+(.*)$/);
-  if (heading) text = heading[1];
-  // A line that is *entirely* bold is a header in these documents; bold inside a sentence is not.
-  const bold = text.match(/^\*\*(.+)\*\*[\s:|—-]*$/);
-  if (bold) text = bold[1];
-  return text.replace(/[\s:|·—-]+$/, "").trim();
+function cleanHeader(line) {
+  return String(line)
+    .trim()
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/[*_`~]/g, "")
+    .replace(/^[\s|·—–-]+/, "")
+    .replace(/[\s:|·—–-]+$/, "")
+    .trim();
 }
 
-/** True when a line is structurally a header — a heading, or a line that is entirely bold. */
+/** Patterns that make a bare, unemphasised line worth reading as a header. */
+const STEP_WORDS = /connect(?:ion)?\s*request|connection\s*note|invite\s*note|follow\s*-?\s*up|^step\s*#?\s*\d|^(?:email|e-mail|linkedin|inmail|li)$|^cr\b|voice\s*note/i;
+
+/**
+ * Is this line structurally a header rather than a sentence?
+ *
+ * The guards matter more than the patterns. Body copy in these documents is addressed to a person, so
+ * anything carrying a merge field, ending in sentence punctuation, or running long is refused however
+ * well it matches — otherwise "I sent you a connection request last week" would end a message and start
+ * a new one in the middle of somebody's copy.
+ */
 function looksLikeHeader(line) {
-  const text = line.trim();
-  return /^#{1,6}\s+\S/.test(text) || /^\*\*.+\*\*[\s:|—-]*$/.test(text);
+  const raw = String(line).trim();
+  if (!raw) return false;
+  if (/^#{1,6}\s+\S/.test(raw)) return true;
+
+  // Entirely bold, allowing the trailing decoration that broke the previous version.
+  if (/^(\*\*|__)\S/.test(raw) && /(\*\*|__)[\s|·—–_*-]*$/.test(raw)) return true;
+
+  const cleaned = cleanHeader(raw);
+  if (!cleaned || cleaned.length > 80) return false;
+  if (/[.!?]$/.test(cleaned)) return false;
+  if (/\{|\}|\[/.test(cleaned)) return false;
+
+  // An all-caps line is a section marker in every one of these documents.
+  const letters = cleaned.replace(/[^A-Za-z]/g, "");
+  if (letters.length >= 3 && cleaned === cleaned.toUpperCase()) return true;
+
+  return STEP_WORDS.test(cleaned);
+}
+
+/** `EMAIL` / `LINKEDIN` / `INMAIL` on a line of its own: not a step, a statement about what follows. */
+function channelMarker(cleaned) {
+  const text = cleaned.toLowerCase().replace(/[^a-z]/g, "");
+  if (text === "email" || text === "emails") return "email";
+  if (text === "inmail" || text === "inmails") return "inmail";
+  if (text === "linkedin" || text === "li") return "linkedin";
+  return null;
+}
+
+/**
+ * A variant marker, and whatever copy shared the line with it.
+ *
+ * `Test A:  Hey {FIRST_NAME}, saw your name…` is one line carrying both the label and the start of the
+ * message, which is why this returns the remainder rather than just a boolean.
+ */
+function classifyVariant(text) {
+  const line = String(text).trim();
+
+  const versionFrom = line.match(/^(?:version|copy|option)\s+(?:from|by|for)\s+([^:]{1,40}):?\s*(.*)$/i);
+  if (versionFrom) return { label: versionFrom[1].trim(), rest: versionFrom[2] ?? "" };
+
+  const labelled = line.match(/^(test|option|variation|variant|version|ver|v)\s*([A-Za-z0-9]{1,3})\s*[:.)]\s*(.*)$/i);
+  if (labelled) {
+    const word = labelled[1].toLowerCase();
+    const pretty = word === "v" || word === "ver" ? "Version" : word.charAt(0).toUpperCase() + word.slice(1);
+    return { label: `${pretty} ${labelled[2].toUpperCase()}`, rest: labelled[3] ?? "" };
+  }
+  return null;
 }
 
 /**
  * Classify a header as the start of a message step, or return null.
  *
- * Order matters: "EMAIL Follow Up" must be tested before the generic follow-up pattern, or it would be
- * classified as a LinkedIn touch and shown with the wrong channel and the wrong limit.
+ * `channel` is the running context set by a bare `EMAIL` line or by the previous step, and it decides
+ * what an otherwise untyped "STEP 2" or "Follow up 3" belongs to.
  *
- * @returns {{ kind, channel, label, order, budget: number|null, target: number|null } | null}
- *   `budget` is the hard limit a message must stay under to send at all; `target` is the document's own
- *   stated preference. Only the first can make copy red.
+ * Order matters throughout: "EMAIL Follow Up" has to be tested before the generic follow-up pattern or
+ * it lands on LinkedIn with the wrong channel and the wrong limit.
  */
-function classifyStep(headerText) {
-  const text = headerText.trim();
+function classifyStep(headerText, channel) {
+  const text = String(headerText).trim();
   const lower = text.toLowerCase();
 
   // "(250)" after a header is the writer's own character target — a preference, never the limit.
   const targetMatch = text.match(/\((\d{2,4})\s*(?:chars?|characters?)?\)/i);
   const target = targetMatch ? Number(targetMatch[1]) : null;
-  const budget = null;
-  const nth = () => {
-    const found = lower.match(/(?:follow\s*-?\s*up|fu|message|msg|touch)\s*#?\s*(\d+)/);
-    return found ? Number(found[1]) : 1;
+  const numberIn = (pattern) => {
+    const found = lower.match(pattern);
+    return found ? Number(found[1]) : null;
   };
+  const nth = () => numberIn(/(?:follow\s*-?\s*up|fu|message|msg|touch|step|email)\s*#?\s*(\d+)/) ?? 1;
 
-  if (/^(li\s+)?connection\s*(request|note|message)?\b/.test(lower) || /^cr\b/.test(lower)) {
-    return { kind: "connection", channel: "linkedin", label: "Connection request", order: 0, budget: CONNECTION_LIMIT, target };
+  if (/connect(?:ion)?\s*request|connection\s*note|invite\s*note/.test(lower) || /^cr\b/.test(lower)) {
+    return { kind: "connection", channel: "linkedin", label: "Connection request", budget: CONNECTION_LIMIT, target };
   }
   if (/\binmail\b/.test(lower)) {
-    return { kind: "inmail", channel: "inmail", label: text.replace(/\s*\(\d+.*?\)\s*/i, "").trim() || "InMail", order: 5, budget, target };
-  }
-  if (/\bemail\b/.test(lower) || /^subject\s*line/.test(lower)) {
-    const n = nth();
-    return { kind: "email", channel: "email", label: n > 1 ? `Email follow-up ${n}` : "Email follow-up", order: 90 + n, budget, target };
+    return { kind: "inmail", channel: "inmail", label: "InMail", budget: null, target };
   }
   if (/\bvoice\s*note\b|\bvoicenote\b/.test(lower)) {
-    return { kind: "voice", channel: "linkedin", label: "Voice note", order: 50, budget, target };
+    return { kind: "voice", channel: "linkedin", label: "Voice note", budget: null, target };
   }
-  if (/(?:^|\b)(?:li|linkedin)?\s*follow\s*-?\s*up\b/.test(lower) || /^(?:li\s*)?fu\s*#?\s*\d/.test(lower)) {
+
+  // A bare "STEP 2" takes its channel and its wording from whatever section it is sitting in.
+  const bareStep = lower.match(/^step\s*#?\s*(\d+)/);
+  if (bareStep) {
+    const n = Number(bareStep[1]);
+    if (channel === "email") return { kind: "email", channel: "email", label: `Email ${n}`, budget: null, target };
+    if (channel === "inmail") return { kind: "inmail", channel: "inmail", label: `InMail ${n}`, budget: null, target };
+    return { kind: "followup", channel: "linkedin", label: `Message ${n}`, budget: null, target };
+  }
+
+  if (/\bemail\b/.test(lower)) {
     const n = nth();
-    return { kind: "followup", channel: "linkedin", label: `Follow-up ${n}`, order: 10 + n, budget, target };
+    return { kind: "email", channel: "email", label: n > 1 ? `Email ${n}` : "Email follow-up", budget: null, target };
+  }
+  if (/follow\s*-?\s*up/.test(lower) || /^(?:li\s*)?fu\s*#?\s*\d/.test(lower)) {
+    const n = nth();
+    if (channel === "email") return { kind: "email", channel: "email", label: `Email follow-up ${n}`, budget: null, target };
+    return { kind: "followup", channel: "linkedin", label: `Follow-up ${n}`, budget: null, target };
   }
   return null;
 }
@@ -154,18 +245,31 @@ export function messageLength(body) {
     .length;
 }
 
-/** The `{TOKEN}` merge fields used in a message, in order of first appearance, without duplicates. */
+/**
+ * The merge fields used in a message, in order of first appearance, without duplicates.
+ *
+ * Both spellings are recognised: `{FIRST_NAME}` and `{{first_name}}` appear in these documents, and so
+ * does the bracketed `[First Name]` that comes from pasting out of a different tool.
+ */
 export function variablesIn(body) {
-  const found = String(body ?? "").match(/\{\{?\s*[A-Za-z0-9_ .-]+\s*\}?\}/g) ?? [];
+  const found = String(body ?? "").match(/\{\{?\s*[A-Za-z0-9_ .-]+\s*\}?\}|\[[A-Za-z][A-Za-z ]{1,20}\]/g) ?? [];
   const seen = new Set();
   const out = [];
   for (const raw of found) {
-    const token = raw.replace(/^\{\{?\s*|\s*\}?\}$/g, "").trim();
-    if (!token || seen.has(token)) continue;
-    seen.add(token);
+    const token = raw.replace(/^[[{]{1,2}\s*|\s*[\]}]{1,2}$/g, "").trim();
+    // `{FIRST_NAME}`, `{{first_name}}` and `[First Name]` are one field written three ways, so the
+    // dedup key keeps only the letters — otherwise a document that mixes spellings lists it three times.
+    const key = token.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
     out.push(token);
   }
   return out;
+}
+
+/** A line of nothing but dashes or stars, which in these documents separates two versions of a message. */
+function isSeparator(line) {
+  return /^[-–—*=_]{1,5}$/.test(String(line).trim());
 }
 
 /**
@@ -178,74 +282,92 @@ export function parseSequence(markdown) {
   const lines = String(markdown ?? "").split(/\r?\n/);
 
   let title = null;
-  /** @type {string[]} */
   let senders = [];
-  /** @type {string[]} */
   const preamble = [];
-  /** @type {Array<object>} */
   const steps = [];
-  /** @type {object|null} */
   let step = null;
-  /** @type {object|null} */
   let variant = null;
+  /** Set by a bare `EMAIL` line and by each classified step; decides what an untyped "STEP 2" is. */
+  let channel = null;
 
-  /** Where the text of the line currently being read should go. */
   const sink = () => (variant ? variant.lines : step ? step.lines : preamble);
+  const openVariant = (label) => {
+    if (!step) return;
+    variant = { label: label || `Version ${step.variants.length + 1}`, lines: [] };
+    step.variants.push(variant);
+  };
+  const openStep = (found, heading) => {
+    if (step) steps.push(step);
+    step = { ...found, heading, subject: null, lines: [], variants: [] };
+    variant = null;
+    channel = found.channel;
+  };
 
   for (const raw of lines) {
     const line = raw.replace(/\s+$/, "");
-    const header = looksLikeHeader(line) ? bareHeader(line) : null;
+    const trimmed = line.trim();
 
-    // "Senders: Josh & Tim" — a property of the document, not of any one step.
-    const sendersMatch = (header ?? line).match(/^senders?\s*:\s*(.+)$/i);
-    if (sendersMatch && !senders.length) {
-      senders = sendersMatch[1].split(/\s*(?:,|&|\band\b|\/)\s*/i).map((s) => s.trim()).filter(Boolean);
+    // A bare rule between two message bodies opens another version of the same step.
+    if (step && trimmed && isSeparator(trimmed)) {
+      // Only if there is already copy to separate *from* — a rule before any content is decoration.
+      if (variant ? variant.lines.some((l) => l.trim()) : step.lines.some((l) => l.trim())) openVariant(null);
       continue;
     }
 
-    if (header) {
-      // The document's own title heading, before any step has started.
-      if (!step && !title && /^#\s+\S/.test(line.trim())) { title = header; continue; }
+    const structural = looksLikeHeader(line);
+    const cleaned = structural ? cleanHeader(line) : trimmed;
 
-      // Subject and version are tested before classifyStep, because both would otherwise be read as the
-      // start of a new step: "Subject Line: …" contains no follow-up wording but does mean email, and
-      // an email step introduced by its own subject line would be split in two.
-      const subject = header.match(/^subject(?:\s*line)?\s*:\s*(.+)$/i);
+    if (structural) {
+      // "Senders: Josh & Tim" — a property of the document, not of any one step.
+      const sendersMatch = cleaned.match(/^senders?\s*:\s*(.+)$/i);
+      if (sendersMatch && !senders.length) {
+        senders = sendersMatch[1].split(/\s*(?:,|&|\band\b|\/)\s*/i).map((s) => s.trim()).filter(Boolean);
+        continue;
+      }
+
+      // The document's own title heading, before any step has started.
+      if (!step && !title && /^#\s+\S/.test(trimmed)) { title = cleaned; continue; }
+
+      const marker = channelMarker(cleaned);
+      if (marker) { channel = marker; continue; }
+
+      // Subject and version are tested before the step patterns: a subject line contains the word
+      // "email" often enough to be misread as the start of a second email step.
+      const subject = cleaned.match(/^subject(?:\s*(?:line|options?))?\s*:\s*(.+)$/i);
       if (subject) {
-        // A subject arriving while a LinkedIn step is open means the email step began here without a
-        // header of its own — start it, rather than hanging a subject off a LinkedIn message.
         if (!step || step.channel !== "email") {
-          if (step) steps.push(step);
-          step = { kind: "email", channel: "email", label: "Email follow-up", order: 91, budget: null, target: null, heading: header, subject: null, lines: [], variants: [] };
-          variant = null;
+          openStep({ kind: "email", channel: "email", label: "Email follow-up", budget: null, target: null }, cleaned);
         }
         step.subject = subject[1].trim();
         continue;
       }
 
-      // "VERSION FROM TIM:" — the same step written twice, once per sender.
-      if (step) {
-        const versionOf = header.match(/^(?:version|copy|option)\s*(?:from|by|for)\s*:?\s*(.+)$/i);
-        if (versionOf) {
-          variant = { author: versionOf[1].replace(/:$/, "").trim(), lines: [] };
-          step.variants.push(variant);
-          continue;
-        }
-      }
-
-      const found = classifyStep(header);
-      if (found) {
-        if (step) steps.push(step);
-        step = { ...found, heading: header, subject: null, lines: [], variants: [] };
-        variant = null;
+      const asVariant = classifyVariant(cleaned);
+      if (asVariant && step) {
+        openVariant(asVariant.label);
+        if (asVariant.rest.trim()) sink().push(asVariant.rest);
         continue;
       }
+
+      const found = classifyStep(cleaned, channel);
+      if (found) { openStep(found, cleaned); continue; }
+
+      // A header nobody recognises is still somebody's writing: keep it where it fell.
+      sink().push(line);
+      continue;
     }
 
-    // A bare (non-bold) "Subject line:" is common enough to be worth catching too.
-    if (step && !step.subject && !step.lines.length) {
-      const bare = line.match(/^subject(?:\s*line)?\s*:\s*(.+)$/i);
-      if (bare) { step.subject = bare[1].trim(); continue; }
+    // `Test A:  Hey {FIRST_NAME}, …` — a variant marker sharing its line with the copy, which is far too
+    // long to pass as a header and would otherwise be read as ordinary body text.
+    if (step) {
+      const inline = classifyVariant(trimmed);
+      if (inline) {
+        openVariant(inline.label);
+        if (inline.rest.trim()) sink().push(inline.rest);
+        continue;
+      }
+      const bareSubject = trimmed.match(/^subject(?:\s*(?:line|options?))?\s*:\s*(.+)$/i);
+      if (bareSubject && !step.subject) { step.subject = bareSubject[1].trim(); continue; }
     }
 
     sink().push(line);
@@ -257,11 +379,17 @@ export function parseSequence(markdown) {
   const finished = steps.map((s, index) => {
     const body = tidy(s.lines);
     const variants = s.variants
-      .map((v) => ({ author: v.author, body: tidy(v.lines), chars: messageLength(tidy(v.lines)) }))
+      .map((v) => {
+        const text = tidy(v.lines);
+        return { author: v.label, label: v.label, body: text, chars: messageLength(text) };
+      })
       .filter((v) => v.body);
-    // A step whose whole body sits in per-sender variants has no shared copy of its own; show the
-    // first variant as the step body so the card is never blank.
-    const shown = body || variants[0]?.body || "";
+
+    // Every version keeps its own name. The previous version promoted the first variant into the step
+    // body to avoid an empty card, which threw away the label — so a document of Test A / Test B / Test C
+    // displayed an unlabelled message followed by two labelled ones.
+    const all = [...variants];
+    const chars = messageLength(body);
     return {
       index,
       kind: s.kind,
@@ -269,16 +397,18 @@ export function parseSequence(markdown) {
       label: s.label,
       heading: s.heading,
       subject: s.subject,
-      body: shown,
-      chars: messageLength(shown),
-      budget: s.budget,
+      body,
+      chars,
+      budget: s.budget ?? null,
       target: s.target ?? null,
-      variables: variablesIn(`${shown}\n${s.subject ?? ""}`),
-      variants: body ? variants : variants.slice(1),
+      variables: variablesIn([body, s.subject ?? "", ...all.map((v) => v.body)].join("\n")),
+      variants: all,
     };
-  });
+  })
+    // A step that ended up with neither body nor versions was a header and nothing else.
+    .filter((s) => s.body || s.variants.length || s.subject);
 
-  return { title, senders, preamble: tidy(preamble), steps: finished };
+  return { title, senders, preamble: tidy(preamble), steps: finished.map((s, index) => ({ ...s, index })) };
 }
 
 /* ── Joining a document to its campaign ─────────────────────────────────────────────────────────
