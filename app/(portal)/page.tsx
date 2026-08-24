@@ -212,10 +212,6 @@ function Overview() {
         </span>
         <div>
           <h1>{client.name}</h1>
-          <p>
-            {started ? `Outbound running since ${started}` : "Your outbound programme"}
-            {data.campaignsTotal ? ` · ${data.campaignsTotal} campaign${data.campaignsTotal === 1 ? "" : "s"}` : ""}
-          </p>
         </div>
       </div>
 

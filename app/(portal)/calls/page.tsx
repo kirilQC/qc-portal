@@ -58,11 +58,18 @@ function longDate(iso: string | null): string {
   return date.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
 
-function shortDate(iso: string | null): string {
-  if (!iso) return "";
+/**
+ * A date broken into the three pieces the spine draws separately.
+ *
+ * Returns null when the file name carries no date, which is the case the spine has to fall back on the
+ * document's title for — a row that renders an empty tile would look like a loading failure.
+ */
+function dateParts(iso: string | null): { dow: string; day: string; rest: string } | null {
+  if (!iso) return null;
   const date = new Date(`${iso}T12:00:00Z`);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  if (Number.isNaN(date.getTime())) return null;
+  const at = (options: Intl.DateTimeFormatOptions) => date.toLocaleDateString("en-US", { ...options, timeZone: "UTC" });
+  return { dow: at({ weekday: "short" }), day: at({ day: "numeric" }), rest: at({ month: "short", year: "numeric" }) };
 }
 
 export default function Page() {
@@ -150,17 +157,30 @@ function Calls() {
         <div className="calls-layout">
           {/* A dated spine rather than a list of filenames: these are one conversation, in order. */}
           <aside className="calls-spine">
-            {docs.map((doc) => (
-              <button
-                key={doc.path}
-                className={`call-entry ${openPath === doc.path ? "is-open" : ""}`}
-                onClick={() => void read(doc.path)}
-              >
-                {/* The title is the same on every call in the folder, so it told you nothing and
-                    made every row two lines. The date is the only thing that distinguishes them. */}
-                <strong>{shortDate(doc.date) || doc.title}</strong>
-              </button>
-            ))}
+            {docs.map((doc) => {
+              // The title is the same on every call in the folder, so the date is the only thing that
+              // tells them apart — which makes it worth setting as a date rather than as a line of text.
+              const when = dateParts(doc.date);
+              return (
+                <button
+                  key={doc.path}
+                  className={`call-entry ${openPath === doc.path ? "is-open" : ""}`}
+                  onClick={() => void read(doc.path)}
+                >
+                  {when ? (
+                    <>
+                      <span className="call-entry-day">{when.day}</span>
+                      <span className="call-entry-when">
+                        <b>{when.dow}</b>
+                        <small>{when.rest}</small>
+                      </span>
+                    </>
+                  ) : (
+                    <span className="call-entry-when"><b>{doc.title}</b></span>
+                  )}
+                </button>
+              );
+            })}
           </aside>
 
           <section className="call-doc">

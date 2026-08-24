@@ -22,18 +22,19 @@ body.light-mode {
 }
 
 /*
- * Wider than a reading column on purpose.
+ * Wide enough that a recap item fits on one line, and no wider.
  *
- * These items are single lines that wrap two or three times in a narrow measure, and a recap is scanned
- * rather than read paragraph by paragraph — so the extra width buys a line each rather than the eye
- * strain a long measure usually costs. The spine shrinks with it: it holds a date and nothing else now.
+ * This went to 1760px and overshot: a single sentence stretched most of the way across a large monitor
+ * reads as a spreadsheet rather than as notes, and the eye loses the start of the next line on the way
+ * back. 1400 is the width at which the longest real items — the two-clause campaign lines — stop
+ * wrapping, which is all the width was ever for.
  */
-.calls-wide { max-width: 1760px; }
+.calls-wide { max-width: 1400px; }
 
 .calls-layout {
   display: grid;
-  grid-template-columns: 126px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 22px;
   align-items: start;
 }
 
@@ -55,30 +56,52 @@ body.light-mode {
 .calls-spine::-webkit-scrollbar { width: 8px; }
 .calls-spine::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
+/*
+ * One call, as a date.
+ *
+ * It was a single small pill carrying "Aug 20, 2026" and it read as an afterthought — the one control on
+ * the page and the least substantial thing on it. Set as a calendar tile instead: the day as the figure
+ * it is, the weekday and month beside it. Weekly calls are picked by "the one two Thursdays ago", so the
+ * day of the week is worth as much as the number and neither belongs in a run of small grey text.
+ */
 .call-entry {
-  display: block; position: relative; width: 100%; text-align: left;
-  padding: 9px 11px; border-radius: 9px;
-  border: 1px solid transparent; background: transparent;
+  display: flex; align-items: center; gap: 11px; position: relative;
+  width: 100%; text-align: left;
+  padding: 11px 13px; border-radius: 11px;
+  border: 1px solid var(--border); background: var(--panel);
   color: inherit; font: inherit; cursor: pointer;
-  transition: background .12s ease;
+  transition: background .13s ease, border-color .13s ease;
 }
-.call-entry + .call-entry { margin-top: 2px; }
+.call-entry + .call-entry { margin-top: 7px; }
 .call-entry::before {
-  content: ""; position: absolute; left: -17px; top: 15px;
+  content: ""; position: absolute; left: -17px; top: 50%; transform: translateY(-50%);
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--panel-2); border: 2px solid var(--border);
   /* The ring punches the spine out behind the node so the line does not run through it. */
   box-shadow: 0 0 0 3px var(--bg);
 }
-.call-entry:hover { background: var(--panel-2); }
-.call-entry.is-open { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.call-entry:hover { background: var(--panel-2); border-color: var(--muted-2); }
+.call-entry.is-open {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+}
 .call-entry.is-open::before { border-color: var(--accent); }
 
-.call-entry strong {
-  display: block; font-size: 12px; font-weight: 650; letter-spacing: -.012em;
-  color: var(--muted); white-space: nowrap;
+.call-entry-day {
+  font-size: 23px; font-weight: 660; letter-spacing: -.045em; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--muted);
+  /* A fixed slot so single- and double-digit days start their labels at the same x. */
+  min-width: 26px; text-align: center;
 }
-.call-entry.is-open strong, .call-entry:hover strong { color: var(--text); }
+.call-entry.is-open .call-entry-day, .call-entry:hover .call-entry-day { color: var(--text); }
+
+.call-entry-when { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.call-entry-when b {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted-2); white-space: nowrap;
+}
+.call-entry.is-open .call-entry-when b { color: var(--accent); }
+.call-entry-when small { font-size: 11px; color: var(--muted-2); white-space: nowrap; }
 
 /* ── The header ─────────────────────────────────────────────────────────────────────────────────
    The frontmatter that used to print as nine paragraphs of body copy, reduced to the part that earns a

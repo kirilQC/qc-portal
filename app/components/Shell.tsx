@@ -43,6 +43,8 @@ const ICONS: Record<string, string> = {
   calls: "M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-2M8 3a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2M8 3v0M8 12h8M8 16h5",
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9 2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2 2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1z",
   admin: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8",
+  // A grid of cards — the client directory, distinct from the single-person shape "admin" uses.
+  clients: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
   collapse: "M15 6l-6 6 6 6",
   signout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
 };
@@ -206,10 +208,21 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="nav">
-          {/* Staff who have not opened a client see only the way into one. */}
-          {!inClient && me?.user.role === "staff" && (
-            <Link href="/" className={`nav-item ${pathname === "/" ? "active" : ""}`} title="Clients">
-              <Icon name="overview" />
+          {/*
+            * The way back to the directory, for staff only.
+            *
+            * It used to appear only when no client was open, which meant that once you were inside one
+            * the only route out was the browser's back button. Staff work across every client, so the
+            * directory is a destination rather than a starting screen — and a client session must never
+            * see it, since the directory is the list of everybody else.
+            */}
+          {me?.user.role === "staff" && (
+            <Link
+              href="/"
+              className={`nav-item ${pathname === "/" && !inClient ? "active" : ""}`}
+              title="Clients"
+            >
+              <Icon name="clients" />
               {!collapsed && "Clients"}
             </Link>
           )}
