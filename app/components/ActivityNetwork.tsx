@@ -1,0 +1,342 @@
+// Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
+// QC Portal — proprietary. Not licensed for redistribution or resale.
+
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+
+/**
+ * Recent activity as a living network.
+ *
+ * ── What it is ──────────────────────────────────────────────────────────────────────────────────
+ * The sign-in screen's constellation, made of the client's own outreach. The bright anchored nodes are
+ * their senders; the small drifting ones are leads. When a reply lands, a pulse travels the line from a
+ * sender to the lead and the lead node warms green and throws a ring — and the rail beside it names the
+ * person, shows their photo, and quotes what they actually said, one click from the conversation.
+ *
+ * ── What is real and what is atmosphere ─────────────────────────────────────────────────────────
+ * The events are real: each pulse corresponds to an actual reply in `events`, played in order, and the
+ * rail shows that reply's person, quote and link. The *positions* are not — a node's place in the field
+ * carries no meaning, exactly as on the login. The graphic is the product's subject (connections being
+ * made) rather than a chart of it, and it is honest about which half is which: the numbers live in the
+ * rail, the motion lives in the field.
+ *
+ * ── Motion discipline ───────────────────────────────────────────────────────────────────────────
+ * `prefers-reduced-motion` draws a single still frame with a share of nodes pre-warmed, schedules no
+ * pulses, and shows the newest event in the rail without cycling. The canvas is decorative and sits in
+ * an `aria-hidden` layer; everything a screen reader needs is the real list in the rail.
+ */
+
+export type ActivityEvent = {
+  kind: "reply" | "positive" | "launch" | "meeting";
+  at: string;
+  title: string;
+  detail: string;
+  name?: string;
+  initials?: string;
+  photoUrl?: string | null;
+  where?: string;
+  campaign?: string | null;
+  sender?: string | null;
+  quote?: string | null;
+  conversationId?: string;
+};
+
+const KIND_LABEL: Record<ActivityEvent["kind"], string> = {
+  positive: "replied warmly",
+  reply: "replied",
+  launch: "launched",
+  meeting: "meeting booked",
+};
+
+/** "2 days ago", "3 weeks ago" — the rail reads as ages, not timestamps. */
+function ago(iso: string, now: number): string {
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then) || !now) return "";
+  const seconds = Math.max(0, Math.round((now - then) / 1000));
+  const units: [number, string][] = [[86400, "d"], [3600, "h"], [60, "m"]];
+  for (const [size, suffix] of units) {
+    if (seconds >= size) return `${Math.floor(seconds / size)}${suffix} ago`;
+  }
+  return "just now";
+}
+
+type Node = { x: number; y: number; vx: number; vy: number; r: number; heat: number; sender: boolean };
+type Pulse = { from: Node; to: Node; t: number; speed: number; warm: boolean };
+type Ring = { x: number; y: number; age: number };
+
+const LEAD_COUNT = 40;
+const LINK = 120;
+const RING_LIFE = 42;
+
+export default function ActivityNetwork({
+  events,
+  senders,
+  clientSlug,
+}: {
+  events: ActivityEvent[];
+  senders: string[];
+  clientSlug: string | null;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // The rail follows the field: a pulse landing is what advances the shown event, so the two never drift.
+  const [shownIndex, setShownIndex] = useState(0);
+  const [now, setNow] = useState(0);
+  // Stamped on mount rather than during render, so the server and the first client paint agree on a
+  // value and the relative times ("2h ago") are computed against the client's real clock afterwards.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setNow(Date.now()), []);
+
+  // Only replies get a pulse and a place in the cycle; launches and meetings sit in the "also" strip.
+  const replies = useMemo(() => events.filter((event) => event.kind === "positive" || event.kind === "reply"), [events]);
+  const others = useMemo(() => events.filter((event) => event.kind === "launch" || event.kind === "meeting").slice(0, 2), [events]);
+  const senderCount = Math.min(Math.max(senders.length, 3), 6);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let width = 0;
+    let height = 0;
+    let frame = 0;
+    let tick = 0;
+    let cursor = 0;
+    let nodes: Node[] = [];
+    let pulses: Pulse[] = [];
+    let rings: Ring[] = [];
+
+    function seed() {
+      if (!canvas || !context) return;
+      const box = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      width = box.width;
+      height = box.height;
+      canvas.width = Math.max(1, width * ratio);
+      canvas.height = Math.max(1, height * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      const senderNodes: Node[] = Array.from({ length: senderCount }, () => ({
+        x: Math.random() * width, y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.12, vy: (Math.random() - 0.5) * 0.12,
+        r: 3.2, heat: 0, sender: true,
+      }));
+      const leadNodes: Node[] = Array.from({ length: LEAD_COUNT }, () => ({
+        x: Math.random() * width, y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.22, vy: (Math.random() - 0.5) * 0.22,
+        r: Math.random() * 1.4 + 0.9,
+        // In the still frame, pre-warm a few so the composition reads without any motion.
+        heat: still && Math.random() < 0.14 ? 1 : 0, sender: false,
+      }));
+      nodes = [...senderNodes, ...leadNodes];
+      pulses = [];
+      rings = [];
+    }
+
+    /**
+     * Launch a pulse for the next real reply, and advance the rail to match.
+     *
+     * `advanceRail` is false on the very first call, which happens synchronously while the effect is
+     * setting up — calling setState there triggers React's cascading-render warning, and the rail
+     * already starts on index 0, so there is nothing to set. Every later call (a real timer tick) does
+     * advance it.
+     */
+    function fire(advanceRail = true) {
+      if (!replies.length) return;
+      const event = replies[cursor % replies.length];
+      if (advanceRail) setShownIndex(cursor % replies.length);
+      cursor += 1;
+
+      const senderPool = nodes.filter((node) => node.sender);
+      const from = senderPool[Math.floor(Math.random() * senderPool.length)] ?? nodes[0];
+      const leadPool = nodes.filter((node) => !node.sender);
+      const to = leadPool[Math.floor(Math.random() * leadPool.length)] ?? nodes[nodes.length - 1];
+      pulses.push({ from, to, t: 0, speed: 0.02 + Math.random() * 0.01, warm: event.kind === "positive" });
+    }
+
+    function draw() {
+      if (!context) return;
+      context.clearRect(0, 0, width, height);
+
+      for (let i = 0; i < nodes.length; i += 1) {
+        for (let j = i + 1; j < nodes.length; j += 1) {
+          const distance = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+          if (distance > LINK) continue;
+          context.strokeStyle = `rgba(139,124,255,${(1 - distance / LINK) * 0.24})`;
+          context.lineWidth = 1;
+          context.beginPath();
+          context.moveTo(nodes[i].x, nodes[i].y);
+          context.lineTo(nodes[j].x, nodes[j].y);
+          context.stroke();
+        }
+      }
+
+      rings = rings.filter((ring) => {
+        const life = ring.age / RING_LIFE;
+        context.strokeStyle = `rgba(99,223,164,${(1 - life) * 0.5})`;
+        context.lineWidth = 1.2;
+        context.beginPath();
+        context.arc(ring.x, ring.y, 3 + life * 22, 0, Math.PI * 2);
+        context.stroke();
+        ring.age += still ? 0 : 1;
+        return ring.age < RING_LIFE;
+      });
+
+      pulses = pulses.filter((pulse) => {
+        const x = pulse.from.x + (pulse.to.x - pulse.from.x) * pulse.t;
+        const y = pulse.from.y + (pulse.to.y - pulse.from.y) * pulse.t;
+        const trail = Math.max(0, pulse.t - 0.2);
+        context.strokeStyle = pulse.warm ? "rgba(120,230,180,.6)" : "rgba(167,152,255,.55)";
+        context.lineWidth = 1.5;
+        context.beginPath();
+        context.moveTo(pulse.from.x + (pulse.to.x - pulse.from.x) * trail, pulse.from.y + (pulse.to.y - pulse.from.y) * trail);
+        context.lineTo(x, y);
+        context.stroke();
+        context.fillStyle = "rgba(220,230,255,.95)";
+        context.beginPath();
+        context.arc(x, y, 2, 0, Math.PI * 2);
+        context.fill();
+        pulse.t += still ? 1 : pulse.speed;
+        if (pulse.t < 1) return true;
+        if (pulse.warm) {
+          pulse.to.heat = 1;
+          rings.push({ x: pulse.to.x, y: pulse.to.y, age: 0 });
+        } else {
+          pulse.to.heat = Math.max(pulse.to.heat, 0.5);
+        }
+        return false;
+      });
+
+      for (const node of nodes) {
+        if (node.heat > 0.02) {
+          const glow = context.createRadialGradient(node.x, node.y, 0, node.x, node.y, 12);
+          glow.addColorStop(0, `rgba(99,223,164,${node.heat * 0.42})`);
+          glow.addColorStop(1, "rgba(99,223,164,0)");
+          context.fillStyle = glow;
+          context.beginPath();
+          context.arc(node.x, node.y, 12, 0, Math.PI * 2);
+          context.fill();
+        }
+        const h = node.heat;
+        context.fillStyle = node.sender
+          ? "rgba(139,124,255,.95)"
+          : `rgba(${Math.round(186 - 87 * h)},${Math.round(178 + 45 * h)},${Math.round(255 - 91 * h)},${0.6 + 0.3 * h})`;
+        context.beginPath();
+        context.arc(node.x, node.y, node.r + h * 0.8, 0, Math.PI * 2);
+        context.fill();
+
+        if (still) continue;
+        node.heat = Math.max(0, node.heat - 0.006);
+        node.x += node.vx;
+        node.y += node.vy;
+        if (node.x < 0 || node.x > width) node.vx *= -1;
+        if (node.y < 0 || node.y > height) node.vy *= -1;
+      }
+
+      if (still) return;
+      tick += 1;
+      // ~3.6s between arrivals: often enough to feel alive, calm enough to live beside on a daily page.
+      if (tick % 216 === 0) fire();
+      frame = requestAnimationFrame(draw);
+    }
+
+    seed();
+    fire(false);
+    draw();
+
+    const observer = new ResizeObserver(() => {
+      seed();
+      if (still) draw();
+    });
+    observer.observe(canvas);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+    // Re-seeding on every render would restart the drift; the animation only depends on the reply set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replies.length, senderCount]);
+
+  const shown = replies[shownIndex];
+
+  return (
+    <section className="panel ov-net-panel">
+      <div className="panel-head">
+        <h2>Recent activity</h2>
+        <span className="ov-net-live" aria-hidden="true"><i />live</span>
+      </div>
+
+      <div className="ov-net">
+        <div className="ov-net-scene">
+          <canvas ref={canvasRef} className="ov-net-canvas" aria-hidden="true" />
+          <div className="ov-net-legend" aria-hidden="true">
+            <span><i className="d-sender" />Sender</span>
+            <span><i className="d-lead" />Lead</span>
+            <span><i className="d-warm" />Replied</span>
+          </div>
+        </div>
+
+        {/* The real list. A screen reader gets this, not the canvas. */}
+        <div className="ov-net-rail">
+          <span className="ov-net-lbl">Just in</span>
+          {shown ? (
+            <RailCard event={shown} now={now} clientSlug={clientSlug} />
+          ) : (
+            <p className="empty">No replies yet this week.</p>
+          )}
+
+          {others.length > 0 && (
+            <div className="ov-net-also">
+              {others.map((event, index) => (
+                <div className="ov-net-alsorow" key={`${event.at}-${index}`}>
+                  <span className={`ov-net-adot is-${event.kind}`} aria-hidden="true" />
+                  <span>{event.title}</span>
+                  <time>{ago(event.at, now)}</time>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {replies.length > 1 && (
+            <div className="ov-net-count">
+              <b>{replies.length}</b> replies this week
+              {replies.filter((event) => event.kind === "positive").length > 0 &&
+                <> · <b>{replies.filter((event) => event.kind === "positive").length}</b> warm</>}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** One reply, with the face, the words, and a way into the conversation. */
+function RailCard({ event, now, clientSlug }: { event: ActivityEvent; now: number; clientSlug: string | null }) {
+  const href = event.conversationId
+    ? `/inbox?${new URLSearchParams({ ...(clientSlug ? { client: clientSlug } : {}), conversation: event.conversationId }).toString()}`
+    : `/inbox${clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : ""}`;
+
+  const inner = (
+    <>
+      <span className={`ov-net-av ${event.kind === "positive" ? "is-warm" : ""}`}>
+        {event.photoUrl ? <img src={event.photoUrl} alt="" /> : event.initials || "?"}
+      </span>
+      <span className="ov-net-body">
+        <span className="ov-net-name">
+          {event.name}<em> {KIND_LABEL[event.kind]}</em>
+        </span>
+        {event.where && <span className="ov-net-where">{event.where}{event.campaign ? ` · ${event.campaign}` : ""}</span>}
+        {event.quote && <span className="ov-net-quote">“{event.quote}”</span>}
+        <span className="ov-net-foot">
+          <time>{ago(event.at, now)}</time>
+          {event.conversationId && <span className="ov-net-go">Open conversation →</span>}
+        </span>
+      </span>
+    </>
+  );
+
+  return event.conversationId
+    ? <Link className="ov-net-card is-link" href={href}>{inner}</Link>
+    : <div className="ov-net-card">{inner}</div>;
+}

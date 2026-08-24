@@ -12,6 +12,7 @@ import { useSearchParams } from "next/navigation";
 // the same thing on both screens by construction.
 import "./campaigns/campaigns.css";
 import "./overview.css";
+import ActivityNetwork, { type ActivityEvent } from "../components/ActivityNetwork";
 
 /**
  * The client's overview: a month in a sentence, the trend behind it, and what has happened since.
@@ -22,14 +23,15 @@ import "./overview.css";
  * "Attributed pipeline $0" — two zeros as the first impression of the work. A sentence says the same
  * thing faster and puts the empty figures where they belong: in a supporting row, stated honestly.
  *
- * ── Why the feed is here too ────────────────────────────────────────────────────────────────────
- * The sentence answers "how is it going". The feed answers "what has happened since I last looked",
- * which is the other question somebody opens a familiar page for. Nothing in the database records an
- * event, so it is assembled from replies, campaign launches and meetings — see the route for why that
- * is honest rather than clever.
+ * ── Why the network is here too ─────────────────────────────────────────────────────────────────
+ * The sentence answers "how is it going". Recent activity answers "what has happened since I last
+ * looked", which is the other question somebody opens a familiar page for — and it is drawn as the
+ * sign-in constellation made of the client's own outreach, so the two screens feel like one product.
+ * The events behind it are real replies, launches and meetings; see ActivityNetwork for which half of
+ * it is data and which half is atmosphere.
  */
 type Client = { id: string; name: string; slug: string; logoUrl: string | null; accentColor: string | null };
-type FeedEvent = { kind: "reply" | "positive" | "launch" | "meeting"; at: string; title: string; detail: string };
+type FeedEvent = ActivityEvent;
 type Payload = {
   ok: boolean; view: "client" | "directory"; error?: string;
   clients?: Client[]; client?: Client; startedAt?: string | null;
@@ -53,6 +55,7 @@ type Payload = {
   }[];
   leadsTotal?: number; repliesTotal?: number;
   feed?: FeedEvent[];
+  senders?: string[];
 };
 
 const n = (value: number) => value.toLocaleString("en-US");
@@ -62,19 +65,6 @@ const longDate = (iso: string | null | undefined) => {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 };
-
-/** "2 days ago", "3 weeks ago" — the feed is read as ages, not timestamps. */
-function ago(iso: string, now: number): string {
-  const at = Date.parse(iso);
-  if (!Number.isFinite(at) || !now) return "";
-  const days = Math.floor((now - at) / 86_400_000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days} days ago`;
-  if (days < 30) return `${Math.floor(days / 7)} week${days < 14 ? "" : "s"} ago`;
-  if (days < 365) return `${Math.floor(days / 30)} month${days < 60 ? "" : "s"} ago`;
-  return `${Math.floor(days / 365)} year${days < 730 ? "" : "s"} ago`;
-}
 
 /**
  * The briefing, written from the figures.
@@ -139,7 +129,6 @@ function briefing(data: Payload): React.ReactNode[] {
   return parts;
 }
 
-const KIND_MARK: Record<FeedEvent["kind"], string> = { positive: "★", reply: "↩", launch: "▲", meeting: "◆" };
 
 function Overview() {
   const params = useSearchParams();
@@ -147,14 +136,12 @@ function Overview() {
 
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
-  const [now, setNow] = useState(0);
   /*
    * A week by default. These are weekly-call clients, so the question on opening the page is "what has
    * happened since we last spoke" rather than "how is the quarter going".
    */
   const [range, setRange] = useState("week");
 
-  useEffect(() => setNow(Date.now()), []);
 
   useEffect(() => {
     setData(null);
@@ -367,28 +354,11 @@ function Overview() {
           </section>
         </div>
 
-        <section className="panel ov-feed-panel">
-          <div className="panel-head">
-            <h2>Recent activity</h2>
-            <span>Newest first</span>
-          </div>
-          {data.feed?.length ? (
-            <div className="ov-feed">
-              {data.feed.map((event, index) => (
-                <div className="ov-event" key={`${event.at}-${index}`}>
-                  <span className={`ov-dot is-${event.kind}`} aria-hidden="true">{KIND_MARK[event.kind]}</span>
-                  <span className="ov-event-words">
-                    <strong>{event.title}</strong>
-                    {event.detail && <small>{event.detail}</small>}
-                  </span>
-                  <time>{ago(event.at, now)}</time>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="empty">Nothing recorded yet.</p>
-          )}
-        </section>
+        <ActivityNetwork
+          events={data.feed ?? []}
+          senders={data.senders ?? []}
+          clientSlug={clientSlug}
+        />
       </div>
 
       {/* The way on to everything else. The left column used to end here and leave a screen-height of

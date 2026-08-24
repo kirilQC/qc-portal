@@ -169,30 +169,90 @@
 
 /* ── The activity feed ──────────────────────────────────────────────────────────────────────────── */
 
-.ov-feed-panel { position: sticky; top: 0; display: flex; flex-direction: column; max-height: calc(100vh - 130px); }
-.ov-feed { flex: 1; min-height: 0; overflow-y: auto; }
-.ov-event {
-  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: start; gap: 12px;
-  padding: 13px 18px; border-bottom: 1px solid var(--border-soft);
+/* ── Recent activity, the living network ──────────────────────────────────────────────────────
+ *
+ * The sign-in constellation, made of the client's outreach. The canvas is atmosphere — drifting nodes,
+ * forming links, a green pulse when a reply lands — and the rail beside it is the real list: the face,
+ * the words, and a link into the conversation. The panel is sticky and holds the column's height, which
+ * is what fills the space the old feed left empty beside it.
+ */
+.ov-net-panel { position: sticky; top: 0; display: flex; flex-direction: column; max-height: calc(100vh - 130px); }
+.ov-net-live { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--f-positive); font-weight: 700; }
+.ov-net-live i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: ov-beat 1.5s ease-in-out infinite; }
+@keyframes ov-beat { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+.ov-net { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* The field. A deep radial wash under the canvas so the network never sits on flat black. */
+.ov-net-scene {
+  position: relative; height: 232px; flex: none; overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(68% 60% at 72% 12%, rgba(102, 88, 214, .17), transparent 70%),
+    radial-gradient(52% 48% at 20% 92%, rgba(46, 169, 155, .11), transparent 72%),
+    #080910;
 }
-.ov-event:last-child { border-bottom: 0; }
-.ov-dot {
-  display: grid; place-items: center; flex: none;
-  width: 26px; height: 26px; border-radius: 8px; font-size: 11px; line-height: 1;
+.ov-net-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ov-net-legend { position: absolute; left: 14px; bottom: 11px; display: flex; gap: 13px; font-size: 9.5px; color: var(--muted-2); }
+.ov-net-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.ov-net-legend i { width: 7px; height: 7px; border-radius: 50%; }
+.ov-net-legend .d-sender { background: #8b7cff; }
+.ov-net-legend .d-lead { background: #bab2ff; }
+.ov-net-legend .d-warm { background: var(--f-positive); }
+
+/* The rail: the real events, scrolling under the field. */
+.ov-net-rail { flex: 1; min-height: 0; overflow-y: auto; padding: 15px 18px 16px; display: flex; flex-direction: column; }
+.ov-net-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--muted-2); margin-bottom: 10px; }
+
+.ov-net-card { display: flex; gap: 12px; align-items: flex-start; text-decoration: none; color: inherit; }
+.ov-net-card.is-link { cursor: pointer; }
+/* The newest reply fades and lifts in as the pulse that announced it lands. */
+.ov-net-card { animation: ov-card-in .5s cubic-bezier(.16, 1, .3, 1) both; }
+@keyframes ov-card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.ov-net-av {
+  width: 42px; height: 42px; border-radius: 50%; flex: none; overflow: hidden;
+  display: grid; place-items: center; font-size: 13px; font-weight: 700;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
 }
-/* Kind, encoded in colour as well as glyph, so a screen of replies and a launch are distinguishable. */
-.ov-dot.is-positive { background: color-mix(in srgb, var(--f-positive) 20%, transparent); color: var(--f-positive); }
-.ov-dot.is-reply { background: color-mix(in srgb, var(--f-replied) 20%, transparent); color: var(--f-replied); }
-.ov-dot.is-launch { background: color-mix(in srgb, var(--f-accepted) 24%, transparent); color: var(--f-accepted); }
-.ov-dot.is-meeting { background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); }
-.ov-event-words { min-width: 0; }
-.ov-event-words strong { display: block; font-size: 12.5px; font-weight: 620; line-height: 1.35; }
-.ov-event-words small { display: block; margin-top: 3px; font-size: 11px; color: var(--muted-2); line-height: 1.45; }
-.ov-event time { font-size: 10.5px; color: var(--muted-2); white-space: nowrap; padding-top: 1px; }
+.ov-net-av img { width: 100%; height: 100%; object-fit: cover; }
+.ov-net-av.is-warm {
+  border-color: color-mix(in srgb, var(--f-positive) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--f-positive) 13%, transparent);
+}
+.ov-net-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ov-net-name { font-size: 13px; font-weight: 620; letter-spacing: -.01em; }
+.ov-net-name em { font-style: normal; font-weight: 500; color: var(--muted); }
+.ov-net-where { font-size: 11px; color: var(--muted-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-net-quote {
+  margin-top: 6px; padding: 9px 12px;
+  border-left: 2px solid color-mix(in srgb, var(--f-positive) 55%, transparent);
+  border-radius: 0 8px 8px 0; background: color-mix(in srgb, var(--f-positive) 8%, transparent);
+  font-size: 12px; line-height: 1.55; color: var(--text);
+}
+.ov-net-foot { display: flex; align-items: baseline; gap: 10px; margin-top: 7px; }
+.ov-net-foot time { font-size: 10.5px; color: var(--muted-2); }
+.ov-net-go { font-size: 10.5px; color: var(--accent); opacity: 0; transition: opacity .13s ease; }
+.ov-net-card.is-link:hover .ov-net-go { opacity: 1; }
+
+/* Launches and meetings — real, but not the point, so they sit quietly below the reply. */
+.ov-net-also { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 8px; }
+.ov-net-alsorow { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 9px; font-size: 11.5px; color: var(--muted); }
+.ov-net-alsorow time { font-size: 10px; color: var(--muted-2); white-space: nowrap; }
+.ov-net-adot { width: 7px; height: 7px; border-radius: 50%; }
+.ov-net-adot.is-launch { background: var(--f-accepted); }
+.ov-net-adot.is-meeting { background: var(--amber); }
+
+.ov-net-count { margin-top: auto; padding-top: 12px; font-size: 10.5px; color: var(--muted-2); }
+.ov-net-count b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ov-net-live i, .ov-net-card { animation: none; }
+}
 
 @media (max-width: 1100px) {
   .ov-grid { grid-template-columns: minmax(0, 1fr); }
-  .ov-feed-panel { position: static; max-height: 560px; }
+  .ov-net-panel { position: static; max-height: none; }
 }
 @media (max-width: 700px) {
   .ov-brief { padding: 20px; }

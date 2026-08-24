@@ -139,7 +139,10 @@ async function build(session: Session, workspaceId: string, range: string) {
         "rr_messages",
         conversationIds,
         {
-          select: "conversation_id,sent_at,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
+          // The body is what makes the network worth looking at — the actual words somebody replied,
+          // not a label saying a reply happened. It was never selected before, so every "quote" on the
+          // old feed would have had to be invented; now there is a real one to show.
+          select: "conversation_id,sent_at,body,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
           direction: "eq.inbound",
           limit: "1000",
         },
@@ -227,8 +230,44 @@ async function build(session: Session, workspaceId: string, range: string) {
     if (!seen || str(row.sent_at) > str(seen.sent_at)) newestReply.set(key, row);
   }
 
-  type Event = { kind: "reply" | "positive" | "launch" | "meeting"; at: string; title: string; detail: string };
+  type Event = {
+    kind: "reply" | "positive" | "launch" | "meeting";
+    at: string;
+    title: string;
+    detail: string;
+    /** Everything the living network needs beyond the two headline strings. */
+    name?: string;
+    initials?: string;
+    photoUrl?: string | null;
+    where?: string;
+    campaign?: string | null;
+    sender?: string | null;
+    quote?: string | null;
+    conversationId?: string;
+  };
   const events: Event[] = [];
+
+  /** Two letters for a node with no photo. "Charlie" is a real one-word lead; a naive split throws on it. */
+  const initialsOf = (value: string) => {
+    const words = value.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return "?";
+    return (words.length === 1 ? words[0].slice(0, 1) : words[0][0] + words[words.length - 1][0]).toUpperCase();
+  };
+
+  /**
+   * A reply body, trimmed to something that fits beside a face.
+   *
+   * These come off LinkedIn, so they run from one word to several paragraphs. The card wants a taste,
+   * not the whole thread, and a broken-off sentence with an ellipsis reads as "there is more" — which
+   * there is, one click away in the inbox.
+   */
+  const taste = (body: string) => {
+    const clean = body.replace(/\s+/g, " ").trim();
+    if (clean.length <= 150) return clean;
+    const cut = clean.slice(0, 150);
+    const stop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+    return (stop > 90 ? cut.slice(0, stop + 1) : cut.trimEnd() + "…");
+  };
 
   for (const conversation of conversations) {
     const message = newestReply.get(str(conversation.id));
@@ -239,11 +278,30 @@ async function build(session: Session, workspaceId: string, range: string) {
     const where = [str(lead.role), str(lead.company)].filter(Boolean).join(" @ ");
     const campaign = str(message.campaign);
     const isPositive = str(message.sentiment).toLowerCase() === "positive";
+
+    // The photo already loaded for the inbox and the lead table, from the scoped enrichment blob.
+    const radar = ((lead.raw_data as Record<string, unknown>)?.reply_radar ?? {}) as Record<string, unknown>;
+    const enrichment = (radar.ai_ark ?? {}) as Record<string, unknown>;
+    const rollup = (radar.rollup ?? {}) as Record<string, unknown>;
+    const senderNames = str(rollup.sender_names);
+
+    const body = str(message.body);
     events.push({
       kind: isPositive ? "positive" : "reply",
       at: str(message.sent_at) || str(conversation.last_message_at),
       title: isPositive ? `${name} replied — positive` : `${name} replied`,
       detail: [where, campaign].filter(Boolean).join(" · "),
+      name,
+      initials: initialsOf(name),
+      photoUrl: enrichment.profilePhotoSource ? str(enrichment.profilePhotoSource) : null,
+      where,
+      campaign: campaign || null,
+      // The rollup is already scoped to this client, so this sender is theirs and not another tenant's.
+      sender: senderNames ? senderNames.split(";")[0].trim() : null,
+      // Only positive replies carry their words onto the surface. A neutral "ok thanks" quoted at size
+      // reads as a worse result than it is.
+      quote: isPositive && body ? taste(body) : null,
+      conversationId: str(conversation.id),
     });
   }
 
@@ -417,6 +475,8 @@ async function build(session: Session, workspaceId: string, range: string) {
     busiestSender: busiestSender ? { name: busiestSender[0], sent: busiestSender[1] } : null,
     funnel,
     activeCampaigns,
+    // The people behind the outreach, for the network's anchor nodes. Names, never ids.
+    senders: [...new Set(dailyRows.map((row) => str(row.sender_name)).filter(Boolean))].slice(0, 8),
     bestCampaigns,
     /** For the tiles that link into the other tabs. */
     leadsTotal: allTime.leads,
