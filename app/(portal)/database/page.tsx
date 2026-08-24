@@ -192,7 +192,7 @@ function Database() {
       <section className="db-card">
         <div className="db-table-head">
           <span>Lead</span><span>Campaign</span><span>Sender</span>
-          <span>ICP</span><span>Replies</span><span>Last reply</span><span />
+          <span>Replies</span><span>Last reply</span><span />
         </div>
         {leads.length === 0 && !loading ? (
           <p className="empty">No leads match.</p>
@@ -210,7 +210,6 @@ function Database() {
                 </span>
                 <span className="db-cell"><b>{lead.campaignNames.join("; ") || "—"}</b></span>
                 <span className="db-cell"><b>{lead.senderNames.join("; ") || "—"}</b></span>
-                <span className="db-cell db-num"><b>{lead.icpScore ?? "—"}</b></span>
                 <span className="db-cell db-num"><b>{lead.replyCount}</b></span>
                 <span className="db-cell"><b>{when.date}</b><small>{when.time}</small></span>
                 <span className="db-arrow">→</span>

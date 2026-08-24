@@ -146,7 +146,6 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                   className="input"
                   type="password"
                   autoComplete="current-password"
-                  placeholder="Only needed to change your password"
                   value={form.currentPassword}
                   onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
                 />

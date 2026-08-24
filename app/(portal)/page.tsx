@@ -167,7 +167,6 @@ function Overview() {
     return (
       <div className="content">
         <div className="page-head">
-          <span className="eyebrow">QC team</span>
           <h1>Clients</h1>
         </div>
         {clients.length === 0 ? (
