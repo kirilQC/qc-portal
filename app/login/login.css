@@ -23,13 +23,11 @@
 .login-form-side { display: grid; place-items: center; padding: 40px 32px; }
 .login-inner { width: 100%; max-width: 372px; }
 
-.login-brand { display: flex; align-items: center; gap: 13px; margin-bottom: 40px; }
-.login-mark { width: 42px; height: 42px; border-radius: 11px; object-fit: contain; flex: none; }
-.login-wordmark { font-size: 17px; font-weight: 500; letter-spacing: -.02em; color: var(--muted, #8c92a2); }
-.login-wordmark b { font-weight: 700; color: var(--text, #f3f4f7); }
+/* The banner is a fixed-aspect lockup, so it is sized by height and left to find its own width —
+   constraining both would letterbox it inside its own box. */
+.login-banner { display: block; height: 38px; width: auto; margin-bottom: 42px; }
 
-.login-inner h1 { margin: 0; font-size: 29px; font-weight: 660; letter-spacing: -.035em; }
-.login-lede { margin: 8px 0 30px; color: var(--muted, #8c92a2); font-size: 13.5px; }
+.login-inner h1 { margin: 0 0 30px; font-size: 29px; font-weight: 660; letter-spacing: -.035em; }
 
 .login-inner form { display: flex; flex-direction: column; gap: 17px; }
 .login-field { display: flex; flex-direction: column; gap: 7px; }
@@ -70,17 +68,31 @@
 
 /* ── The panel ──────────────────────────────────────────────────────────────────────────────────── */
 
+/* Two ambient washes sit under the canvas: a large cool one high on the right, where the network was
+   otherwise reading as flat black, and a smaller warm one low down that ties the panel to the green end
+   of the funnel ramp. Both are far too faint to see as shapes — they only stop the ground being dead. */
 .login-art {
   position: relative; overflow: hidden;
-  background: #090a10;
   border-left: 1px solid var(--border, #252a35);
+  background:
+    radial-gradient(58% 44% at 74% 20%, rgba(102, 88, 214, .2), transparent 70%),
+    radial-gradient(42% 34% at 22% 88%, rgba(46, 169, 155, .13), transparent 72%),
+    #080910;
 }
 .login-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* A vignette over the canvas, so the field falls away at the edges instead of being cut off by them. */
+.login-art::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 88% at 50% 44%, transparent 42%, rgba(8, 9, 16, .72));
+}
 
 /* The words sit in a gradient that rises from the foot, so the constellation stays legible behind them
    without a slab of flat colour cutting the panel in half. */
 .login-art-words {
-  position: absolute; inset: auto 0 0 0;
+  /* Above the vignette: `::after` generates as the last child, so without this the wash would paint
+     over the words and grey them out. */
+  position: absolute; inset: auto 0 0 0; z-index: 1;
   padding: 44px 52px;
   background: linear-gradient(180deg, transparent, rgba(9, 10, 16, .95) 58%);
 }
