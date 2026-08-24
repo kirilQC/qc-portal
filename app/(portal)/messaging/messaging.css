@@ -1,0 +1,206 @@
+/* Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
+   QC Portal — proprietary. Not licensed for redistribution or resale. */
+
+/*
+ * Campaign messaging, drawn as sequences.
+ *
+ * The funnel colours are the same four the campaigns page uses, deliberately: a rate here and the same
+ * rate there must be the same colour, or the two screens teach different languages for one thing.
+ */
+
+.msg-wide { max-width: 1480px; }
+
+.msg-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* ── The index ──────────────────────────────────────────────────────────────────────────────────
+   Grouped by whether the campaign is still running, because that is the first thing you want to know
+   and it also pushes the unattached drafts out of the way of the live work. */
+
+.msg-index { position: sticky; top: 20px; }
+.msg-group + .msg-group { margin-top: 18px; }
+
+.msg-group-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 4px 8px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.msg-item {
+  display: block; width: 100%; text-align: left;
+  padding: 9px 11px; border-radius: 9px;
+  border: 1px solid transparent; background: transparent;
+  color: inherit; font: inherit; cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+.msg-item + .msg-item { margin-top: 3px; }
+.msg-item:hover { background: var(--panel-2); }
+.msg-item.is-open {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+.msg-item strong { display: block; font-size: 12.5px; font-weight: 600; letter-spacing: -.01em; }
+.msg-item span {
+  display: block; margin-top: 2px; font-size: 10.5px; color: var(--muted-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.msg-item.is-open span { color: var(--muted); }
+
+.msg-trunc { margin: 14px 4px 0; font-size: 10.5px; color: var(--muted-2); }
+
+/* ── The document header ────────────────────────────────────────────────────────────────────── */
+
+.msg-doc { min-width: 0; }
+
+.msg-head {
+  border: 1px solid var(--border); border-radius: 13px;
+  background: var(--panel); padding: 18px 20px;
+}
+.msg-head-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
+.msg-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+
+.msg-chips { display: flex; gap: 7px; margin-top: 9px; flex-wrap: wrap; }
+
+.msg-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .01em; white-space: nowrap;
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
+}
+.msg-chip em { font-style: normal; opacity: .7; }
+.msg-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+
+/* An exact code match and an inferred one must never look alike: a fuzzy join dressed as a fact leaves
+   no way to tell which links can be trusted. */
+.msg-chip.is-linked {
+  color: var(--positive, #63dfa4);
+  border-color: color-mix(in srgb, var(--positive, #63dfa4) 40%, transparent);
+  background: color-mix(in srgb, var(--positive, #63dfa4) 12%, transparent);
+}
+.msg-chip.is-suggested {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-style: dashed;
+}
+.msg-chip.is-none { color: var(--muted-2); border-style: dashed; background: transparent; }
+
+.msg-chip.ch-linkedin {
+  color: #4a8fd8; border-color: rgba(74, 143, 216, .4); background: rgba(74, 143, 216, .12);
+}
+.msg-chip.ch-email {
+  color: #d8954a; border-color: rgba(216, 149, 74, .4); background: rgba(216, 149, 74, .12);
+}
+.msg-chip.ch-inmail {
+  color: #9d7ad8; border-color: rgba(157, 122, 216, .4); background: rgba(157, 122, 216, .12);
+}
+
+.msg-synced { display: flex; flex-direction: column; gap: 3px; align-items: flex-end; text-align: right; font-size: 11px; color: var(--muted); }
+.msg-synced a { color: var(--accent); text-decoration: none; }
+.msg-synced a:hover { text-decoration: underline; }
+
+.msg-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--muted-2); }
+
+/* ── The campaign's numbers ─────────────────────────────────────────────────────────────────── */
+
+.msg-stats {
+  display: flex; gap: 30px; flex-wrap: wrap;
+  margin-top: 16px; padding-top: 15px; border-top: 1px solid var(--border);
+}
+.msg-stat { display: flex; flex-direction: column; gap: 3px; min-width: 96px; }
+.msg-stat strong { font-size: 19px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.msg-sub { font-size: 10.5px; color: var(--muted-2); }
+
+.msg-bar { display: block; width: 62px; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; margin: 2px 0 1px; }
+.msg-bar i { display: block; height: 100%; border-radius: 2px; background: currentColor; }
+
+.t-accepted { color: #6f68d8; }
+.t-replied { color: #2ea99b; }
+.t-positive { color: #63dfa4; }
+.t-muted { color: var(--muted-2); }
+
+/* ── The sequence ───────────────────────────────────────────────────────────────────────────────
+   One continuous rail with each step hung off it, so the number of touches is countable at a glance
+   rather than something you work out by reading. */
+
+.msg-seq { position: relative; margin-top: 16px; padding-left: 26px; }
+.msg-seq::before {
+  content: ""; position: absolute; left: 7px; top: 14px; bottom: 22px;
+  width: 1px; background: var(--border);
+}
+
+.msg-step { position: relative; }
+.msg-step + .msg-step { margin-top: 12px; }
+.msg-step::before {
+  content: ""; position: absolute; left: -23px; top: 14px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--panel-2); border: 2px solid #4a8fd8;
+  /* The ring punches the rail out behind the node so the line does not run through it. */
+  box-shadow: 0 0 0 3px var(--bg);
+}
+.msg-step.ch-email::before { border-color: #d8954a; }
+.msg-step.ch-inmail::before { border-color: #9d7ad8; }
+
+.msg-card { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden; }
+.msg-card-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--panel-2);
+}
+.msg-card-head b { font-size: 12.5px; font-weight: 600; }
+.msg-card-body { padding: 13px 15px; }
+
+.msg-count {
+  margin-left: auto; font-size: 10.5px; color: var(--muted-2);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* A connection request over LinkedIn's limit will simply not send, so it is worth saying loudly. */
+.msg-count.is-near { color: #d8954a; }
+.msg-count.is-over { color: var(--coral, #ed8a77); font-weight: 700; }
+
+.msg-subject {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding-bottom: 10px; margin-bottom: 11px; border-bottom: 1px solid var(--border);
+  font-size: 12.5px; font-weight: 600;
+}
+
+/*
+ * The copy itself.
+ *
+ * Monospace, because the character count above it is a promise about this text and a proportional face
+ * makes that promise unreadable — and because it marks the block as something to be copied verbatim
+ * rather than read as prose. `pre-wrap` keeps the writer's own line breaks, which in a message are
+ * deliberate.
+ */
+.msg-copy {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px; line-height: 1.8; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.msg-var {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-radius: 3px; padding: 1px 3px;
+}
+
+.msg-variant { margin-top: 14px; padding-top: 13px; border-top: 1px dashed var(--border); }
+.msg-variant-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+
+/* Anything before the first step — a document that is a note rather than a sequence lands here whole. */
+.msg-preamble {
+  margin-top: 16px; padding: 16px 18px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
+  font-size: 13px; line-height: 1.7; color: var(--muted); white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .msg-layout { grid-template-columns: minmax(0, 1fr); }
+  .msg-index { position: static; }
+  .msg-stats { gap: 20px; }
+}
