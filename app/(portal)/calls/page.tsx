@@ -20,32 +20,29 @@ import { parseCall } from "../../../shared/calls.mjs";
  * concatenated onto the end of the recap in one scroll. And the recap, which is strongly typed, arrived
  * as undifferentiated grey.
  *
- * ── The header is the frontmatter, doing its job ────────────────────────────────────────────────
- * Unlike the messaging documents, this metadata is worth reading: who was on the call, who ran it, how
- * long it took, whether the recap went to the client. So it becomes a real header rather than being
- * hidden — attendees as initials with the host marked, the rest as chips.
+ * ── The header is the frontmatter, reduced to what earns its place ──────────────────────────────
+ * It began as everything the frontmatter carried, attendees included, drawn as initials with the host
+ * ringed. That was the wrong read: the same seven people are on every call, so the row said nothing new
+ * each week and competed with the subject of the page, which is what was decided. What is left is when
+ * the call happened, how long it ran, and how much it owes.
  *
  * ── Action items lead ───────────────────────────────────────────────────────────────────────────
  * The generator writes them third. Its own prompt calls them the most important section and puts the
  * owner first on every line because everybody is scanning for their own name, so they are shown first
  * and the owner is pulled out as a chip.
  *
- * ── The transcript is staff-only and that is enforced on the server ─────────────────────────────
- * A client session never receives it — the route truncates the file before serialising. This component
- * simply never has it to show, which is the only version of that rule worth having.
+ * ── The transcript ──────────────────────────────────────────────────────────────────────────────
+ * Folded into a disclosure labelled with its length, and shown to clients as well as staff — it is the
+ * record of their own call. The copy button lives inside the `<summary>`, which is why it has to stop
+ * the click: without that, copying would also close the thing being copied.
  */
 
 type Item = { owner: string | null; text: string; sub: string | null };
 type Section = { key: string; label: string; icon: string; tone: string; items: Item[] };
-type Attendee = { name: string; initials: string; host: boolean };
 type Call = {
   title: string;
   date: string | null;
-  postedTo: string | null;
-  lastSynced: string | null;
-  host: string | null;
   durationMinutes: number | null;
-  attendees: Attendee[];
   intro: string;
   sections: Section[];
   transcript: string;
@@ -159,8 +156,9 @@ function Calls() {
                 className={`call-entry ${openPath === doc.path ? "is-open" : ""}`}
                 onClick={() => void read(doc.path)}
               >
+                {/* The title is the same on every call in the folder, so it told you nothing and
+                    made every row two lines. The date is the only thing that distinguishes them. */}
                 <strong>{shortDate(doc.date) || doc.title}</strong>
-                <span>{doc.title}</span>
               </button>
             ))}
           </aside>
@@ -178,34 +176,15 @@ function CallView({ call }: { call: Call }) {
   return (
     <>
       <header className="call-head">
-        <div className="call-head-top">
-          <div className="call-head-id">
-            <h2>{call.title}</h2>
-            <div className="call-meta">
-              {call.date && <span className="chip">{longDate(call.date)}</span>}
-              {call.durationMinutes && <span className="chip">{call.durationMinutes} min</span>}
-              {call.postedTo && <span className="chip">{call.postedTo}</span>}
-              {call.actionCount > 0 && (
-                <span className="chip is-act">{call.actionCount} action{call.actionCount === 1 ? "" : "s"}</span>
-              )}
-            </div>
-          </div>
-
-          {call.attendees.length > 0 && (
-            <div className="call-who">
-              <div className="call-faces">
-                {call.attendees.map((person) => (
-                  <i
-                    key={person.name}
-                    className={person.host ? "is-host" : ""}
-                    title={person.host ? `${person.name} — host` : person.name}
-                  >
-                    {person.initials}
-                  </i>
-                ))}
-              </div>
-              <span>{call.attendees.length} on the call</span>
-            </div>
+        <h2>{call.title}</h2>
+        {/* Attendees and the posted-to state were both here and are both gone: the initials read as
+            decoration on a page whose subject is what was decided, and every call has the same
+            attendees anyway. The metadata that earns its place is when it happened and what it owes. */}
+        <div className="call-meta">
+          {call.date && <span className="chip">{longDate(call.date)}</span>}
+          {call.durationMinutes && <span className="chip">{call.durationMinutes} min</span>}
+          {call.actionCount > 0 && (
+            <span className="chip is-act">{call.actionCount} action{call.actionCount === 1 ? "" : "s"}</span>
           )}
         </div>
       </header>
@@ -232,7 +211,6 @@ function SectionCard({ section }: { section: Section }) {
       <div className="call-sec-head">
         <span aria-hidden="true">{section.icon}</span>
         <b>{section.label}</b>
-        <span className="call-sec-n">{section.items.length}</span>
       </div>
       <div className="call-sec-body">
         {section.items.map((item, index) => (
@@ -269,18 +247,49 @@ function initials(name: string): string {
  * The transcript, folded away.
  *
  * A real `<details>` rather than state and a conditional: it is a disclosure, the element exists, and
- * the browser gives keyboard support and the open/closed semantics for nothing. The word count is on
+ * the browser gives keyboard support and the open/closed semantics for nothing. The word count sits on
  * the summary so somebody knows what they are opening before they open it.
  */
 function Transcript({ text, words }: { text: string; words: number }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1800);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  /**
+   * Copy the whole transcript.
+   *
+   * `preventDefault` is the load-bearing part: the button lives inside the `<summary>`, and without it
+   * every copy would also toggle the disclosure — closing the transcript on the way to copying it.
+   */
+  const copy = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      // Clipboard access can be refused outright — an insecure origin, a permissions policy, a browser
+      // that simply says no. Saying nothing would look like a broken button, so it says so.
+      setCopied(false);
+      window.alert("Your browser would not let the page copy to the clipboard.");
+    }
+  };
+
   return (
     <details className="call-transcript">
       <summary>
         <span aria-hidden="true">📄</span>
         <span className="call-transcript-t">
           <b>Transcript</b>
-          <small>Machine transcription of the full call · {words.toLocaleString()} words · staff only</small>
+          <small>Machine transcription of the full call · {words.toLocaleString()} words</small>
         </span>
+        <button className={`call-copy ${copied ? "is-done" : ""}`} onClick={copy} type="button">
+          {copied ? "Copied" : "Copy"}
+        </button>
         <span className="call-transcript-go">Read it</span>
       </summary>
       <div className="call-transcript-body">{text}</div>

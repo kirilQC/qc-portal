@@ -21,17 +21,6 @@ import { READABLE_FOLDERS, brainConfigured, findFolder, listDocs, readDoc, type 
 
 export const maxDuration = 30;
 
-/**
- * Everything up to the `## Transcript` heading.
- *
- * Cutting the text off before it is serialised is the whole point: a client session never receives the
- * transcript, so there is nothing in the payload for a curious reader to find.
- */
-function withoutTranscript(markdown: string): string {
-  const match = markdown.match(/^##\s+Transcript\s*$/im);
-  return match?.index === undefined ? markdown : markdown.slice(0, match.index).replace(/\s+$/, "");
-}
-
 export async function GET(request: Request) {
   const session = await currentSession();
   if (!session) return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
@@ -75,22 +64,14 @@ export async function GET(request: Request) {
       });
     }
 
-    /**
-     * Whether the viewer may see a weekly call's transcript.
-     *
-     * The recap is written for the client and they should have it. The transcript is thirty unedited
-     * minutes of QC talking, machine-transcribed, and `posted_to: Internal` on these documents says that
-     * distinction already matters. So the recap goes to everyone and the transcript is staff-only — and
-     * it is enforced here rather than hidden in the component, because a hidden div is not a permission.
-     */
-    const staff = scoped.role === "staff";
-
+    // Clients see the transcript too. I had it staff-only on the reasoning that it is unedited internal
+    // talk; Kiril's call is that the client is entitled to the whole record of their own call, so the
+    // document goes out whole and there is no truncation left in this route to drift out of sync.
     if (wanted) {
-      const markdown = await readDoc(clientFolder, subfolder, wanted);
-      return NextResponse.json({ ok: true, path: wanted, markdown: staff ? markdown : withoutTranscript(markdown), staff });
+      return NextResponse.json({ ok: true, path: wanted, markdown: await readDoc(clientFolder, subfolder, wanted) });
     }
 
-    return NextResponse.json({ ok: true, folder: subfolder, label, staff, docs: await listDocs(clientFolder, subfolder) });
+    return NextResponse.json({ ok: true, folder: subfolder, label, docs: await listDocs(clientFolder, subfolder) });
   } catch (error) {
     return NextResponse.json(
       { ok: false, reason: "error", error: error instanceof Error ? error.message : "That did not load." },

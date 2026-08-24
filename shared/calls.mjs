@@ -187,6 +187,13 @@ export function splitOwner(text) {
   const dashed = line.match(/^([A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+)?)\s+-\s+(.+)$/);
   if (dashed) return { owner: dashed[1].trim(), text: dashed[2].trim() };
 
+  // "Kori Bivens to send Josh and Tim a report" — no separator at all, which is how the recaps are
+  // actually written, so every owner chip was coming back empty. The lowercase verb after "to" is what
+  // keeps this safe: a name has to be followed by something that reads as an instruction, so
+  // "Value Care Group to Watch" cannot become an owner and neither can a sentence about a company.
+  const owes = line.match(/^([A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+)?)\s+(to\s+[a-z].*)$/);
+  if (owes) return { owner: owes[1].trim(), text: owes[2].trim() };
+
   return { owner: null, text: line };
 }
 

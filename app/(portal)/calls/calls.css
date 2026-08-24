@@ -21,12 +21,19 @@ body.light-mode {
   --s-camp: #6058c9; --s-deal: #34b57c; --s-act: #b9761c; --s-disc: #3d6a8f; --s-next: #23887d;
 }
 
-.calls-wide { max-width: 1280px; }
+/*
+ * Wider than a reading column on purpose.
+ *
+ * These items are single lines that wrap two or three times in a narrow measure, and a recap is scanned
+ * rather than read paragraph by paragraph — so the extra width buys a line each rather than the eye
+ * strain a long measure usually costs. The spine shrinks with it: it holds a date and nothing else now.
+ */
+.calls-wide { max-width: 1760px; }
 
 .calls-layout {
   display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: 126px minmax(0, 1fr);
+  gap: 18px;
   align-items: start;
 }
 
@@ -35,8 +42,9 @@ body.light-mode {
    conversation with a client, and the date is the only thing that tells them apart. */
 
 .calls-spine {
+  /* Sticky *and* the positioning context for the spine's own rule — one declaration, not two, since a
+     later `position: relative` would silently undo the stickiness. */
   position: sticky; top: 20px;
-  position: relative;
   padding-left: 17px;
   max-height: calc(100vh - 128px); overflow-y: auto; overscroll-behavior: contain;
   scrollbar-width: thin; scrollbar-color: var(--border) transparent;
@@ -66,24 +74,22 @@ body.light-mode {
 .call-entry.is-open { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .call-entry.is-open::before { border-color: var(--accent); }
 
-.call-entry strong { display: block; font-size: 12.5px; font-weight: 650; letter-spacing: -.012em; color: var(--muted); }
-.call-entry.is-open strong, .call-entry:hover strong { color: var(--text); }
-.call-entry span {
-  display: block; margin-top: 1px; font-size: 10.5px; color: var(--muted-2);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.call-entry strong {
+  display: block; font-size: 12px; font-weight: 650; letter-spacing: -.012em;
+  color: var(--muted); white-space: nowrap;
 }
+.call-entry.is-open strong, .call-entry:hover strong { color: var(--text); }
 
 /* ── The header ─────────────────────────────────────────────────────────────────────────────────
-   This is the frontmatter that used to print as nine paragraphs of body copy. Unlike the messaging
-   documents', it is worth reading — who was there, who ran it, how long, and whether the recap went to
-   the client — so it is designed rather than merely hidden. */
+   The frontmatter that used to print as nine paragraphs of body copy, reduced to the part that earns a
+   place: when the call was, how long it ran, and how much it owes. Attendees and the posted-to state
+   were both drawn here and both came out — the same people are on every call, so a row of initials
+   repeated itself weekly while competing with the subject of the page. */
 
 .call-doc { min-width: 0; }
 
-.call-head { border: 1px solid var(--border); border-radius: 13px; background: var(--panel); padding: 18px 20px; }
-.call-head-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
-.call-head-id { min-width: 0; }
-.call-head h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.028em; }
+.call-head { border: 1px solid var(--border); border-radius: 13px; background: var(--panel); padding: 17px 20px; }
+.call-head h2 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -.03em; }
 
 .call-meta { display: flex; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
 .call-meta .chip {
@@ -96,24 +102,6 @@ body.light-mode {
   border-color: color-mix(in srgb, var(--s-act) 40%, transparent);
   background: color-mix(in srgb, var(--s-act) 13%, transparent);
 }
-
-/* Attendees as overlapping initials. A person is a face-shaped thing; a comma-separated string is not. */
-.call-who { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.call-faces { display: flex; }
-.call-faces i {
-  width: 26px; height: 26px; border-radius: 50%; margin-right: -6px;
-  display: grid; place-items: center; font-style: normal;
-  font-size: 9.5px; font-weight: 700; letter-spacing: .02em;
-  background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
-  /* Later faces sit under earlier ones, so the host at the front is never half-covered. */
-  position: relative;
-}
-.call-faces i:first-child { z-index: 2; }
-.call-faces i.is-host {
-  background: color-mix(in srgb, var(--accent) 30%, var(--panel-2));
-  border-color: var(--accent); color: #fff;
-}
-.call-who > span { font-size: 10.5px; color: var(--muted-2); }
 
 .call-intro {
   margin: 14px 0 0; padding: 14px 18px;
@@ -134,8 +122,7 @@ body.light-mode {
   padding: 10px 15px; border-bottom: 1px solid var(--border); background: var(--panel-2);
 }
 .call-sec-head b { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-.call-sec-n { margin-left: auto; font-size: 10.5px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
-.call-sec-body { padding: 4px 15px 11px; }
+.call-sec-body { padding: 4px 17px 11px; }
 
 .tone-camp { border-left-color: var(--s-camp); } .tone-camp .call-sec-head b { color: var(--s-camp); }
 .tone-deal { border-left-color: var(--s-deal); } .tone-deal .call-sec-head b { color: var(--s-deal); }
@@ -193,7 +180,28 @@ body.light-mode {
 .call-transcript-t { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .call-transcript-t b { font-size: 12.5px; font-weight: 600; }
 .call-transcript-t small { font-size: 10.5px; color: var(--muted-2); }
-.call-transcript-go { margin-left: auto; font-size: 11px; color: var(--accent); white-space: nowrap; }
+.call-transcript-go { font-size: 11px; color: var(--accent); white-space: nowrap; }
+
+/*
+ * Copy the transcript.
+ *
+ * Pushed to the right by its own margin rather than by the "Read it" label, so the two sit together at
+ * the end of the row and the button is never the thing the eye lands on first — the disclosure is.
+ */
+.call-copy {
+  margin-left: auto; height: 26px; padding: 0 11px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--panel-2); color: var(--muted);
+  font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: color .12s ease, border-color .12s ease, background .12s ease;
+}
+.call-copy:hover { color: var(--text); border-color: var(--muted-2); }
+.call-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.call-copy.is-done {
+  color: var(--s-deal);
+  border-color: color-mix(in srgb, var(--s-deal) 45%, transparent);
+  background: color-mix(in srgb, var(--s-deal) 13%, transparent);
+}
 .call-transcript[open] > summary { border-bottom: 1px dashed var(--border); border-radius: 11px 11px 0 0; }
 .call-transcript[open] .call-transcript-go { color: var(--muted-2); }
 
@@ -214,5 +222,4 @@ body.light-mode {
 @media (max-width: 900px) {
   .calls-layout { grid-template-columns: minmax(0, 1fr); }
   .calls-spine { position: static; max-height: none; }
-  .call-who { align-items: flex-start; }
 }

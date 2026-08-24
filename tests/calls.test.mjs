@@ -145,12 +145,25 @@ test("an action item's owner is pulled off the front of the line", () => {
   assert.deepEqual(splitOwner("<@U012ABCDE|Josh> — draft the angle"), { owner: "Josh", text: "draft the angle" });
 });
 
+test("an owner written without a separator is still found", () => {
+  // How the recaps are really written — "Kori Bivens to send Josh and Tim a report", no dash, no colon.
+  // Requiring one meant every owner chip came back empty on a real call.
+  assert.deepEqual(splitOwner("Kori Bivens to send Josh and Tim a campaign-level performance report"), {
+    owner: "Kori Bivens", text: "to send Josh and Tim a campaign-level performance report",
+  });
+  assert.equal(splitOwner("Kiril Ivlev to monitor contact quality").owner, "Kiril Ivlev");
+});
+
 test("ordinary copy is never mistaken for an owner", () => {
   // The reason owner extraction only runs inside Action Items, and the reason a separator is required.
   assert.equal(splitOwner("Zeal investment committee meets tomorrow morning").owner, null);
   assert.equal(splitOwner("Value Care Group sent an LOI this week").owner, null);
   // A hyphen only counts with spaces round it, so a hyphenated word cannot become a name.
   assert.equal(splitOwner("Follow-up sequence needs rewriting").owner, null);
+  // The lowercase verb is what keeps the separator-free pattern safe: "to" followed by a capital is a
+  // destination or a proper noun, not an instruction.
+  assert.equal(splitOwner("Zeal LOI to Value Care Group").owner, null);
+  assert.equal(splitOwner("Migration to Salesforce still pending").owner, null);
 });
 
 test("owners are only read inside action items", () => {
