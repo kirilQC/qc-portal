@@ -225,7 +225,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 .page-head h1 { font-size: 30px; line-height: 1.1; }
 .eyebrow { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--muted-2); }
 
-.client-head { display: flex; align-items: center; gap: 18px; margin-bottom: 30px; }
+.client-head { display: flex; align-items: center; gap: 18px; margin-bottom: 26px; flex-wrap: wrap; }
 .client-logo {
   display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px;
   color: #fff; font-weight: 750; font-size: 23px; overflow: hidden; flex: none;

@@ -25,7 +25,19 @@ import type { Session } from "../../lib/session";
 export const maxDuration = 60;
 
 const DAY_MS = 86_400_000;
-const WINDOW_DAYS = 30;
+/**
+ * The ranges the page offers, in the order the buttons appear.
+ *
+ * A week is the default because these are weekly-call clients: the question somebody opens this page to
+ * answer is "what happened since we last spoke". `days: null` is all time, which is a different
+ * computation — campaign totals rather than a sum over daily rows — and the funnel it produces has two
+ * extra steps that only exist over the whole engagement.
+ */
+export const RANGES: Record<string, { label: string; days: number | null }> = {
+  week: { label: "This week", days: 7 },
+  month: { label: "This month", days: 30 },
+  all: { label: "All time", days: null },
+};
 /** Buckets in each sparkline. Seven reads as a shape without pretending to daily precision. */
 const BUCKETS = 7;
 
@@ -60,7 +72,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    return NextResponse.json({ ok: true, view: "client", ...(await build(session, workspaceId)) });
+    const asked = new URL(request.url).searchParams.get("range") ?? "week";
+    const range = asked in RANGES ? asked : "week";
+    return NextResponse.json({ ok: true, view: "client", ...(await build(session, workspaceId, range)) });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "The overview did not load." },
@@ -69,10 +83,15 @@ export async function GET(request: Request) {
   }
 }
 
-async function build(session: Session, workspaceId: string) {
+async function build(session: Session, workspaceId: string, range: string) {
   const now = Date.now();
-  const windowStart = now - WINDOW_DAYS * DAY_MS;
-  const previousStart = windowStart - WINDOW_DAYS * DAY_MS;
+  const { label: rangeLabel, days: windowDays } = RANGES[range];
+  /*
+   * All time has no start, so the window is opened at the epoch rather than special-cased through every
+   * sum below. The figures then come out the same way for all three ranges and only the funnel differs.
+   */
+  const windowStart = windowDays === null ? 0 : now - windowDays * DAY_MS;
+  const previousStart = windowDays === null ? 0 : windowStart - windowDays * DAY_MS;
 
   const [workspaceRows, campaignRows, dailyRows, conversations, meetings] = await Promise.all([
     scopedRows(session, "rr_workspaces", { select: "id,name,slug,logo_url,accent_color,website_url", limit: "1" }, workspaceId),
@@ -168,7 +187,8 @@ async function build(session: Session, workspaceId: string) {
   const bucketOf = (iso: string) => {
     const at = Date.parse(iso);
     if (!Number.isFinite(at) || at < windowStart) return -1;
-    return Math.min(BUCKETS - 1, Math.floor(((at - windowStart) / (WINDOW_DAYS * DAY_MS)) * BUCKETS));
+    const span = (windowDays ?? 365) * DAY_MS;
+    return Math.min(BUCKETS - 1, Math.floor(((at - windowStart) / span) * BUCKETS));
   };
 
   const spark = () => Array.from({ length: BUCKETS }, () => 0);
@@ -284,6 +304,75 @@ async function build(session: Session, workspaceId: string) {
   }
   const busiestSender = [...bySender.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
 
+  /*
+   * The funnel for the chosen range.
+   *
+   * All time gets two extra steps at the top — how many leads were loaded, and how many of them were
+   * actually reached — because those only mean anything over the whole engagement. A week's "leads in
+   * campaigns" would be the same 15,259 every week and would say nothing.
+   *
+   * `of` names the denominator of each rate rather than leaving the reader to guess. That matters most
+   * on the last step: warm replies are counted against the ones actually read, which on a short range is
+   * a much smaller number than the replies received, and a percentage with no denominator beside it is
+   * the kind of figure a client quotes back at you.
+   */
+  const funnel = windowDays === null
+    ? [
+        { key: "leads", label: "Leads in campaigns", value: allTime.leads, tone: "f0", rate: null as number | null, of: null as string | null },
+        { key: "reached", label: "Reached out to", value: allTime.reached, tone: "f1", rate: rate(allTime.reached, allTime.leads), of: "of leads" },
+        { key: "accepted", label: "Accepted", value: allTime.accepted, tone: "f2", rate: rate(allTime.accepted, allTime.reached), of: "of reached" },
+        { key: "replied", label: "Replied", value: allTime.replies, tone: "f3", rate: rate(allTime.replies, allTime.accepted), of: "of accepted" },
+        { key: "warm", label: "Replied warmly", value: positiveAllTime, tone: "f4", rate: rate(positiveAllTime, allTime.replies), of: "of replies" },
+      ]
+    : [
+        { key: "reached", label: "Reached", value: reached30, tone: "f1", rate: null as number | null, of: null as string | null },
+        { key: "accepted", label: "Accepted", value: accepted30, tone: "f2", rate: rate(accepted30, reached30), of: "of reached" },
+        { key: "replied", label: "Replied", value: replies30.length, tone: "f3", rate: rate(replies30.length, accepted30), of: "of accepted" },
+        { key: "warm", label: "Replied warmly", value: positive30, tone: "f4", rate: rate(positive30, scored30.length), of: `of ${scored30.length} read closely` },
+      ];
+
+  /**
+   * The campaigns actually running, with what each has left to work through.
+   *
+   * `leads_pending` is the part worth having and the part no other screen shows: a campaign with 40
+   * leads left is nearly finished, and that is a fact somebody would want before a weekly call rather
+   * than after it.
+   */
+  const senderNameById = new Map<string, string>();
+  for (const row of dailyRows) {
+    const id = str(row.sender_id);
+    const name = str(row.sender_name);
+    if (id && name && !senderNameById.has(id)) senderNameById.set(id, name);
+  }
+
+  const activeCampaigns = campaignRows
+    .filter((row) => (str(row.status) || "").toUpperCase() === "IN_PROGRESS")
+    .map((row) => {
+      const senderIds = Array.isArray(row.sender_ids) ? row.sender_ids.map((id) => str(id)).filter(Boolean) : [];
+      const sent = num(row.connections_sent);
+      const accepted = num(row.connections_accepted);
+      const leads = Math.max(num(row.total_leads), sent);
+      const pending = num(row.leads_pending);
+      return {
+        campaignId: str(row.campaign_id),
+        name: str(row.name) || "Untitled campaign",
+        launchedAt: row.launched_at ? str(row.launched_at) : null,
+        // Names where the daily rows know them; never a raw id where a name belongs.
+        senders: senderIds.map((id) => senderNameById.get(id)).filter((name): name is string => Boolean(name)),
+        senderCount: senderIds.length,
+        totalLeads: leads,
+        leadsPending: pending,
+        connectionsSent: sent,
+        connectionsAccepted: accepted,
+        replies: num(row.replies),
+        acceptanceRate: rate(accepted, sent),
+        replyRate: rate(num(row.replies), accepted),
+        // How much of the list has been worked, which is the one thing a running campaign is judged on.
+        progress: leads > 0 ? Math.min(100, Math.round((sent / leads) * 100)) : 0,
+      };
+    })
+    .sort((a, b) => (b.launchedAt ?? "").localeCompare(a.launchedAt ?? "") || a.name.localeCompare(b.name));
+
   const launchedAt = campaignRows
     .map((row) => str(row.launched_at))
     .filter(Boolean)
@@ -298,8 +387,11 @@ async function build(session: Session, workspaceId: string) {
       accentColor: workspace.accent_color ? str(workspace.accent_color) : null,
     },
     startedAt: launchedAt,
+    range,
+    rangeLabel,
+    ranges: Object.entries(RANGES).map(([key, value]) => ({ key, label: value.label })),
     window: {
-      days: WINDOW_DAYS,
+      days: windowDays,
       reached: reached30,
       accepted: accepted30,
       replies: replies30.length,
@@ -323,7 +415,12 @@ async function build(session: Session, workspaceId: string) {
     campaignsTotal: campaignRows.length,
     sendersActive: bySender.size,
     busiestSender: busiestSender ? { name: busiestSender[0], sent: busiestSender[1] } : null,
+    funnel,
+    activeCampaigns,
     bestCampaigns,
+    /** For the tiles that link into the other tabs. */
+    leadsTotal: allTime.leads,
+    repliesTotal: allTime.replies,
     meetingsBooked: meetings.length,
     meetingsUpcoming: meetings.filter((row) => row.meeting_at && Date.parse(str(row.meeting_at)) > now).length,
     sparklines: {
