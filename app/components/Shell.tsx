@@ -129,6 +129,25 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     })();
   }, [clientParam]);
 
+  // The fleet health verdict, for the red dot on the Admin nav. Staff only, and read from the cheap
+  // cached endpoint the watchdog writes, so it costs one row and never recomputes the whole page.
+  const [healthBad, setHealthBad] = useState(false);
+  useEffect(() => {
+    if (me?.user.role !== "staff") return;
+    let live = true;
+    const check = async () => {
+      try {
+        const response = await fetch("/api/admin/health-summary", { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (live) setHealthBad(payload?.level === "bad");
+      } catch { /* the dot is a nicety; its absence is not a failure */ }
+    };
+    void check();
+    // Every couple of minutes is plenty — the watchdog itself runs every five.
+    const timer = setInterval(check, 120_000);
+    return () => { live = false; clearInterval(timer); };
+  }, [me?.user.role]);
+
   // Close the settings menu on any navigation, so it never hangs over the next page.
   useEffect(() => setSettingsOpen(false), [pathname, clientParam]);
 
@@ -244,9 +263,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
         <div className="sidebar-foot">
           {me?.user.role === "staff" && (
-            <Link href="/admin" className={`nav-item ${pathname.startsWith("/admin") ? "active" : ""}`} title="Admin">
-              <Icon name="admin" />
+            <Link href={healthBad ? "/admin/ops" : "/admin"} className={`nav-item ${pathname.startsWith("/admin") ? "active" : ""}`} title={healthBad ? "Admin — something needs attention" : "Admin"}>
+              <span className="nav-icon-wrap">
+                <Icon name="admin" />
+                {healthBad && <i className="nav-alert-dot" aria-hidden="true" />}
+              </span>
               {!collapsed && "Admin"}
+              {healthBad && !collapsed && <i className="nav-alert-dot inline" aria-hidden="true" />}
             </Link>
           )}
           <button

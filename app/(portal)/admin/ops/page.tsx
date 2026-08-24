@@ -3,7 +3,7 @@
 
 "use client";
 
-import { Fragment, Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 
 /**
@@ -26,10 +26,9 @@ type Ops = {
   lastRun: { source: string; runType: string; status: string; finishedAt: string | null; error: string | null } | null;
   failedRuns24h: number; webhookEvents24h: number; webhookFailures24h: number;
   campaigns: number; conversations: number;
-};
-type Runs = {
-  series: { hour: string; ok: number; error: number; written: number }[];
-  latest: { workspaceId: string; source: string; runType: string; status: string; startedAt: string; recordsSeen: number; recordsWritten: number; error: string | null }[];
+  streams: { replies: Stream; stats: Stream; reconcile: Stream };
+  verdictLevel: "ok" | "watch" | "stalled" | "missing";
+  verdictWord: string;
 };
 type Dependency = { id: string; label: string; status: "healthy" | "attention" | "down" | "idle"; detail: string; ageSeconds: number | null; latencyMs: number | null; derivedFrom: string };
 type Worker = {
@@ -44,9 +43,11 @@ type Granola = {
   recentChecks: { checkedAt: string | null; callsFound: number; clientsChecked: number }[];
 };
 type Health = { dependencies: Dependency[]; worker: Worker; granola: Granola };
+type Stream = { level: "ok" | "watch" | "stalled" | "idle"; ageSeconds: number | null; note: string };
+type Verdict = { level: "good" | "bad"; headline: string; detail: string; flagged: { name: string; slug: string; word: string; level: string }[] };
 
-/** Worst first: a client with no key needs plumbing, one on "attention" has stopped, one healthy needs nothing. */
-const RANK: Record<Ops["health"], number> = { missing: 0, attention: 1, healthy: 2 };
+/** Worst first: a stalled client was working and stopped, missing was never plumbed, watch is soft, ok is fine. */
+const RANK: Record<Ops["verdictLevel"], number> = { stalled: 0, missing: 1, watch: 2, ok: 3 };
 
 /** "4h ago", "2d ago" — heartbeats are read as an age, never as a timestamp. */
 function ago(iso: string | null): string {
@@ -63,8 +64,8 @@ function ago(iso: string | null): string {
 
 function Ops() {
   const [clients, setClients] = useState<Ops[]>([]);
-  const [runs, setRuns] = useState<Runs | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -80,8 +81,8 @@ function Ops() {
           return;
         }
         setClients(payload.clients ?? []);
-        setRuns(payload.runs ?? null);
         setHealth(payload.health ?? null);
+        setVerdict(payload.verdict ?? null);
         setCheckedAt(payload.checkedAt ?? null);
       } catch {
         setError("That did not load.");
@@ -93,13 +94,7 @@ function Ops() {
 
   const nameById = new Map(clients.map((c) => [c.id, c.name]));
   const clientName = (id: string) => nameById.get(id) || id.slice(0, 8);
-  const sorted = [...clients].sort((a, b) => RANK[a.health] - RANK[b.health] || a.name.localeCompare(b.name));
-  const counts = {
-    healthy: clients.filter((c) => c.health === "healthy").length,
-    attention: clients.filter((c) => c.health === "attention").length,
-    missing: clients.filter((c) => c.health === "missing").length,
-  };
-  const peak = Math.max(1, ...(runs?.series ?? []).map((p) => p.ok + p.error));
+  const sorted = [...clients].sort((a, b) => RANK[a.verdictLevel] - RANK[b.verdictLevel] || a.name.localeCompare(b.name));
 
   return (
     <div className="content">
@@ -113,6 +108,17 @@ function Ops() {
       </div>
 
       {checkedAt && <p className="ops-checked">Checked {ago(checkedAt)} · reads the same database Reply Radar writes to</p>}
+
+      {/* The one honest headline. Green means close the tab; red says exactly what and for how long. */}
+      {verdict && (
+        <div className={`ops-verdict is-${verdict.level}`}>
+          <div className={`ops-verdict-mark ${verdict.level === "good" ? "pulse" : ""}`}>{verdict.level === "good" ? "✓" : "!"}</div>
+          <div className="ops-verdict-t">
+            <b>{verdict.headline}</b>
+            <span>{verdict.detail}</span>
+          </div>
+        </div>
+      )}
 
       {error && <p className="error-note">{error}</p>}
 
@@ -140,169 +146,100 @@ function Ops() {
         </>
       )}
 
-      <div className="metrics">
-        <div className="metric">
-          <span className="metric-label">Running clean</span>
-          <span className="metric-value green">{counts.healthy}</span>
-          <span className="metric-note">webhook and poll both fresh</span>
-        </div>
-        <div className="metric">
-          <span className="metric-label">Needs attention</span>
-          <span className="metric-value" style={{ color: counts.attention ? "var(--amber)" : undefined }}>{counts.attention}</span>
-          <span className="metric-note">poll over 1h or webhook over 7d</span>
-        </div>
-        <div className="metric">
-          <span className="metric-label">Not connected</span>
-          <span className="metric-value" style={{ color: counts.missing ? "var(--coral)" : undefined }}>{counts.missing}</span>
-          <span className="metric-note">no HeyReach key set</span>
-        </div>
-        <div className="metric">
-          <span className="metric-label">Records written, 48h</span>
-          <span className="metric-value">{(runs?.series ?? []).reduce((s, p) => s + p.written, 0).toLocaleString()}</span>
-          <span className="metric-note">across every client</span>
-        </div>
-      </div>
-
-      {runs && runs.series.length > 0 && (
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Sync runs, last 48 hours</h2>
-            <span>Hourly — data actually landing</span>
-          </div>
-          <div className="chart">
-            {runs.series.map((point) => (
-              <div key={point.hour} className="chart-col" title={`${point.hour} · ${point.ok} ok, ${point.error} failed, ${point.written} written`}>
-                {point.error > 0 && <div className="chart-bar" style={{ background: "var(--coral)", height: `${(point.error / peak) * 100}%` }} />}
-                <div className="chart-bar accepted" style={{ height: `${(point.ok / peak) * 100}%` }} />
-              </div>
-            ))}
-          </div>
-          <div className="chart-legend">
-            <span><b style={{ background: "var(--green)" }} />Successful runs</span>
-            <span><b style={{ background: "var(--coral)" }} />Failed runs</span>
-          </div>
-        </div>
-      )}
-
-      <div className="panel">
+      <div className="panel ops-fresh-panel">
         <div className="panel-head">
           <h2>Every client</h2>
-          <span>Worst first · click a row for its configuration</span>
+          <span>Worst first · click a client for its configuration</span>
         </div>
         {!loaded ? (
           <p className="loading">Loading…</p>
         ) : sorted.length === 0 ? (
           <p className="empty">No clients.</p>
         ) : (
-          <div className="table-wrap">
-            <table className="rows">
-              <thead>
-                <tr>
-                  <th>Client</th>
-                  <th>Health</th>
-                  <th className="num">Webhook</th>
-                  <th className="num">Poll</th>
-                  <th className="num">Reconciled</th>
-                  <th className="num">Events 24h</th>
-                  <th className="num">Failures 24h</th>
-                  <th className="num">Volume</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((client) => (
-                  <Fragment key={client.id}>
-                    <tr onClick={() => setOpen(open === client.id ? null : client.id)} style={{ cursor: "pointer" }}>
-                      <td>
-                        <span className="primary">{client.name}</span>
-                        <span className="sub">{client.slug}</span>
-                      </td>
-                      <td><span className={`pill health-${client.health}`}>{client.health}</span></td>
-                      <td className="num" style={{ color: client.webhookHealthy ? undefined : "var(--amber)" }}>{ago(client.lastWebhookAt)}</td>
-                      <td className="num" style={{ color: client.pollHealthy ? undefined : "var(--amber)" }}>{ago(client.lastPollAt)}</td>
-                      <td className="num">{ago(client.lastReconciledAt)}</td>
-                      <td className="num">{client.webhookEvents24h.toLocaleString()}</td>
-                      <td className="num" style={{ color: client.failedRuns24h + client.webhookFailures24h > 0 ? "var(--coral)" : undefined }}>
-                        {client.failedRuns24h + client.webhookFailures24h}
-                      </td>
-                      <td className="num">{client.campaigns} camp · {client.conversations.toLocaleString()} conv</td>
-                    </tr>
-                    {open === client.id && (
-                      <tr>
-                        <td colSpan={8} style={{ background: "var(--panel-2)" }}>
-                          <div className="ops-config">
-                            <Row label="HeyReach key" value={client.heyreachConnected ? "connected" : "missing"} bad={!client.heyreachConnected} />
-                            <Row label="CRM" value={client.crmProvider ? `${client.crmProvider} · synced ${ago(client.crmLastSyncedAt)}` : "not connected"} />
-                            <Row label="Timezone" value={client.timezone} />
-                            <Row label="Website" value={client.websiteUrl ?? "—"} />
-                            <Row label="Brain folder" value={client.brainFolder ?? "—"} />
-                            <Row label="Airtable base" value={client.airtableBaseId ?? "—"} />
-                            <Row label="Slack internal" value={client.slackInternalChannelId ?? "—"} />
-                            <Row label="Slack external" value={client.slackExternalChannelId ?? "—"} />
-                            <Row label="Morning brief" value={client.morningBriefEnabled ? "on" : "off"} />
-                            <Row label="Call analysis" value={client.callAnalysisEnabled ? "on" : "off"} />
-                            <Row label="EOW report" value={client.eowReportEnabled ? "on" : "off"} />
-                            <Row label="Onboarding" value={client.onboardingStatus ?? "—"} />
-                            <Row
-                              label="Last sync run"
-                              value={client.lastRun ? `${client.lastRun.source}/${client.lastRun.runType} — ${client.lastRun.status} ${ago(client.lastRun.finishedAt)}` : "none"}
-                              bad={client.lastRun?.status === "error"}
-                            />
-                            {client.lastRun?.error && <Row label="Last error" value={client.lastRun.error} bad />}
-                          </div>
-                          <div style={{ padding: "0 20px 18px" }}>
-                            <Link className="button ghost small" href={`/?client=${encodeURIComponent(client.slug)}`}>
-                              Open this client&apos;s portal →
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
+          <div className="ops-fresh">
+            {sorted.map((client) => (
+              <ClientHealth
+                key={client.id}
+                client={client}
+                open={open === client.id}
+                onToggle={() => setOpen(open === client.id ? null : client.id)}
+              />
+            ))}
           </div>
         )}
       </div>
 
-      {runs && runs.latest.length > 0 && (
-        <div className="panel">
-          <div className="panel-head">
-            <h2>Latest sync runs</h2>
-            <span>Newest 60</span>
+    </div>
+  );
+}
+
+/**
+ * One client, as a freshness verdict rather than a row of raw timestamps.
+ *
+ * The two HeyReach streams — Replies and Campaign stats — plus the reconcile gap-check each show a
+ * colour, an age and a plain word, so a glance tells you whether a number is healthy without knowing
+ * that a poll should be under an hour. The raw configuration is one click down, in the drawer.
+ */
+function ClientHealth({ client, open, onToggle }: { client: Ops; open: boolean; onToggle: () => void }) {
+  const failures = client.failedRuns24h + client.webhookFailures24h;
+  return (
+    <div className={`ops-cl v-${client.verdictLevel}`}>
+      <button className="ops-cl-main" onClick={onToggle} aria-expanded={open}>
+        <span className="ops-cl-name">
+          <b>{client.name}</b>
+          <small>{client.slug}</small>
+        </span>
+        <Sig label="Replies · webhook" s={client.streams.replies} />
+        <Sig label="Campaign stats · poll" s={client.streams.stats} />
+        <Sig label="Gap check · reconcile" s={client.streams.reconcile} />
+        <span className="ops-cl-verdict">{client.verdictWord}</span>
+        <span className="ops-cl-chev">{open ? "▾" : "▸"}</span>
+      </button>
+
+      {open && (
+        <div className="ops-cl-drawer">
+          <div className="ops-config">
+            <Row label="HeyReach key" value={client.heyreachConnected ? "connected" : "missing"} bad={!client.heyreachConnected} />
+            <Row label="Replies last received" value={ago(client.lastWebhookAt)} />
+            <Row label="Stats last polled" value={ago(client.lastPollAt)} bad={!client.pollHealthy} />
+            <Row label="Gaps last checked" value={ago(client.lastReconciledAt)} />
+            <Row label="Failures, 24h" value={String(failures)} bad={failures > 0} />
+            <Row label="Volume" value={`${client.campaigns} campaigns · ${client.conversations.toLocaleString()} conversations`} />
+            <Row label="CRM" value={client.crmProvider ? `${client.crmProvider} · synced ${ago(client.crmLastSyncedAt)}` : "not connected"} />
+            <Row label="Timezone" value={client.timezone} />
+            <Row label="Brain folder" value={client.brainFolder ?? "—"} />
+            <Row label="Morning brief" value={client.morningBriefEnabled ? "on" : "off"} />
+            <Row label="Call analysis" value={client.callAnalysisEnabled ? "on" : "off"} />
+            <Row label="Onboarding" value={client.onboardingStatus ?? "—"} />
+            <Row
+              label="Last sync run"
+              value={client.lastRun ? `${client.lastRun.source}/${client.lastRun.runType} — ${client.lastRun.status} ${ago(client.lastRun.finishedAt)}` : "none"}
+              bad={client.lastRun?.status === "error"}
+            />
+            {client.lastRun?.error && <Row label="Last error" value={client.lastRun.error} bad />}
           </div>
-          <div className="table-wrap">
-            <table className="rows">
-              <thead>
-                <tr>
-                  <th>Client</th><th>Source</th><th>Type</th><th>Status</th>
-                  <th className="num">Seen</th><th className="num">Written</th><th className="num">Started</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.latest.map((run, index) => {
-                  const client = clients.find((c) => c.id === run.workspaceId);
-                  return (
-                    <tr key={`${run.startedAt}-${index}`}>
-                      <td>{client?.name ?? "—"}</td>
-                      <td>{run.source}</td>
-                      <td>{run.runType}</td>
-                      <td>
-                        <span className={`pill ${run.status === "error" ? "off" : "active"}`}>{run.status}</span>
-                        {run.error && <span className="sub">{run.error.slice(0, 120)}</span>}
-                      </td>
-                      <td className="num">{run.recordsSeen.toLocaleString()}</td>
-                      <td className="num">{run.recordsWritten.toLocaleString()}</td>
-                      <td className="num">{ago(run.startedAt)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div style={{ padding: "0 4px 4px" }}>
+            <Link className="button ghost small" href={`/?client=${encodeURIComponent(client.slug)}`}>
+              Open this client&apos;s portal →
+            </Link>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** One stream's freshness pill: a dot in its verdict colour, the age, and what the age means. */
+function Sig({ label, s }: { label: string; s: Stream }) {
+  return (
+    <span className="ops-sig">
+      <span className="ops-sig-k">{label}</span>
+      <span className="ops-sig-v">
+        <i className={`ops-sig-dot ${s.level}`} />
+        <b>{s.level === "idle" && s.ageSeconds === null ? "—" : fmtAge(s.ageSeconds)}{s.ageSeconds === null || s.level === "idle" ? "" : " ago"}</b>
+      </span>
+      <span className="ops-sig-note">{s.note}</span>
+    </span>
   );
 }
 

@@ -6,7 +6,7 @@
  */
 import { NextResponse } from "next/server";
 import { currentSession } from "../../../lib/auth-context";
-import { listClientOps, recentRuns, systemHealth } from "../../../lib/ops-data";
+import { healthVerdict, listClientOps, systemHealth } from "../../../lib/ops-data";
 
 export const maxDuration = 60;
 
@@ -16,12 +16,12 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "Not allowed." }, { status: 403 });
   }
   try {
-    const [clients, runs, health] = await Promise.all([
+    const [clients, health] = await Promise.all([
       listClientOps(session),
-      recentRuns(session),
       systemHealth(session),
     ]);
-    return NextResponse.json({ ok: true, clients, runs, health, checkedAt: new Date().toISOString() });
+    const verdict = healthVerdict(clients, health.worker);
+    return NextResponse.json({ ok: true, clients, health, verdict, checkedAt: new Date().toISOString() });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "That did not load." },

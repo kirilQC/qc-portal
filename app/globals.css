@@ -523,3 +523,74 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 .ops-hb-run-c { color: var(--muted-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ops-hb-run-w { font-size: 10.5px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
 .ops-hb-run time { font-size: 10.5px; color: var(--muted-2); white-space: nowrap; }
+
+/* ── System health: the verdict and the per-client freshness ────────────────────────────────────
+   The trust-first rebuild — one honest headline, then each client's HeyReach streams as verdicts a
+   person can read without knowing the thresholds. */
+
+.ops-verdict { display: flex; align-items: center; gap: 16px; padding: 20px 22px; border-radius: 15px; margin-bottom: 20px; }
+.ops-verdict.is-good { background: color-mix(in srgb, var(--green) 11%, var(--panel)); border: 1px solid color-mix(in srgb, var(--green) 34%, transparent); }
+.ops-verdict.is-bad { background: color-mix(in srgb, var(--coral) 11%, var(--panel)); border: 1px solid color-mix(in srgb, var(--coral) 40%, transparent); }
+.ops-verdict-mark { width: 48px; height: 48px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 22px; font-weight: 700; position: relative; }
+.ops-verdict.is-good .ops-verdict-mark { background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); }
+.ops-verdict.is-bad .ops-verdict-mark { background: color-mix(in srgb, var(--coral) 20%, transparent); color: var(--coral); }
+.ops-verdict-mark.pulse::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--green); animation: ops-ring 2.4s ease-out infinite; }
+@keyframes ops-ring { 0% { transform: scale(.82); opacity: .7; } 100% { transform: scale(1.4); opacity: 0; } }
+.ops-verdict-t { min-width: 0; }
+.ops-verdict-t b { display: block; font-size: 19px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; }
+.ops-verdict-t span { font-size: 12.5px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .ops-verdict-mark.pulse::after { animation: none; } }
+
+.ops-fresh-panel .panel-head { margin-bottom: 2px; }
+.ops-fresh { display: flex; flex-direction: column; }
+.ops-cl { border-bottom: 1px solid var(--border-soft); border-left: 3px solid transparent; }
+.ops-cl:last-child { border-bottom: 0; }
+.ops-cl.v-ok { border-left-color: var(--green); }
+.ops-cl.v-watch { border-left-color: var(--amber); }
+.ops-cl.v-stalled { border-left-color: var(--coral); background: color-mix(in srgb, var(--coral) 5%, transparent); }
+.ops-cl.v-missing { border-left-color: var(--muted-2); }
+
+.ops-cl-main {
+  display: grid; grid-template-columns: 190px 1fr 1fr 1fr 108px 20px; gap: 14px; align-items: center;
+  width: 100%; text-align: left; padding: 14px 16px;
+  background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer;
+}
+.ops-cl-main:hover { background: var(--panel-2); }
+.ops-cl-name { min-width: 0; }
+.ops-cl-name b { display: block; font-size: 13.5px; font-weight: 640; letter-spacing: -.01em; }
+.ops-cl-name small { font-size: 10.5px; color: var(--muted-2); }
+
+.ops-sig { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ops-sig-k { font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted-2); }
+.ops-sig-v { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ops-sig-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.ops-sig-dot.ok { background: var(--green); }
+.ops-sig-dot.watch { background: var(--amber); }
+.ops-sig-dot.stalled { background: var(--coral); }
+.ops-sig-dot.idle { background: var(--muted-2); }
+.ops-sig-note { font-size: 10px; color: var(--muted-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ops-cl-verdict { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-align: right; color: var(--muted-2); }
+.ops-cl.v-ok .ops-cl-verdict { color: var(--green); }
+.ops-cl.v-watch .ops-cl-verdict { color: var(--amber); }
+.ops-cl.v-stalled .ops-cl-verdict { color: var(--coral); }
+.ops-cl-chev { color: var(--muted-2); font-size: 11px; text-align: center; }
+
+.ops-cl-drawer { padding: 4px 18px 16px; background: var(--panel-2); }
+
+@media (max-width: 860px) {
+  .ops-cl-main { grid-template-columns: 1fr 1fr; row-gap: 12px; }
+  .ops-cl-name { grid-column: 1 / -1; }
+  .ops-cl-verdict, .ops-cl-chev { grid-column: 1 / -1; text-align: left; }
+}
+
+/* ── The Admin nav alert dot ────────────────────────────────────────────────────────────────────
+   A red dot on the Admin icon whenever the fleet health verdict is bad, so a stalled client is visible
+   from any page rather than only when someone thinks to open System health. */
+.nav-icon-wrap { position: relative; display: inline-flex; }
+.nav-alert-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--coral);
+  box-shadow: 0 0 0 2px var(--panel);
+}
+.nav-icon-wrap .nav-alert-dot { position: absolute; top: -2px; right: -3px; }
+.nav-alert-dot.inline { margin-left: auto; box-shadow: 0 0 0 2px color-mix(in srgb, var(--coral) 25%, transparent); }

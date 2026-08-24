@@ -97,3 +97,18 @@ alter table qc_portal_messaging_links enable row level security;
 
 create index if not exists qc_portal_messaging_links_workspace
   on qc_portal_messaging_links (workspace_id);
+
+-- ── Health alert state ─────────────────────────────────────────────────────────────────────────
+--
+-- The alert job needs one bit of memory: what the health verdict was last time it ran, so it can post
+-- to Slack only when the verdict *changes* — "went bad", "recovered" — rather than every few minutes.
+-- A single row, keyed by a constant, holding the last verdict as JSON and when the last daily digest
+-- was sent. RLS on with no policies like everything else; only the cron route (service key) touches it.
+create table if not exists qc_portal_health_state (
+  id            text primary key default 'singleton',
+  last_verdict  jsonb,
+  last_daily_at timestamptz,
+  updated_at    timestamptz not null default now()
+);
+
+alter table qc_portal_health_state enable row level security;

@@ -27,7 +27,10 @@ function isOpenPath(pathname: string): boolean {
     pathname === "/login" ||
     pathname === "/api/auth/login" ||
     pathname === "/api/auth/logout" ||
-    pathname === "/api/health"
+    pathname === "/api/health" ||
+    // The health watchdog carries no session — it is a cron on a timer. It gates itself on CRON_SECRET
+    // instead (see the route), so the middleware lets it reach that check rather than bouncing it to login.
+    pathname === "/api/cron/health-alert"
   );
 }
 

@@ -41,6 +41,21 @@ const WEBHOOK_FRESH_SECONDS = 7 * 24 * 60 * 60; // a week
 const WORKER_FRESH_SECONDS = 300; // five minutes
 /** How stale the last in-window Granola heartbeat may be before the poll is called down. Same as RR. */
 const GRANOLA_DOWN_SECONDS = 6 * 60 * 60;
+/*
+ * Per-stream verdict thresholds.
+ *
+ * The two HeyReach streams are judged differently on purpose, because they behave differently. Campaign
+ * stats are pulled on a fixed schedule, so a clock over an hour is a fault — full stop. Replies arrive
+ * whenever a prospect happens to answer, which for a low-volume client can be once a week, so a quiet
+ * webhook is a soft "watch" for a day and only a fault after a long silence. The reconcile sweep is a
+ * slower safety net, judged loosest of all.
+ */
+const STATS_OK_SECONDS = 60 * 60;          // a poll older than an hour is broken
+const REPLIES_WATCH_SECONDS = 24 * 60 * 60; // quiet for a day → watch
+const REPLIES_BAD_SECONDS = 7 * 24 * 60 * 60; // silent for a week → stalled
+const RECONCILE_OK_SECONDS = 6 * 60 * 60;
+const RECONCILE_WATCH_SECONDS = 24 * 60 * 60;
+
 /** The Granola poll window: 5am–8pm Eastern, where the team and the calls are. */
 const GRANOLA_TIMEZONE = "America/New_York";
 const GRANOLA_WINDOW_START_MINUTE = 5 * 60;
@@ -92,7 +107,23 @@ export type ClientOps = {
   // Volume, so a silent client with no campaigns is not read as a broken one.
   campaigns: number;
   conversations: number;
+
+  /*
+   * The two HeyReach streams and the reconcile sweep, each turned into a verdict a person can read
+   * without knowing the thresholds — "3m ago" means nothing on its own, "current" means something.
+   */
+  streams: {
+    replies: StreamVerdict;
+    stats: StreamVerdict;
+    reconcile: StreamVerdict;
+  };
+  /** One word for the whole client, and the level that drives its colour and its place in the sort. */
+  verdictLevel: "ok" | "watch" | "stalled" | "missing";
+  verdictWord: string;
 };
+
+/** One stream's freshness, said in a word. `idle` is "not applicable", not "broken". */
+export type StreamVerdict = { level: "ok" | "watch" | "stalled" | "idle"; ageSeconds: number | null; note: string };
 
 /** Seconds since an ISO timestamp, or null when there is no timestamp to measure from. */
 const secondsSince = (iso: string | null): number | null => {
@@ -178,6 +209,55 @@ export async function listClientOps(session: Session): Promise<ClientOps[]> {
     const newest = mine[0];
     const hookStatuses = hooksBy.get(id) ?? [];
 
+    // ── The three streams, as verdicts ──────────────────────────────────────────────────────────
+    const repliesAge = secondsSince(lastWebhookAt);
+    const statsAge = secondsSince(lastPollAt);
+    const reconcileAge = secondsSince(lastReconciledAt);
+
+    const replies: StreamVerdict = !heyreachConnected
+      ? { level: "idle", ageSeconds: null, note: "not connected" }
+      : repliesAge === null
+        ? { level: "watch", ageSeconds: null, note: "no reply received yet" }
+        : repliesAge <= REPLIES_WATCH_SECONDS
+          ? { level: "ok", ageSeconds: repliesAge, note: "flowing" }
+          : repliesAge <= REPLIES_BAD_SECONDS
+            ? { level: "watch", ageSeconds: repliesAge, note: "quiet — may be normal for this client" }
+            : { level: "stalled", ageSeconds: repliesAge, note: "silent for over a week" };
+
+    const stats: StreamVerdict = !heyreachConnected
+      ? { level: "idle", ageSeconds: null, note: "not connected" }
+      : statsAge === null
+        ? { level: "stalled", ageSeconds: null, note: "never polled" }
+        : statsAge <= STATS_OK_SECONDS
+          ? { level: "ok", ageSeconds: statsAge, note: "current" }
+          : { level: "stalled", ageSeconds: statsAge, note: "poll is over an hour late" };
+
+    const reconcile: StreamVerdict = reconcileAge === null
+      ? { level: "idle", ageSeconds: null, note: "not run yet" }
+      : reconcileAge <= RECONCILE_OK_SECONDS
+        ? { level: "ok", ageSeconds: reconcileAge, note: "gaps checked" }
+        : reconcileAge <= RECONCILE_WATCH_SECONDS
+          ? { level: "watch", ageSeconds: reconcileAge, note: "check is due" }
+          : { level: "stalled", ageSeconds: reconcileAge, note: "no gap check in over a day" };
+
+    // The client's one word: stats stalled is the loudest (it means the schedule broke), then replies
+    // stalled, then a watch, else all current. A client never plumbed in is its own separate state.
+    const verdictLevel: ClientOps["verdictLevel"] = !heyreachConnected
+      ? "missing"
+      : stats.level === "stalled"
+        ? "stalled"
+        : replies.level === "stalled"
+          ? "stalled"
+          : replies.level === "watch" || reconcile.level === "stalled"
+            ? "watch"
+            : "ok";
+    const verdictWord =
+      verdictLevel === "missing" ? "Not connected"
+      : stats.level === "stalled" ? "Stats stalled"
+      : replies.level === "stalled" ? "Replies stalled"
+      : verdictLevel === "watch" ? "Watch"
+      : "All current";
+
     return {
       id,
       name: str(row.name),
@@ -225,8 +305,85 @@ export async function listClientOps(session: Session): Promise<ClientOps[]> {
 
       campaigns: (campaignsBy.get(id) ?? []).length,
       conversations: (conversationsBy.get(id) ?? []).length,
+
+      streams: { replies, stats, reconcile },
+      verdictLevel,
+      verdictWord,
     };
   });
+}
+
+/**
+ * The one honest headline, computed from every client and the worker.
+ *
+ * The worker dominates: if it has stopped, every clock on the page is frozen at its last value and a
+ * frozen "3m ago" looks healthy, so the verdict must go red on the worker's staleness before any
+ * client's — nothing else can be trusted while the worker is down. Below that, a single stalled client
+ * turns it red; a watch keeps it green but is mentioned.
+ */
+export type Verdict = {
+  level: "good" | "bad";
+  headline: string;
+  detail: string;
+  /** The clients that are stalled or watched, worst first — what an alert would name. */
+  flagged: { name: string; slug: string; word: string; level: ClientOps["verdictLevel"] }[];
+};
+
+export function healthVerdict(clients: ClientOps[], worker: WorkerHeartbeat): Verdict {
+  const connected = clients.filter((c) => c.heyreachConnected);
+  const stalled = clients.filter((c) => c.verdictLevel === "stalled");
+  const watched = clients.filter((c) => c.verdictLevel === "watch");
+  const flagged = [...stalled, ...watched].map((c) => ({ name: c.name, slug: c.slug, word: c.verdictWord, level: c.verdictLevel }));
+
+  if (worker.status !== "healthy") {
+    return {
+      level: "bad",
+      headline: worker.status === "never"
+        ? "No sign of the Reply Radar worker"
+        : "The Reply Radar worker has stopped — data is frozen",
+      detail: worker.status === "never"
+        ? "Nothing has ever written to the sync log. Until the worker runs, nothing on this portal is live."
+        : `Its last heartbeat was ${describeAge(worker.ageSeconds)} ago. Every client's data is frozen at its last value until it resumes.`,
+      flagged,
+    };
+  }
+
+  if (stalled.length > 0) {
+    const first = stalled[0];
+    return {
+      level: "bad",
+      headline: stalled.length === 1
+        ? `${first.name}: ${first.verdictWord.toLowerCase()}`
+        : `${stalled.length} clients have stopped receiving data`,
+      detail: stalled.length === 1
+        ? `${describeStall(first)} ${connected.length - 1} other connected client${connected.length - 1 === 1 ? " is" : "s are"} fine.`
+        : stalled.map((c) => c.name).join(", ") + " — open each below for what stopped.",
+      flagged,
+    };
+  }
+
+  return {
+    level: "good",
+    headline: "Everything is live",
+    detail: `${connected.length} client${connected.length === 1 ? "" : "s"} receiving HeyReach data · worker wrote ${describeAge(worker.ageSeconds)} ago${watched.length ? ` · ${watched.length} to keep an eye on` : " · nothing stale"}.`,
+    flagged,
+  };
+}
+
+function describeStall(c: { streams: ClientOps["streams"]; verdictWord: string }): string {
+  if (c.streams.stats.level === "stalled") return `Campaign stats stopped updating ${describeAge(c.streams.stats.ageSeconds)} ago.`;
+  if (c.streams.replies.level === "stalled") return `No reply has arrived for ${describeAge(c.streams.replies.ageSeconds)}.`;
+  return "A data stream has stopped.";
+}
+
+function describeAge(seconds: number | null): string {
+  if (seconds === null) return "an unknown time";
+  if (seconds < 60) return `${Math.floor(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
 }
 
 /**
