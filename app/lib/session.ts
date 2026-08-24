@@ -32,8 +32,20 @@
 /** The cookie that carries the session. Prefixed so it never collides with Reply Radar's `rr_auth`. */
 export const SESSION_COOKIE = "qcp_session";
 
-/** How long a login lasts. Long enough that a client is not re-typing a password every week. */
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 14; // 14 days
+/**
+ * How long a login lasts.
+ *
+ * A login does not expire — a client should never be re-typing a password because a clock ran out, and
+ * QC's own staff even less so. This was a fortnight; it is now effectively forever (ten years).
+ *
+ * It is a very long finite value rather than a removed check on purpose. The expiry claim is what a
+ * signed token can be invalidated by: rotating `SESSION_SECRET` or bumping `CLAIMS_VERSION` refuses
+ * every session already issued, and a leaked cookie is finite even in the worst case. A token with no
+ * expiry at all cannot be aged out by any means short of those two, so the mechanism stays and the
+ * number simply moves out past any real session's life. Access is revoked by switching the login off,
+ * which `/api/me` checks on every request — not by waiting for a session to lapse.
+ */
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 365 * 10; // effectively never (10 years)
 
 /** What a user is allowed to be. `staff` sees every client; `client` sees exactly one. */
 export type Role = "staff" | "client";

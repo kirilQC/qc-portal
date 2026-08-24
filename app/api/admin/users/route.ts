@@ -26,7 +26,8 @@ export async function GET() {
   const session = await staffOnly();
   if (!session) return NextResponse.json({ ok: false, error: "Not allowed." }, { status: 403 });
   const [users, clients] = await Promise.all([listUsers(), listClients(session)]);
-  return NextResponse.json({ ok: true, users, clients });
+  // The caller's own id, so the screen can strip the switch-off and delete controls from their own row.
+  return NextResponse.json({ ok: true, users, clients, meId: session.userId });
 }
 
 export async function POST(request: Request) {
@@ -44,10 +45,17 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  if (!(await staffOnly())) return NextResponse.json({ ok: false, error: "Not allowed." }, { status: 403 });
+  const session = await staffOnly();
+  if (!session) return NextResponse.json({ ok: false, error: "Not allowed." }, { status: 403 });
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const id = typeof body.id === "string" ? body.id : "";
   if (!id) return NextResponse.json({ ok: false, error: "Which login?" }, { status: 400 });
+
+  // Switching off your own login logs you out with no way back in — the same footgun as deleting it,
+  // and blocked the same way. The UI also hides the control, but a hidden control is not a rule.
+  if (body.isActive === false && id === session.userId) {
+    return NextResponse.json({ ok: false, error: "You cannot switch off the login you are signed in with." }, { status: 400 });
+  }
 
   if (typeof body.password === "string") {
     const result = await setPassword(id, body.password);
