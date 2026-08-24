@@ -2,68 +2,112 @@
    QC Portal — proprietary. Not licensed for redistribution or resale. */
 
 /*
- * The sign-in screen. Hard-coded fallbacks alongside every custom property, because this page can be
- * the very first thing a browser renders and must never appear as black text on a black background if
- * the variables have not resolved yet.
+ * The sign-in screen.
+ *
+ * Every colour carries a hard-coded fallback beside its custom property, because this page can be the
+ * very first thing a browser paints and must never appear as dark text on a dark ground if the
+ * variables have not resolved. It is also the one page outside the app shell, so it does not inherit
+ * the shell's own background.
  */
 
-.login-shell {
-  min-height: 100vh;
+.login-split {
   display: grid;
-  place-items: center;
-  padding: 24px;
-  background:
-    radial-gradient(900px 500px at 50% -10%, color-mix(in srgb, var(--accent, #8b7cff) 16%, transparent), transparent),
-    var(--bg, #0b0c10);
+  grid-template-columns: minmax(0, 46fr) minmax(0, 54fr);
+  min-height: 100vh;
+  background: var(--bg, #0b0c10);
+  color: var(--text, #f3f4f7);
 }
 
-.login-card {
-  width: 100%;
-  max-width: 380px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 36px 32px;
-  border: 1px solid var(--border, #252a35);
-  border-radius: 18px;
-  background: var(--panel, #111319);
-  box-shadow: 0 26px 74px rgba(0, 0, 0, 0.5);
-}
+/* ── The form ───────────────────────────────────────────────────────────────────────────────────── */
 
-.login-brand { display: flex; align-items: center; gap: 13px; margin-bottom: 4px; }
-.login-mark {
-  display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent, #8b7cff), #d3b5ff);
-  color: #fff; font-weight: 750; font-size: 15px; letter-spacing: -0.02em;
-}
-.login-brand strong { display: block; font-size: 16px; font-weight: 700; letter-spacing: -0.03em; color: var(--text, #f3f4f7); }
-.login-brand small { display: block; font-size: 12px; color: var(--muted-2, #5e6574); margin-top: 1px; }
+.login-form-side { display: grid; place-items: center; padding: 40px 32px; }
+.login-inner { width: 100%; max-width: 372px; }
 
+.login-brand { display: flex; align-items: center; gap: 13px; margin-bottom: 40px; }
+.login-mark { width: 42px; height: 42px; border-radius: 11px; object-fit: contain; flex: none; }
+.login-wordmark { font-size: 17px; font-weight: 500; letter-spacing: -.02em; color: var(--muted, #8c92a2); }
+.login-wordmark b { font-weight: 700; color: var(--text, #f3f4f7); }
+
+.login-inner h1 { margin: 0; font-size: 29px; font-weight: 660; letter-spacing: -.035em; }
+.login-lede { margin: 8px 0 30px; color: var(--muted, #8c92a2); font-size: 13.5px; }
+
+.login-inner form { display: flex; flex-direction: column; gap: 17px; }
 .login-field { display: flex; flex-direction: column; gap: 7px; }
 .login-field label {
-  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
   font-weight: 700; color: var(--muted-2, #5e6574);
 }
 .login-input {
-  height: 44px; padding: 0 14px;
+  height: 46px; padding: 0 14px;
   border: 1px solid var(--border, #252a35); border-radius: 11px;
   background: var(--panel-2, #151821); color: var(--text, #f3f4f7);
   font-size: 14px; outline: none;
+  transition: border-color .14s ease, box-shadow .14s ease;
 }
-.login-input:focus { border-color: var(--accent, #8b7cff); }
+/* A visible focus state, which the previous version had none of — the form looked inert until clicked. */
+.login-input:focus {
+  border-color: var(--accent, #8b7cff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #8b7cff) 18%, transparent);
+}
 
 .login-button {
-  height: 44px; border: 0; border-radius: 11px; margin-top: 4px;
+  height: 46px; margin-top: 3px; border: 0; border-radius: 11px;
   background: var(--accent, #8b7cff); color: #fff;
   font-size: 14px; font-weight: 650; cursor: pointer;
+  transition: filter .14s ease;
 }
-.login-button:disabled { opacity: 0.55; cursor: not-allowed; }
+.login-button:hover:not(:disabled) { filter: brightness(1.08); }
+.login-button:disabled { opacity: .5; cursor: not-allowed; }
 
 .login-error {
-  margin: 0; padding: 11px 13px; border-radius: 10px; font-size: 12px;
+  margin: 0; padding: 11px 13px; border-radius: 10px; font-size: 12.5px;
   color: var(--coral, #ed8a77);
   background: color-mix(in srgb, var(--coral, #ed8a77) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--coral, #ed8a77) 30%, transparent);
 }
 
-.login-foot { margin: 2px 0 0; text-align: center; font-size: 11px; color: var(--muted-2, #5e6574); }
+.login-foot { margin: 26px 0 0; color: var(--muted-2, #5e6574); font-size: 11.5px; }
+
+/* ── The panel ──────────────────────────────────────────────────────────────────────────────────── */
+
+.login-art {
+  position: relative; overflow: hidden;
+  background: #090a10;
+  border-left: 1px solid var(--border, #252a35);
+}
+.login-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* The words sit in a gradient that rises from the foot, so the constellation stays legible behind them
+   without a slab of flat colour cutting the panel in half. */
+.login-art-words {
+  position: absolute; inset: auto 0 0 0;
+  padding: 44px 52px;
+  background: linear-gradient(180deg, transparent, rgba(9, 10, 16, .95) 58%);
+}
+.login-art-line {
+  margin: 0; max-width: 22ch;
+  font-size: 27px; font-weight: 650; letter-spacing: -.03em; line-height: 1.28;
+  color: #fff;
+}
+
+/* The funnel ramp, in the campaigns page's own colours — the visual language starts before sign-in. */
+.login-ramp { display: flex; height: 8px; max-width: 400px; margin-top: 26px; border-radius: 999px; overflow: hidden; }
+.login-ramp i { display: block; height: 100%; }
+.login-ramp .k-reached { flex: 46; background: #4b5878; }
+.login-ramp .k-accepted { flex: 26; background: #6f68d8; }
+.login-ramp .k-replied { flex: 17; background: #2ea99b; }
+.login-ramp .k-positive { flex: 11; background: #63dfa4; }
+
+.login-ramp-legend {
+  display: flex; gap: 22px; flex-wrap: wrap; margin-top: 11px; max-width: 400px;
+  font-size: 10.5px; letter-spacing: .06em; color: var(--muted-2, #5e6574);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  /* The panel is the first thing that goes: on a phone the form should be the whole screen. */
+  .login-split { grid-template-columns: minmax(0, 1fr); }
+  .login-art { display: none; }
+  .login-form-side { min-height: 100vh; }
+}

@@ -83,7 +83,10 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
   display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 9px; overflow: hidden;
   background: linear-gradient(135deg, var(--accent), #d3b5ff); color: #fff; font-weight: 750; font-size: 14px;
 }
-/* A client's own mark: their logo where QC's gradient would be, so the sidebar says whose data this is. */
+/* QC's own mark, and a client's, both render an image rather than a gradient initial. */
+.brand-mark-qc { background: transparent; }
+.brand-mark-qc img { width: 100%; height: 100%; object-fit: contain; }
+/* A client's own mark: their logo where QC's would be, so the sidebar says whose data this is. */
 .brand-mark-client { background: var(--panel-2); }
 .brand-mark-client img { width: 100%; height: 100%; object-fit: cover; }
 .brand-name {

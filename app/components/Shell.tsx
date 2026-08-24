@@ -176,7 +176,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     }
     return (
       <>
-        <span className="brand-mark">QC</span>
+        <span className="brand-mark brand-mark-qc">
+          <img src="/qc-growth-logo.png" alt="" />
+        </span>
         {!collapsed && (
           <span className="brand-name">
             QC <span>Growth</span>
