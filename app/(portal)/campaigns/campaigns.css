@@ -250,3 +250,8 @@ body.light-mode {
 @media (max-width: 760px) {
   .tl-key { display: none; }
 }
+
+/* Campaign status badges — Sending / Paused / Done, driven by pending + status. */
+.pill.sending { color: var(--f-positive, #46d39a); background: color-mix(in srgb, var(--f-positive, #46d39a) 15%, transparent); }
+.pill.paused { color: #e0a83d; background: color-mix(in srgb, #e0a83d 15%, transparent); }
+.pill.done { color: var(--muted-2, #7a8290); background: color-mix(in srgb, var(--muted-2, #7a8290) 16%, transparent); }

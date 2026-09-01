@@ -179,7 +179,12 @@ function CampaignRow({ row }: { row: Campaign }) {
   const launched = row.launchedAt
     ? new Date(row.launchedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
-  const running = (row.status ?? "").toLowerCase() === "active";
+  // Sending = HeyReach says it's running AND there are still leads queued. Paused = has leads left but is
+  // not actively sending. Done = nothing left to contact. This is what "still active" actually means.
+  const statusRaw = (row.status ?? "").toUpperCase();
+  const isActive = statusRaw === "IN_PROGRESS" || statusRaw === "ACTIVE";
+  const state = untouched <= 0 ? "done" : isActive ? "sending" : "paused";
+  const stateLabel = state === "sending" ? "Sending" : state === "paused" ? "Paused" : "Done";
   /** No reply of this campaign's has ever been classified, so its positive rate means nothing yet. */
   const unscored = row.replies > 0 && row.scoredReplies === 0;
 
@@ -189,7 +194,7 @@ function CampaignRow({ row }: { row: Campaign }) {
         <div className="cmp-id">
           <h3>
             {row.name || "Untitled campaign"}
-            {running && <span className="pill active">Running</span>}
+            <span className={`pill ${state}`}>{stateLabel}</span>
           </h3>
           <p>
             {launched ? `Launched ${launched}` : "Launch date not recorded"}

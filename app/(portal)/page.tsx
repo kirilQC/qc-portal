@@ -315,24 +315,43 @@ function Overview() {
               <span>{active.length ? `${active.length} running` : ""}</span>
             </div>
             {active.length ? (
-              <div className="ov-list">
-                {active.map((campaign) => (
-                  <div className="ov-arow" key={campaign.campaignId}>
-                    <div className="ov-atop">
-                      <strong>{campaign.name}</strong>
-                      <data>{campaign.acceptanceRate}%<small>acceptance</small></data>
-                    </div>
-                    <div className="ov-aprog" title={`${campaign.progress}% of the list worked`}>
-                      <i style={{ width: `${campaign.progress}%` }} />
-                    </div>
-                    <div className="ov-afoot">
-                      <span>{n(campaign.connectionsSent)} of {n(campaign.totalLeads)} worked</span>
-                      {campaign.leadsPending > 0 && <span>{n(campaign.leadsPending)} left</span>}
-                      <span>{campaign.senders.length ? campaign.senders.join(", ") : `${campaign.senderCount} sender${campaign.senderCount === 1 ? "" : "s"}`}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="cmp-legend ov-legend">
+                  <span><i className="k-untouched" />Not contacted</span>
+                  <span><i className="k-reached" />Reached</span>
+                  <span><i className="k-accepted" />Accepted</span>
+                  <span><i className="k-replied" />Replied</span>
+                </div>
+                <div className="ov-list">
+                  {active.map((campaign) => {
+                    const untouched = Math.max(0, campaign.leadsPending);
+                    const reachable = Math.max(campaign.connectionsSent + untouched, 1);
+                    const replied = Math.max(0, campaign.replies);
+                    const acceptedOnly = Math.max(0, campaign.connectionsAccepted - replied);
+                    const reachedOnly = Math.max(0, campaign.connectionsSent - campaign.connectionsAccepted);
+                    const share = (value: number) => (value / reachable) * 100;
+                    return (
+                      <div className="ov-arow" key={campaign.campaignId}>
+                        <div className="ov-atop">
+                          <strong>{campaign.name}</strong>
+                          <data>{campaign.acceptanceRate}%<small>acceptance</small></data>
+                        </div>
+                        <div className="cmp-funnel ov-cfunnel" role="img" aria-label={`${untouched} not contacted, ${n(campaign.connectionsSent)} reached, ${n(campaign.connectionsAccepted)} accepted, ${replied} replied`}>
+                          {untouched > 0 && <span className="k-untouched" style={{ width: `${share(untouched)}%` }} title={`${n(untouched)} not contacted yet`} />}
+                          {reachedOnly > 0 && <span className="k-reached" style={{ width: `${share(reachedOnly)}%` }} title={`${n(reachedOnly)} reached, not accepted`} />}
+                          {acceptedOnly > 0 && <span className="k-accepted" style={{ width: `${share(acceptedOnly)}%` }} title={`${n(acceptedOnly)} accepted, no reply`} />}
+                          {replied > 0 && <span className="k-replied" style={{ width: `${share(replied)}%` }} title={`${n(replied)} replied`} />}
+                        </div>
+                        <div className="ov-afoot">
+                          <span>{n(campaign.connectionsSent)} of {n(campaign.totalLeads)} worked</span>
+                          {campaign.leadsPending > 0 && <span>{n(campaign.leadsPending)} left</span>}
+                          <span>{campaign.senders.length ? campaign.senders.join(", ") : `${campaign.senderCount} sender${campaign.senderCount === 1 ? "" : "s"}`}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             ) : (
               <p className="empty">No campaign is running right now.</p>
             )}

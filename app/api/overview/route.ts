@@ -19,7 +19,7 @@
  */
 import { NextResponse } from "next/server";
 import { resolveScope } from "../../lib/auth-context";
-import { num, scopedByConversation, scopedRows, str, type Row } from "../../lib/db";
+import { num, scopedByConversation, scopedCount, scopedRows, str, type Row } from "../../lib/db";
 import type { Session } from "../../lib/session";
 
 export const maxDuration = 60;
@@ -436,6 +436,11 @@ async function build(session: Session, workspaceId: string, range: string) {
     .filter(Boolean)
     .sort()[0] ?? null;
 
+  // The real size of this client's lead database — distinct people in rr_leads, counted with a cheap
+  // Content-Range header, NOT the sum of every campaign's list size (which double-counts anyone who was
+  // loaded into more than one campaign — that sum is what showed a wildly inflated 15k).
+  const leadsCount = await scopedCount(session, "rr_leads", {}, workspaceId).catch(() => allTime.leads);
+
   return {
     client: {
       id: str(workspace.id),
@@ -479,7 +484,7 @@ async function build(session: Session, workspaceId: string, range: string) {
     senders: [...new Set(dailyRows.map((row) => str(row.sender_name)).filter(Boolean))].slice(0, 8),
     bestCampaigns,
     /** For the tiles that link into the other tabs. */
-    leadsTotal: allTime.leads,
+    leadsTotal: leadsCount,
     repliesTotal: allTime.replies,
     meetingsBooked: meetings.length,
     meetingsUpcoming: meetings.filter((row) => row.meeting_at && Date.parse(str(row.meeting_at)) > now).length,

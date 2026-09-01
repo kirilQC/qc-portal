@@ -271,3 +271,7 @@
   .ov-fstep { grid-template-columns: 96px minmax(0, 1fr); }
   .ov-fstep > em { display: none; }
 }
+
+/* Color-coded campaign funnel in the overview Active-campaigns list (reuses the campaigns-page bar). */
+.ov-cfunnel { margin: 9px 0 7px; }
+.ov-legend { margin: 2px 0 14px; }
