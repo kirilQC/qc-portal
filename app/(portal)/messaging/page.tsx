@@ -218,6 +218,8 @@ function Messaging() {
           "folder is empty" have three different fixes. */}
       {error && <p className="error-note">{error}</p>}
 
+      {loaded && <BestMessaging docs={docs} />}
+
       {!loaded ? (
         <p className="loading">Loading…</p>
       ) : docs.length === 0 ? (
@@ -275,6 +277,50 @@ function metricFor(doc: Doc, sort: SortKey): string | null {
     return `${rate}% positive`;
   }
   return null;
+}
+
+/** The connection-request copy for a document — the LinkedIn step with a character budget, else the first step. */
+function connectionCopy(doc: Doc): string {
+  const note = doc.steps.find((s) => s.channel === "linkedin" && s.budget != null) ?? doc.steps[0];
+  return (note?.body ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * "Messaging that performed best" — the client's own connection-request copy, ranked by acceptance rate.
+ *
+ * This is the question a client actually asks: which of our openers is landing? So it lists the real copy
+ * (first LinkedIn step), the campaign it ran in, and its acceptance and reply rates — the two numbers that
+ * judge an opener. Only campaigns over 50 requests sent, because a rate on a handful of requests is noise.
+ */
+function BestMessaging({ docs }: { docs: Doc[] }) {
+  const ranked = docs
+    .filter((d) => d.campaign && d.stats && d.stats.connectionsSent >= 50 && connectionCopy(d))
+    .map((d) => ({ doc: d, copy: connectionCopy(d), acc: d.stats!.acceptanceRate, rep: d.stats!.replyRate, sent: d.stats!.connectionsSent, accepted: d.stats!.connectionsAccepted, replies: d.stats!.replies }))
+    .sort((a, b) => b.acc - a.acc)
+    .slice(0, 20);
+  if (!ranked.length) return null;
+  return (
+    <section className="best-msg">
+      <div className="best-msg-head">
+        <h2>Messaging that performed best</h2>
+        <p>Connection request copy, ranked by acceptance rate · campaigns over 50 requests sent</p>
+      </div>
+      <div className="best-msg-list">
+        {ranked.map(({ doc, copy, acc, rep, sent, accepted, replies }) => (
+          <div className="best-msg-row" key={doc.path}>
+            <div className="best-msg-rates">
+              <div className="best-msg-rate"><strong className="acc">{acc}%</strong><small>Accepted</small><em>{accepted.toLocaleString()} of {sent.toLocaleString()}</em></div>
+              <div className="best-msg-rate"><strong>{rep}%</strong><small>Replied</small><em>{replies.toLocaleString()} replies</em></div>
+            </div>
+            <div className="best-msg-body">
+              <h3>{doc.campaign!.name}</h3>
+              <p>&ldquo;{copy.length > 170 ? `${copy.slice(0, 170).trimEnd()}…` : copy}&rdquo;</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function Group({ label, tone, docs, openPath, onOpen, sort }: {
