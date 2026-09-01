@@ -50,6 +50,7 @@ type Stats = {
   launchedAt: string | null;
   senders: string[];
   totalLeads: number;
+  pending: number;
   connectionsSent: number;
   connectionsAccepted: number;
   replies: number;
@@ -409,13 +410,15 @@ function Attribute({ doc, campaigns, onAttribute }: {
  * slightly generous denominator.
  */
 function Performance({ stats }: { stats: Stats }) {
-  const audience = Math.max(stats.totalLeads, stats.connectionsSent, 1);
+  const listLeads = Math.max(stats.totalLeads, stats.connectionsSent, 1);
   const positive = Math.min(stats.positiveReplies, stats.replies);
   const repliedOnly = Math.max(0, stats.replies - positive);
   const acceptedOnly = Math.max(0, stats.connectionsAccepted - stats.replies);
   const reachedOnly = Math.max(0, stats.connectionsSent - stats.connectionsAccepted);
-  const untouched = Math.max(0, audience - stats.connectionsSent);
-  const share = (value: number) => (value / audience) * 100;
+  // "Not contacted" is the leads still queued (pending), not list − sent — see the campaigns page for why.
+  const untouched = Math.max(0, stats.pending ?? 0);
+  const reachable = Math.max(stats.connectionsSent + untouched, 1);
+  const share = (value: number) => (value / reachable) * 100;
 
   // Zero classified replies means the positive rate is unknown, not zero — sentiment scoring started
   // partway through this account's history, and "0%" on an unscored campaign is a false accusation.
@@ -424,7 +427,7 @@ function Performance({ stats }: { stats: Stats }) {
   return (
     <div className="msg-perf">
       <div className="msg-stats">
-        <Stat label="Leads" value={audience.toLocaleString()} />
+        <Stat label="Leads" value={listLeads.toLocaleString()} />
         <Stat label="Acceptance" value={`${stats.acceptanceRate}%`} tone="accepted"
           sub={`${stats.connectionsAccepted.toLocaleString()} of ${stats.connectionsSent.toLocaleString()}`} />
         <Stat label="Reply rate" value={`${stats.replyRate}%`} tone="replied"
@@ -437,7 +440,7 @@ function Performance({ stats }: { stats: Stats }) {
       <div
         className="cmp-funnel msg-funnel"
         role="img"
-        aria-label={`${audience} leads, ${stats.connectionsSent} reached, ${stats.connectionsAccepted} accepted, ${stats.replies} replied, ${positive} positive`}
+        aria-label={`${untouched} not contacted, ${stats.connectionsSent} reached, ${stats.connectionsAccepted} accepted, ${stats.replies} replied, ${positive} positive`}
       >
         {untouched > 0 && <span className="k-untouched" style={{ width: `${share(untouched)}%` }} title={`${untouched.toLocaleString()} not contacted yet`} />}
         {reachedOnly > 0 && <span className="k-reached" style={{ width: `${share(reachedOnly)}%` }} title={`${reachedOnly.toLocaleString()} reached, not accepted`} />}

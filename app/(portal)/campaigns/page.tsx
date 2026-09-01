@@ -153,21 +153,29 @@ function Campaigns() {
 
 function CampaignRow({ row }: { row: Campaign }) {
   /*
-   * The audience the bar represents.
+   * The header still shows the whole list that was loaded ("165 leads").
    *
    * `total_leads` is what was loaded into the campaign, but HeyReach sometimes reports fewer leads than
-   * requests sent once a list has been edited — so the larger of the two is used. A bar that a segment
-   * overflows would be worse than a slightly generous denominator.
+   * requests sent once a list has been edited — so the larger of the two is used.
    */
-  const audience = Math.max(row.totalLeads, row.connectionsSent, 1);
+  const listLeads = Math.max(row.totalLeads, row.connectionsSent, 1);
+
+  /*
+   * The funnel represents the *contactable* set: everyone already sent a request, plus everyone still
+   * queued to be sent one (HeyReach's `pending`). "Not contacted" is exactly the pending count — the leads
+   * still waiting to be reached — NOT `list − sent`, because a HeyReach list also holds leads it will never
+   * contact (already connected, out of network, duplicates, filtered), which are not "yet to contact" and
+   * kept the band full even on a finished campaign sitting at 0 pending.
+   */
+  const untouched = Math.max(0, row.pending);
+  const reachable = Math.max(row.connectionsSent + untouched, 1);
 
   const positive = Math.min(row.positiveReplies, row.replies);
   const repliedOnly = Math.max(0, row.replies - positive);
   const acceptedOnly = Math.max(0, row.connectionsAccepted - row.replies);
   const reachedOnly = Math.max(0, row.connectionsSent - row.connectionsAccepted);
-  const untouched = Math.max(0, audience - row.connectionsSent);
 
-  const share = (value: number) => (value / audience) * 100;
+  const share = (value: number) => (value / reachable) * 100;
   const launched = row.launchedAt
     ? new Date(row.launchedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
@@ -186,7 +194,7 @@ function CampaignRow({ row }: { row: Campaign }) {
           <p>
             {launched ? `Launched ${launched}` : "Launch date not recorded"}
             {" · "}
-            <b>{audience.toLocaleString()}</b> leads
+            <b>{listLeads.toLocaleString()}</b> leads
             {row.senders.length > 0 ? ` · ${row.senders.join(", ")}` : ""}
           </p>
         </div>
@@ -208,7 +216,7 @@ function CampaignRow({ row }: { row: Campaign }) {
       <div
         className="cmp-funnel"
         role="img"
-        aria-label={`${audience} leads, ${row.connectionsSent} reached, ${row.connectionsAccepted} accepted, ${row.replies} replied, ${positive} positive`}
+        aria-label={`${untouched} not contacted, ${row.connectionsSent} reached, ${row.connectionsAccepted} accepted, ${row.replies} replied, ${positive} positive`}
       >
         {untouched > 0 && <span className="k-untouched" style={{ width: `${share(untouched)}%` }} title={`${untouched.toLocaleString()} not contacted yet`} />}
         {reachedOnly > 0 && <span className="k-reached" style={{ width: `${share(reachedOnly)}%` }} title={`${reachedOnly.toLocaleString()} reached, not accepted`} />}

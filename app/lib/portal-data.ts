@@ -43,6 +43,8 @@ export type CampaignRow = {
   /** The people working this campaign, by name — never the raw sender ids. */
   senders: string[];
   totalLeads: number;
+  /** Leads still queued to be contacted (HeyReach's pending count). This is the true "not contacted yet". */
+  pending: number;
   connectionsSent: number;
   connectionsAccepted: number;
   replies: number;
@@ -188,7 +190,7 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       "rr_campaign_stats",
       {
         select:
-          "campaign_id,name,status,launched_at,sender_ids,total_leads,connections_sent,connections_accepted,replies",
+          "campaign_id,name,status,launched_at,sender_ids,total_leads,leads_pending,connections_sent,connections_accepted,replies",
       },
       workspaceId,
     ),
@@ -265,6 +267,7 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
         launchedAt: row.launched_at ? str(row.launched_at) : null,
         senders: senderIds.map((id) => senderNames.get(id)).filter((value): value is string => Boolean(value)),
         totalLeads: num(row.total_leads),
+        pending: num(row.leads_pending),
         connectionsSent: sent,
         connectionsAccepted: accepted,
         replies,

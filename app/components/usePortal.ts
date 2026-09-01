@@ -27,7 +27,10 @@ export type Overview = {
 export type Campaign = {
   campaignId: string; name: string; status: string | null; launchedAt: string | null;
   senders: string[];
-  totalLeads: number; connectionsSent: number; connectionsAccepted: number; replies: number;
+  totalLeads: number;
+  /** Leads still queued to be contacted — the true "not contacted yet". */
+  pending: number;
+  connectionsSent: number; connectionsAccepted: number; replies: number;
   positiveReplies: number;
   /** How many replies have been through sentiment analysis. Zero means the positive rate is unknown. */
   scoredReplies: number;
