@@ -196,6 +196,15 @@ function Overview() {
   if (!client || !w || !all) return <div className="content"><p className="empty">Nothing to show yet.</p></div>;
 
   const started = longDate(data.startedAt);
+  // The actual calendar span the window covers, e.g. "8/26 – 9/2", so "This week" says which week.
+  const rangeSpan = (() => {
+    const days = data.window?.days;
+    if (!days) return "";
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 86_400_000);
+    const f = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+    return `${f(start)} – ${f(end)}`;
+  })();
   const funnel = data.funnel ?? [];
   // Every bar is a share of the first step, which is the only denominator that makes the shape read as
   // a funnel rather than as five unrelated bars.
@@ -286,7 +295,7 @@ function Overview() {
 
       <section className="panel ov-thisweek">
             <div className="panel-head">
-              <h2>{data.rangeLabel ?? "This week"}</h2>
+              <h2>{data.rangeLabel ?? "This week"}{rangeSpan ? ` (${rangeSpan})` : ""}</h2>
               <span>{data.range === "all" && started ? `Since ${started}` : ""}</span>
             </div>
             <div className="ov-funnel">

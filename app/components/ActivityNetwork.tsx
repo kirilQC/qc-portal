@@ -265,7 +265,8 @@ export default function ActivityNetwork({
   }, [replies.length, events.length, senderCount]);
 
   const shown = events.length ? events[shownIndex % events.length] : null;
-  const others = events.filter((event) => event !== shown).slice(0, 4);
+  // The list below the main card is recent people who replied — all replies, not only positive.
+  const others = events.filter((event) => (event.kind === "positive" || event.kind === "reply") && event !== shown).slice(0, 4);
 
   const scene = (
     <div className="ov-net-scene">
@@ -291,19 +292,11 @@ export default function ActivityNetwork({
         <div className="ov-net-also">
           {others.map((event, index) => (
             <div className="ov-net-alsorow" key={`${event.at}-${index}`}>
-              <span className={`ov-net-adot is-${event.kind}`} aria-hidden="true" />
-              <span>{event.title}</span>
+              <FeedAvatar photoUrl={event.photoUrl} initials={event.initials} warm={event.kind === "positive"} small />
+              <span className="ov-net-alsoname">{event.name}</span>
               <time>{ago(event.at, now)}</time>
             </div>
           ))}
-        </div>
-      )}
-
-      {replies.length > 1 && (
-        <div className="ov-net-count">
-          <b>{replies.length}</b> replies this week
-          {replies.filter((event) => event.kind === "positive").length > 0 &&
-            <> · <b>{replies.filter((event) => event.kind === "positive").length}</b> positive</>}
         </div>
       )}
     </div>
@@ -349,10 +342,10 @@ export default function ActivityNetwork({
 const KIND_ICON: Record<ActivityEvent["kind"], string> = { positive: "", reply: "", launch: "🚀", meeting: "📅" };
 
 /** A feed avatar that falls back to initials when the LinkedIn photo is broken or expired. */
-function FeedAvatar({ photoUrl, initials, warm }: { photoUrl?: string | null; initials?: string; warm: boolean }) {
+function FeedAvatar({ photoUrl, initials, warm, small }: { photoUrl?: string | null; initials?: string; warm: boolean; small?: boolean }) {
   const [broken, setBroken] = useState(false);
   return (
-    <span className={`ov-net-av ${warm ? "is-warm" : ""}`}>
+    <span className={`ov-net-av ${warm ? "is-warm" : ""} ${small ? "ov-net-av-sm" : ""}`}>
       {photoUrl && !broken ? <img src={photoUrl} alt="" onError={() => setBroken(true)} /> : (initials || "?")}
     </span>
   );

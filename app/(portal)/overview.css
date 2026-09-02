@@ -352,3 +352,8 @@
 .ov-net-ic { width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center; font-size: 18px; background: var(--panel-2); border: 1px solid var(--border); }
 .ov-net-ic.is-launch { background: color-mix(in srgb, #8b7cff 16%, transparent); border-color: color-mix(in srgb, #8b7cff 40%, var(--border)); }
 .ov-net-ic.is-meeting { background: color-mix(in srgb, var(--f-positive) 15%, transparent); border-color: color-mix(in srgb, var(--f-positive) 40%, var(--border)); }
+
+/* Small avatar + name rows under the main feed card (recent repliers, all replies). */
+.ov-net-av-sm { width: 26px; height: 26px; font-size: 10px; border-radius: 50%; }
+.ov-net-alsoname { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-net-alsorow { display: flex; align-items: center; gap: 9px; }
