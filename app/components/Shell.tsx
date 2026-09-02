@@ -42,6 +42,8 @@ const ICONS: Record<string, string> = {
   meetings: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4",
   messaging: "M4 5h16v11H8l-4 4z",
   calls: "M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-2M8 3a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2M8 3v0M8 12h8M8 16h5",
+  // The brain — a mind's outline, distinct from the sheet shapes the document tabs use.
+  brain: "M9 3a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 1 5 3 3 0 0 0 4 2 3 3 0 0 0 3-2V4a1 1 0 0 0-1-1zM15 3a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-1 5 3 3 0 0 1-4 2 3 3 0 0 1-3-2",
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9 2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2 2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1z",
   admin: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8",
   // A grid of cards — the client directory, distinct from the single-person shape "admin" uses.
@@ -189,6 +191,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     { href: "/meetings", label: "Meetings", icon: "meetings" },
     { href: "/messaging", label: "Messaging", icon: "messaging" },
     { href: "/calls", label: "Weekly calls", icon: "calls" },
+    { href: "/brain", label: "Brain", icon: "brain" },
   ];
 
   /** The mark at the top left: the client's when there is one, QC's when there is not. */
