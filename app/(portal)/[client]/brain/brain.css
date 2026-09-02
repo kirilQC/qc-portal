@@ -5,7 +5,7 @@
    markdown renderer (.md-*) that the laid-out documents are drawn with. Everything is on the portal's
    own tokens, so it themes with the rest of the app. */
 
-.brn { max-width: 1100px; }
+.brn { max-width: 1480px; }
 .brn-quiet { color: var(--muted); font-size: 14px; padding: 24px 2px; }
 .brn-error { color: #ff8b8b; font-size: 14px; padding: 14px 2px; }
 .brn-empty { padding: 40px 2px; }
