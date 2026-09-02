@@ -251,7 +251,7 @@ function Overview() {
           <Link key={tile.href} href={`${clientSlug ? `/${clientSlug}` : ""}${tile.href === "/" ? "" : tile.href}`} className="ov-tile">
             <span className="ov-tile-label">{tile.label}</span>
             {tile.value && <strong>{tile.value}</strong>}
-            <em>{tile.note}</em>
+            {!tile.value && <em>{tile.note}</em>}
             <span className="ov-tile-go">→</span>
           </Link>
         ))}
@@ -267,17 +267,14 @@ function Overview() {
         <div>
           <span>Acceptance</span>
           <strong>{w.reached ? `${w.acceptanceRate}%` : "—"}</strong>
-          <em>{n(w.accepted)} of {n(w.reached)}</em>
         </div>
         <div>
           <span>Campaigns running</span>
           <strong>{n(data.campaignsRunning ?? 0)}</strong>
-          <em>{data.sendersActive ?? 0} sender{(data.sendersActive ?? 0) === 1 ? "" : "s"} active</em>
         </div>
         <div>
           <span>Meetings booked</span>
           <strong>{n(data.meetingsBooked ?? 0)}</strong>
-          <em>{(data.meetingsUpcoming ?? 0) > 0 ? `${data.meetingsUpcoming} upcoming` : "none on the calendar"}</em>
         </div>
       </section>
 
@@ -306,14 +303,13 @@ function Overview() {
       </section>
 
       <section className="panel ov-trend">
-        <div className="panel-head"><h2>Weekly reply trends</h2><span>Last 13 weeks</span></div>
+        <div className="panel-head"><h2>Weekly reply trends</h2></div>
         <TrendsChart data={data.weeklyTrends ?? []} />
       </section>
 
       <section className="panel ov-campaigns">
             <div className="panel-head">
               <h2>Active campaigns</h2>
-              <span>{active.length ? `${active.length} running` : ""}</span>
             </div>
             {active.length ? (
               <>

@@ -380,13 +380,13 @@ async function build(session: Session, workspaceId: string, range: string) {
         { key: "reached", label: "Reached out to", value: allTime.reached, tone: "f1", rate: rate(allTime.reached, allTime.leads), of: "of leads" },
         { key: "accepted", label: "Accepted", value: allTime.accepted, tone: "f2", rate: rate(allTime.accepted, allTime.reached), of: "of reached" },
         { key: "replied", label: "Replied", value: allTime.replies, tone: "f3", rate: rate(allTime.replies, allTime.accepted), of: "of accepted" },
-        { key: "warm", label: "Replied warmly", value: positiveAllTime, tone: "f4", rate: rate(positiveAllTime, allTime.replies), of: "of replies" },
+        { key: "warm", label: "Replied positively", value: positiveAllTime, tone: "f4", rate: rate(positiveAllTime, allTime.replies), of: "of replies" },
       ]
     : [
         { key: "reached", label: "Reached", value: reached30, tone: "f1", rate: null as number | null, of: null as string | null },
         { key: "accepted", label: "Accepted", value: accepted30, tone: "f2", rate: rate(accepted30, reached30), of: "of reached" },
         { key: "replied", label: "Replied", value: replies30.length, tone: "f3", rate: rate(replies30.length, accepted30), of: "of accepted" },
-        { key: "warm", label: "Replied warmly", value: positive30, tone: "f4", rate: rate(positive30, scored30.length), of: `of ${scored30.length} read closely` },
+        { key: "warm", label: "Replied positively", value: positive30, tone: "f4", rate: rate(positive30, scored30.length), of: `of ${scored30.length} read closely` },
       ];
 
   /**
@@ -446,9 +446,10 @@ async function build(session: Session, workspaceId: string, range: string) {
   const weekStart = (ms: number) => { const d = new Date(ms); const day = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - day); d.setUTCHours(0, 0, 0, 0); return d.getTime(); };
   const firstWeek = weekStart(now) - (WEEKS_BACK - 1) * 7 * DAY_MS;
   const weekIndex = (ms: number) => { const idx = Math.round((weekStart(ms) - firstWeek) / (7 * DAY_MS)); return idx >= 0 && idx < WEEKS_BACK ? idx : -1; };
-  const weeklyTrends = Array.from({ length: WEEKS_BACK }, (_, i) => ({ week: new Date(firstWeek + i * 7 * DAY_MS).toISOString().slice(0, 10), total: 0, positive: 0, meetings: 0 }));
+  const weeklyTrends = Array.from({ length: WEEKS_BACK }, (_, i) => ({ week: new Date(firstWeek + i * 7 * DAY_MS).toISOString().slice(0, 10), total: 0, positive: 0, meetings: 0, sent: 0 }));
   for (const row of inbound) { const idx = weekIndex(Date.parse(str(row.sent_at))); if (idx < 0) continue; weeklyTrends[idx].total += 1; if (str(row.sentiment).toLowerCase() === "positive") weeklyTrends[idx].positive += 1; }
   for (const row of meetings) { const at = str(row.created_at) || str(row.meeting_at); if (!at) continue; const idx = weekIndex(Date.parse(at)); if (idx < 0) continue; weeklyTrends[idx].meetings += 1; }
+  for (const row of totals) { const idx = weekIndex(Date.parse(`${str(row.day).slice(0, 10)}T12:00:00Z`)); if (idx < 0) continue; weeklyTrends[idx].sent += num(row.connections_sent); }
 
   return {
     client: {

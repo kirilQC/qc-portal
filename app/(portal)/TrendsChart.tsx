@@ -5,9 +5,11 @@
 
 import { useRef, useState } from "react";
 
-export type TrendPoint = { week: string; total: number; positive: number; meetings: number };
-type MetricKey = "total" | "positive" | "meetings";
+export type TrendPoint = { week: string; total: number; positive: number; meetings: number; sent: number };
+type MetricKey = "total" | "positive" | "meetings" | "sent";
+// Connections sent first, so its (large) area and line are drawn behind the reply lines that ride on top.
 const SERIES: { key: MetricKey; label: string; color: string }[] = [
+  { key: "sent", label: "Connections sent", color: "#e0913d" },
   { key: "total", label: "Total replies", color: "#5b8cff" },
   { key: "positive", label: "Positive replies", color: "#46d39a" },
   { key: "meetings", label: "Booked meetings", color: "#a78bfa" },
@@ -35,7 +37,7 @@ export default function TrendsChart({ data }: { data: TrendPoint[] }) {
   const ref = useRef<SVGSVGElement>(null);
   if (!data || data.length < 2) return <p className="trend-empty">Not enough history yet to chart a trend.</p>;
 
-  const peak = Math.max(10, ...data.map((d) => Math.max(d.total, d.positive, d.meetings)));
+  const peak = Math.max(10, ...data.map((d) => Math.max(d.total, d.positive, d.meetings, d.sent)));
   const maxY = Math.ceil(peak / 25) * 25;
   const X = (i: number) => ml + (i / (data.length - 1)) * iw;
   const Y = (v: number) => mt + (1 - v / maxY) * ih;

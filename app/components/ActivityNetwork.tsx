@@ -44,7 +44,7 @@ export type ActivityEvent = {
 };
 
 const KIND_LABEL: Record<ActivityEvent["kind"], string> = {
-  positive: "replied warmly",
+  positive: "replied positively",
   reply: "replied",
   launch: "launched",
   meeting: "meeting booked",
@@ -301,7 +301,7 @@ export default function ActivityNetwork({
         <div className="ov-net-count">
           <b>{replies.length}</b> replies this week
           {replies.filter((event) => event.kind === "positive").length > 0 &&
-            <> · <b>{replies.filter((event) => event.kind === "positive").length}</b> warm</>}
+            <> · <b>{replies.filter((event) => event.kind === "positive").length}</b> positive</>}
         </div>
       )}
     </div>
