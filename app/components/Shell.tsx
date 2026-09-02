@@ -89,6 +89,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const pathname = usePathname();
   const suffix = clientParam ? `?client=${encodeURIComponent(clientParam)}` : "";
+  // Clean client URLs: a client's pages live at /{slug} and /{slug}/{tab}. clientHref builds those; activeTab
+  // strips the /{slug} prefix off the current path so nav highlighting still matches item.href ("/messaging").
+  const clientPrefix = clientParam ? `/${clientParam}` : "";
+  const clientHref = (tabHref: string) => (clientPrefix ? `${clientPrefix}${tabHref === "/" ? "" : tabHref}` : `${tabHref}${suffix}`);
+  const activeTab = clientPrefix && pathname.startsWith(clientPrefix) ? (pathname.slice(clientPrefix.length) || "/") : pathname;
 
   useEffect(() => {
     try {
@@ -231,7 +236,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className={`shell ${collapsed ? "is-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-head">
-          <Link href={inClient ? `/${suffix}` : "/"} className="brand" title={brandClient?.name ?? "QC Growth"}>
+          <Link href={inClient ? (clientPrefix || "/") : "/"} className="brand" title={brandClient?.name ?? "QC Growth"}>
             {brand}
           </Link>
           <button
@@ -268,8 +273,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             clientPages.map((item) => (
               <Link
                 key={item.href}
-                href={`${item.href}${suffix}`}
-                className={`nav-item ${pathname === item.href ? "active" : ""}`}
+                href={clientHref(item.href)}
+                className={`nav-item ${activeTab === item.href ? "active" : ""}`}
                 title={item.label}
               >
                 <Icon name={item.icon} />

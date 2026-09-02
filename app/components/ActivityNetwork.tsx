@@ -347,8 +347,8 @@ export default function ActivityNetwork({
 /** One reply, with the face, the words, and a way into the conversation. */
 function RailCard({ event, now, clientSlug }: { event: ActivityEvent; now: number; clientSlug: string | null }) {
   const href = event.conversationId
-    ? `/inbox?${new URLSearchParams({ ...(clientSlug ? { client: clientSlug } : {}), conversation: event.conversationId }).toString()}`
-    : `/inbox${clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : ""}`;
+    ? `${clientSlug ? `/${clientSlug}` : ""}/inbox?conversation=${encodeURIComponent(event.conversationId)}`
+    : `${clientSlug ? `/${clientSlug}` : ""}/inbox`;
 
   const inner = (
     <>

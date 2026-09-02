@@ -104,25 +104,21 @@ function briefing(data: Payload): React.ReactNode[] {
       <span key="replies">
         {" "}
         <b>{n(w.replies)}</b> {w.replies === 1 ? "person" : "people"} replied
-        {w.scored > 0 ? (
-          <>
-            , and <span className="ov-quiet">of the {n(w.scored)} we have read closely,</span>{" "}
-            <b>{n(w.positive)} were positive</b>
-          </>
-        ) : null}
+        {w.positive > 0 ? <>, <b>{n(w.positive)}</b> of them positive</> : null}
         .
       </span>,
     );
   }
 
-  // Only claim a direction once there is a previous month with something in it to compare against.
+  // Only ever good news: the comparison sentence appears solely when replies went UP. A "20% fewer" line
+  // is technically true but reads as a scolding on the client's own dashboard, so it is simply omitted.
   if (w.previousReplies > 0 && w.replies > 0) {
     const change = Math.round(((w.replies - w.previousReplies) / w.previousReplies) * 100);
-    if (Math.abs(change) >= 10) {
+    if (change >= 10) {
       parts.push(
         <span key="trend" className="ov-quiet">
           {" "}
-          That is {Math.abs(change)}% {change > 0 ? "more" : "fewer"} replies than the {w.days} days before.
+          That is {change}% more replies than the {w.days} days before.
         </span>,
       );
     }
@@ -181,7 +177,7 @@ function Overview() {
         ) : (
           <div className="directory">
             {clients.map((client) => (
-              <Link key={client.id} href={`/?client=${encodeURIComponent(client.slug)}`} className="tile">
+              <Link key={client.id} href={`/${client.slug}`} className="tile">
                 <span className="client-logo" style={client.logoUrl ? undefined : { background: client.accentColor || "var(--accent)" }}>
                   {client.logoUrl ? <img src={client.logoUrl} alt="" /> : (client.name[0] || "?").toUpperCase()}
                 </span>
@@ -253,7 +249,7 @@ function Overview() {
           going" is "take me to it". */}
       <section className="ov-tiles">
         {tiles.map((tile) => (
-          <Link key={tile.href} href={`${tile.href}${clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : ""}`} className="ov-tile">
+          <Link key={tile.href} href={`${clientSlug ? `/${clientSlug}` : ""}${tile.href === "/" ? "" : tile.href}`} className="ov-tile">
             <span className="ov-tile-label">{tile.label}</span>
             {tile.value && <strong>{tile.value}</strong>}
             <em>{tile.note}</em>

@@ -39,6 +39,31 @@ function isStaffPath(pathname: string): boolean {
   return pathname.startsWith("/admin") || pathname.startsWith("/api/admin/");
 }
 
+/** The client tabs, as real page routes (each reads ?client=). Path form is /{slug}/{tab}. */
+const CLIENT_TABS = new Set(["inbox", "database", "campaigns", "analytics", "meetings", "messaging", "calls"]);
+/** First segments that are NEVER a client slug — real routes or infrastructure. */
+const NON_CLIENT = new Set(["login", "admin", "api", "clients", "settings", "_next", "favicon.ico", "robots.txt"]);
+
+/**
+ * Clean client URLs: `/{slug}` and `/{slug}/{tab}` are rewritten (internally, address bar untouched) to the
+ * real page with `?client={slug}`. So a client's dashboard lives at /cotool and /cotool/messaging instead of
+ * /?client=cotool and /messaging?client=cotool, while the pages underneath keep reading the client from the
+ * query exactly as before. Returns the rewrite target URL, or null when the path is a real route.
+ */
+function clientRewrite(request: NextRequest): URL | null {
+  const { pathname } = request.nextUrl;
+  if (pathname.startsWith("/api") || pathname.startsWith("/_next")) return null;
+  const segs = pathname.split("/").filter(Boolean);
+  if (!segs.length || segs.length > 2) return null;
+  const slug = segs[0];
+  if (CLIENT_TABS.has(slug) || NON_CLIENT.has(slug)) return null; // a real route, not a client slug
+  if (segs.length === 2 && !CLIENT_TABS.has(segs[1])) return null; // /slug/<not-a-tab> is not ours
+  const url = request.nextUrl.clone();
+  url.pathname = segs.length === 2 ? `/${segs[1]}` : "/";
+  url.searchParams.set("client", slug);
+  return url;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (isOpenPath(pathname)) return NextResponse.next();
@@ -72,6 +97,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  const rewrite = clientRewrite(request);
+  if (rewrite) return NextResponse.rewrite(rewrite);
   return NextResponse.next();
 }
 
