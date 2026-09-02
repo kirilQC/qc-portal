@@ -298,3 +298,12 @@
   .ov-hero-net { height: 260px; }
   .ov-hero-copy p { font-size: 16px; }
 }
+
+/* ═══ Design A refinements — full-bleed animation + feed inside the hero ═══ */
+.ov-hero-net { height: 384px; }
+/* The animation shows behind everything, including the summary — only a soft scrim under the text. */
+.ov-hero-copy { right: auto; width: min(56%, 720px); background: linear-gradient(0deg, rgba(10,11,15,.7), rgba(10,11,15,.12) 62%, transparent); }
+.ov-hero-copy p { text-shadow: 0 1px 16px rgba(0,0,0,.85); }
+.ov-hero-copy .ov-brief-eyebrow { text-shadow: 0 1px 10px rgba(0,0,0,.8); }
+
+/* The live Just

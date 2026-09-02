@@ -307,12 +307,17 @@ export default function ActivityNetwork({
     </div>
   );
 
-  // Hero: the animated scene alone as a wide banner, with the week's summary overlaid over it.
+  // Hero: the animated scene fills the whole box; the week's summary sits over it bottom-left, and the live
+  // "Just in" feed sits over it on the right — so a shooting star landing and the reply it represents are
+  // in the same frame.
   if (variant === "hero") {
     return (
       <section className="ov-hero-net">
         {scene}
-        <span className="ov-net-live ov-hero-live" aria-hidden="true"><i />live</span>
+        <aside className="ov-hero-feed">
+          <span className="ov-net-live ov-hero-feed-live" aria-hidden="true"><i />live</span>
+          {rail}
+        </aside>
         {children && <div className="ov-hero-copy">{children}</div>}
       </section>
     );

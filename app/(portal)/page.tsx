@@ -284,8 +284,7 @@ function Overview() {
         </div>
       </section>
 
-      <div className="ov-grid ov-grid-a">
-          <section className="panel">
+      <section className="panel ov-thisweek">
             <div className="panel-head">
               <h2>{data.rangeLabel ?? "This week"}</h2>
               <span>{data.range === "all" && started ? `Since ${started}` : ""}</span>
@@ -307,9 +306,7 @@ function Overview() {
                 </div>
               ))}
             </div>
-          </section>
-          <ActivityNetwork variant="feed" events={data.feed ?? []} senders={data.senders ?? []} clientSlug={clientSlug} />
-      </div>
+      </section>
 
       <section className="panel ov-campaigns">
             <div className="panel-head">
