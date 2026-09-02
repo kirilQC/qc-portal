@@ -165,6 +165,38 @@
 }
 .ov-tile:hover .ov-tile-go { opacity: 1; transform: translateX(2px); }
 
+/* ── Combined stats box ─────────────────────────────────────────────────────────────────────────────
+   One panel: the headline counts across the top (each a link into its tab), the rates and outcomes on a
+   quieter divider line beneath. Replaces the separate tile grid + rate strip. */
+.ov-stats {
+  margin-bottom: 18px;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--panel); overflow: hidden;
+}
+.ov-stats-top { display: grid; grid-template-columns: repeat(3, 1fr); }
+.ov-stat-tile {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 20px 24px; border-right: 1px solid var(--border);
+  text-decoration: none; color: inherit; transition: background .13s ease;
+}
+.ov-stat-tile:last-child { border-right: 0; }
+.ov-stat-tile:hover { background: var(--panel-2); }
+.ov-stat-tile strong {
+  font-size: 30px; font-weight: 680; letter-spacing: -.045em; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ov-stat-tile span { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: -.01em; }
+.ov-stats-bot {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px;
+  padding: 13px 24px; border-top: 1px solid var(--border);
+}
+.ov-stat { font-size: 13px; color: var(--muted); }
+.ov-stat i { font-style: normal; color: var(--muted-2); }
+.ov-stat b {
+  margin: 0 4px; color: var(--text); font-weight: 680; font-variant-numeric: tabular-nums;
+}
+.ov-stat em { font-style: normal; font-size: 11px; color: var(--muted-2); }
+.ov-stat-dot { color: var(--muted-2); font-size: 13px; user-select: none; }
+
 /* ── Lists ──────────────────────────────────────────────────────────────────────────────────────── */
 
 .ov-list { display: flex; flex-direction: column; }

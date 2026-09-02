@@ -249,43 +249,25 @@ function Overview() {
         <p>{briefing(data)}</p>
       </ActivityNetwork>
 
-      {/* The way on to everything else, directly under the summary — the first thing after "how is it
-          going" is "take me to it". */}
-      <section className="ov-tiles">
-        {tiles.map((tile) => (
-          <Link key={tile.href} href={`${clientSlug ? `/${clientSlug}` : ""}${tile.href === "/" ? "" : tile.href}`} className="ov-tile">
-            <span className="ov-tile-label">{tile.label}</span>
-            {tile.value && <strong>{tile.value}</strong>}
-            {!tile.value && <em>{tile.note}</em>}
-            <span className="ov-tile-go">→</span>
-          </Link>
-        ))}
-      </section>
-
-      {/*
-        * Three figures on one line, where five cards and two more cards used to be.
-        *
-        * The cards repeated numbers the sentence above them had just given, and "meetings booked" and
-        * "campaigns running" had a bordered card each for a single digit.
-        */}
-      <section className="ov-strip">
-        <div>
-          <span>Acceptance rate</span>
-          <strong>{w.reached ? `${w.acceptanceRate}%` : "—"}</strong>
-          <em className="ov-strip-math">{n(w.accepted)} of {n(w.reached)} leads</em>
+      {/* One combined stats box: the headline counts up top (clickable into their tabs), the rates and
+          outcomes on a quieter line beneath. */}
+      <section className="ov-stats">
+        <div className="ov-stats-top">
+          {tiles.map((tile) => (
+            <Link key={tile.href} href={`${clientSlug ? `/${clientSlug}` : ""}${tile.href}`} className="ov-stat-tile">
+              <strong>{tile.value}</strong>
+              <span>{tile.label}</span>
+            </Link>
+          ))}
         </div>
-        <div>
-          <span>Reply rate</span>
-          <strong>{w.accepted ? `${w.replyRate}%` : "—"}</strong>
-          <em className="ov-strip-math">{n(w.replies)} of {n(w.accepted)} leads</em>
-        </div>
-        <div>
-          <span>Campaigns running</span>
-          <strong>{n(data.campaignsRunning ?? 0)}</strong>
-        </div>
-        <div>
-          <span>Meetings booked</span>
-          <strong>{n(data.meetingsBooked ?? 0)}</strong>
+        <div className="ov-stats-bot">
+          <span className="ov-stat"><i>Acceptance</i> <b>{w.reached ? `${w.acceptanceRate}%` : "—"}</b>{w.reached ? <em>{n(w.accepted)} of {n(w.reached)}</em> : null}</span>
+          <span className="ov-stat-dot">·</span>
+          <span className="ov-stat"><i>Reply rate</i> <b>{w.accepted ? `${w.replyRate}%` : "—"}</b>{w.accepted ? <em>{n(w.replies)} of {n(w.accepted)}</em> : null}</span>
+          <span className="ov-stat-dot">·</span>
+          <span className="ov-stat"><i>Campaigns running</i> <b>{n(data.campaignsRunning ?? 0)}</b></span>
+          <span className="ov-stat-dot">·</span>
+          <span className="ov-stat"><i>Meetings booked</i> <b>{n(data.meetingsBooked ?? 0)}</b></span>
         </div>
       </section>
 
