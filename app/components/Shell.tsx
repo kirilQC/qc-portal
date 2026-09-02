@@ -165,16 +165,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     const name = inClient && brandClient ? brandClient.name : "";
     document.title = name ? `${name} Dashboard` : "QC Growth";
     const logo = inClient && brandClient?.logoUrl ? brandClient.logoUrl : "";
-    let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
-    if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
-    if (logo) {
-      const ext = logo.split("?")[0].split(".").pop()?.toLowerCase();
-      link.type = ext === "svg" ? "image/svg+xml" : ext === "png" ? "image/png" : ext === "ico" ? "image/x-icon" : "image/jpeg";
-      link.href = logo;
-    } else {
-      link.removeAttribute("type");
-      link.href = "/favicon.ico";
-    }
+    // Replace the icon element rather than mutating its href: changing href on an existing <link rel=icon>
+    // is ignored by several browsers, and Next injects its own icon links that would otherwise win. Remove
+    // them all, add a fresh one, and let the browser sniff the image type (a wrong `type` gets it rejected).
+    document.querySelectorAll('link[rel~="icon"], link[rel="shortcut icon"]').forEach((el) => el.remove());
+    const link = document.createElement("link");
+    link.rel = "icon";
+    link.href = logo || "/favicon.ico";
+    document.head.appendChild(link);
   }, [inClient, brandClient?.name, brandClient?.logoUrl, pathname]);
 
   const clientPages: { href: string; label: string; icon: string }[] = [

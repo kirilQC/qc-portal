@@ -301,9 +301,22 @@
 
 /* ═══ Design A refinements — full-bleed animation + feed inside the hero ═══ */
 .ov-hero-net { height: 384px; }
-/* The animation shows behind everything, including the summary — only a soft scrim under the text. */
-.ov-hero-copy { right: auto; width: min(56%, 720px); background: linear-gradient(0deg, rgba(10,11,15,.7), rgba(10,11,15,.12) 62%, transparent); }
-.ov-hero-copy p { text-shadow: 0 1px 16px rgba(0,0,0,.85); }
-.ov-hero-copy .ov-brief-eyebrow { text-shadow: 0 1px 10px rgba(0,0,0,.8); }
+/* The animation shows behind EVERYTHING, summary included — only a whisper of scrim, legibility comes from the text-shadow. */
+.ov-hero-copy { right: auto; width: min(58%, 740px); background: linear-gradient(0deg, rgba(10,11,15,.42), rgba(10,11,15,.06) 55%, transparent); }
+.ov-hero-copy p { text-shadow: 0 1px 2px rgba(0,0,0,.92), 0 2px 22px rgba(0,0,0,.85); }
+.ov-hero-copy .ov-brief-eyebrow { text-shadow: 0 1px 8px rgba(0,0,0,.85); }
 
-/* The live Just
+/* The live "Just in" feed floats over the animation on the right — where the shooting stars land. */
+.ov-hero-feed { position: absolute; top: 14px; right: 14px; bottom: 14px; width: 350px; max-width: 44%; z-index: 3; background: rgba(13,15,21,.72); border: 1px solid var(--border, rgba(255,255,255,.09)); border-radius: 13px; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); overflow: hidden; display: flex; flex-direction: column; }
+.ov-hero-feed-live { position: absolute; top: 13px; right: 15px; z-index: 2; }
+.ov-hero-feed .ov-net-rail { flex: 1; min-height: 0; overflow-y: auto; padding: 15px 17px; }
+.ov-hero-net .ov-net-legend { z-index: 3; }
+.ov-thisweek { margin-bottom: 18px; }
+
+@media (max-width: 1000px) { .ov-hero-feed { width: 300px; } .ov-hero-copy { width: 52%; } }
+@media (max-width: 760px) {
+  .ov-hero-net { height: auto; min-height: 440px; }
+  .ov-hero-feed { position: static; width: auto; max-width: none; margin: 12px; }
+  .ov-hero-copy { position: static; width: auto; background: none; padding: 16px 16px 4px; }
+  .ov-hero-copy p { text-shadow: none; }
+}
