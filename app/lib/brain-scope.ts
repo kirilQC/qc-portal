@@ -13,6 +13,7 @@
  */
 import { resolveScope } from "./auth-context";
 import { scopedRows, str } from "./db";
+import { resolveActualFolder } from "./brain";
 
 export type ClientFolder = { folder: string; name: string; logo: string; slug: string };
 
@@ -22,7 +23,8 @@ export async function resolveClientFolder(slug?: string | null): Promise<ClientF
   const rows = await scopedRows(session, "rr_workspaces", { select: "brain_folder,slug,name,logo_url", limit: "1" }, workspaceId);
   const row = rows[0];
   if (!row) return null;
-  // The folder is what most clients are named after; `brain_folder` overrides it when they differ.
-  const folder = str(row.brain_folder) || str(row.slug);
+  // An explicit `brain_folder` wins; otherwise the slug/name is matched against the real folder names,
+  // because a workspace slug (`bluevia`) is not reliably the folder name (`bluevia-health`).
+  const folder = await resolveActualFolder({ slug: str(row.slug), name: str(row.name), brainFolder: str(row.brain_folder) });
   return { folder, name: str(row.name), logo: str(row.logo_url), slug: str(row.slug) };
 }

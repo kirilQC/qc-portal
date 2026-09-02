@@ -17,7 +17,7 @@
 import { NextResponse } from "next/server";
 import { currentSession, resolveScope } from "../../lib/auth-context";
 import { scopedRows, str } from "../../lib/db";
-import { READABLE_FOLDERS, brainConfigured, findFolder, listDocs, readDoc, type FolderKey } from "../../lib/brain";
+import { READABLE_FOLDERS, brainConfigured, findFolder, listDocs, readDoc, resolveActualFolder, type FolderKey } from "../../lib/brain";
 
 export const maxDuration = 30;
 
@@ -47,8 +47,9 @@ export async function GET(request: Request) {
 
     const rows = await scopedRows(scoped, "rr_workspaces", { select: "brain_folder,slug,name", limit: "1" }, workspaceId);
     const row = rows[0];
-    // Falls back to the slug, which is what the brain folder is named for most clients.
-    const clientFolder = str(row?.brain_folder) || str(row?.slug);
+    // An explicit brain_folder wins; otherwise the slug/name is matched to a real folder name, because a
+    // workspace slug (`bluevia`) is not reliably the folder name (`bluevia-health`).
+    const clientFolder = await resolveActualFolder({ slug: str(row?.slug), name: str(row?.name), brainFolder: str(row?.brain_folder) });
     const label = READABLE_FOLDERS[key].label;
 
     if (!clientFolder) {

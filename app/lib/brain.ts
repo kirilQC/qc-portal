@@ -22,6 +22,9 @@
  * all, so nothing here can alter the record it renders.
  */
 
+import { clientsIn } from "../../shared/brain-structure.mjs";
+import { brainFolderFor } from "../../shared/brain-link.mjs";
+
 const API = "https://api.github.com";
 const REPO = "jsbiv18/qc-growth-os";
 const TIMEOUT_MS = 15_000;
@@ -172,29 +175,71 @@ export function assertClientPath(clientFolder: string, path: string) {
 export type BrainFile = { path: string; name: string; sha: string; size: number };
 
 /**
- * Every file in one client's folder, flat, from the git tree.
+ * The whole repository's blob list, cached per-instance for a few minutes.
  *
- * The tree endpoint returns the whole repository in one request; it is filtered to this client's prefix
- * here, on the server, and nothing outside it is ever returned to the browser. That is the efficient
- * read — one round trip for a folder of any depth — and the filtering is what keeps it safe.
+ * Both the folder listing and the folder-name resolver are built from this, so fetching it once and
+ * holding it briefly means opening the Brain tab is one GitHub request, not one per thing it needs to
+ * know. The cost of a miss is a single recursive-tree call; the tree changes a few times a day.
  */
-export async function brainTree(clientFolder: string): Promise<BrainFile[]> {
-  if (!clientFolder) return [];
-  const prefix = `clients/${clientFolder}/`;
+let treeCache: { expires: number; rows: BrainFile[] } | null = null;
+const TREE_CACHE_MS = 5 * 60_000;
+
+async function fullTree(): Promise<BrainFile[]> {
+  if (treeCache && treeCache.expires > Date.now()) return treeCache.rows;
   const response = await fetch(`${API}/repos/${REPO}/git/trees/HEAD?recursive=1`, {
     headers: headers(),
     cache: "no-store",
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!response.ok) throw new Error(`The brain returned ${response.status} listing the folder.`);
+  if (!response.ok) throw new Error(`The brain returned ${response.status} listing the repository.`);
   const data = (await response.json().catch(() => null)) as { tree?: unknown[]; truncated?: boolean } | null;
   if (data?.truncated) throw new Error("The repository is too large to list in one request.");
-  const rows = Array.isArray(data?.tree) ? (data!.tree as Record<string, unknown>[]) : [];
-  return rows
+  const rows = (Array.isArray(data?.tree) ? (data!.tree as Record<string, unknown>[]) : [])
     .filter((row) => row.type === "blob")
-    .map((row) => ({ path: String(row.path ?? ""), sha: String(row.sha ?? ""), size: Number(row.size ?? 0) }))
-    .filter((file) => file.path.startsWith(prefix) && !file.path.endsWith(".DS_Store"))
+    .map((row) => ({ path: String(row.path ?? ""), name: "", sha: String(row.sha ?? ""), size: Number(row.size ?? 0) }))
+    .filter((file) => file.path && !file.path.endsWith(".DS_Store"));
+  treeCache = { expires: Date.now() + TREE_CACHE_MS, rows };
+  return rows;
+}
+
+/**
+ * Every file in one client's folder, flat.
+ *
+ * Filtered to this client's prefix here, on the server; nothing outside it is ever returned to the
+ * browser. That server-side filter is what keeps one client from seeing another's folder.
+ */
+export async function brainTree(clientFolder: string): Promise<BrainFile[]> {
+  if (!clientFolder) return [];
+  const prefix = `clients/${clientFolder}/`;
+  return (await fullTree())
+    .filter((file) => file.path.startsWith(prefix))
     .map((file) => ({ ...file, name: file.path.slice(prefix.length) }));
+}
+
+/** Every client folder name in the brain, for resolving a workspace to the folder it actually is. */
+export async function brainClientFolders(): Promise<string[]> {
+  const paths = (await fullTree()).map((file) => file.path);
+  return clientsIn(paths) as string[];
+}
+
+/**
+ * The brain folder a workspace actually is, repairing a slug that does not match the folder name.
+ *
+ * The two systems named the same clients independently — a workspace slug `bluevia` against a folder
+ * `bluevia-health` — so the slug is not a reliable folder name. An explicit `brainFolder` on the
+ * workspace wins; otherwise the slug and display name are matched against the real folder list the same
+ * way Reply Radar does it. Falls back to the slug if nothing matches or the brain is unreachable, which
+ * at worst reproduces the old behaviour rather than erroring.
+ */
+export async function resolveActualFolder(input: { slug: string; name: string; brainFolder: string }): Promise<string> {
+  if (input.brainFolder) return input.brainFolder;
+  try {
+    const folders = await brainClientFolders();
+    const { folder } = brainFolderFor(input, folders) as { folder: string };
+    return folder || input.slug;
+  } catch {
+    return input.slug;
+  }
 }
 
 export type BrainDoc = { path: string; sha: string; text: string };
