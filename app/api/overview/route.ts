@@ -472,6 +472,8 @@ async function build(session: Session, workspaceId: string, range: string) {
       positive: positive30,
       positiveRate: rate(positive30, scored30.length),
       acceptanceRate: rate(accepted30, reached30),
+      // Reply rate is out of accepted connections — nobody replies to a request that was never accepted.
+      replyRate: rate(replies30.length, accepted30),
       // The previous window, so the briefing can say whether this one was better.
       previousReached: reachedPrev,
       previousReplies: repliesPrev,

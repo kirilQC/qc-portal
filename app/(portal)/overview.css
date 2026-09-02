@@ -341,3 +341,9 @@
 .trend-tip-r i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .trend-tip-r data { margin-left: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .trend-empty { padding: 40px 22px; text-align: center; color: var(--muted-2, #6b7280); font-size: 12.5px; }
+
+/* Reply-rate / acceptance math, small in the box's bottom-right. */
+.ov-strip > div { position: relative; padding-bottom: 26px; }
+.ov-strip-math { position: absolute; right: 18px; bottom: 11px; font-style: normal; font-size: 10.5px; color: var(--muted-2, #6b7280); white-space: nowrap; }
+/* Right (connections-sent) axis labels on the trend chart, tinted to match the amber line. */
+.trend-axis-right { fill: #e0913d; font-size: 11px; opacity: .8; }

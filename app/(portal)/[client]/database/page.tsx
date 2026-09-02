@@ -1,1 +1,2 @@
-export { default } from "../../database/page";
+import Tab from "../../database/page";
+export default function ClientDatabase() { return <Tab />; }

@@ -1,1 +1,2 @@
-export { default } from "../../campaigns/page";
+import Tab from "../../campaigns/page";
+export default function ClientCampaigns() { return <Tab />; }

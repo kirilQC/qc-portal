@@ -1,1 +1,2 @@
-export { default } from "../../inbox/page";
+import Tab from "../../inbox/page";
+export default function ClientInbox() { return <Tab />; }

@@ -38,7 +38,7 @@ type Payload = {
   clients?: Client[]; client?: Client; startedAt?: string | null;
   window?: {
     days: number; reached: number; accepted: number; replies: number; scored: number; positive: number;
-    positiveRate: number; acceptanceRate: number; previousReached: number; previousReplies: number;
+    positiveRate: number; acceptanceRate: number; replyRate: number; previousReached: number; previousReplies: number;
   };
   allTime?: { leads: number; reached: number; accepted: number; replies: number; positive: number; acceptanceRate: number; replyRate: number; positiveRate: number };
   waiting?: number; campaignsRunning?: number; campaignsTotal?: number; sendersActive?: number;
@@ -204,8 +204,8 @@ function Overview() {
 
   /** The tabs this page hands off to, with the one number that says whether it is worth opening. */
   const tiles = [
-    { href: "/inbox", label: "Inbox", value: n(data.repliesTotal ?? 0), note: "replies received" },
-    { href: "/database", label: "Lead database", value: n(data.leadsTotal ?? 0), note: "leads in campaigns" },
+    { href: "/database", label: "Total leads", value: n(data.leadsTotal ?? 0), note: "reached out to" },
+    { href: "/inbox", label: "Replies", value: n(data.repliesTotal ?? 0), note: "leads that replied" },
     { href: "/campaigns", label: "Campaigns", value: n(data.campaignsTotal ?? 0), note: `${n(data.campaignsRunning ?? 0)} running` },
     { href: "/meetings", label: "Meetings", value: n(data.meetingsBooked ?? 0), note: (data.meetingsUpcoming ?? 0) > 0 ? `${data.meetingsUpcoming} upcoming` : "none booked yet" },
     { href: "/analytics", label: "Analytics", value: "", note: "Rates over time" },
@@ -265,8 +265,14 @@ function Overview() {
         */}
       <section className="ov-strip">
         <div>
-          <span>Acceptance</span>
+          <span>Acceptance rate</span>
           <strong>{w.reached ? `${w.acceptanceRate}%` : "—"}</strong>
+          <em className="ov-strip-math">{n(w.accepted)} of {n(w.reached)} leads</em>
+        </div>
+        <div>
+          <span>Reply rate</span>
+          <strong>{w.accepted ? `${w.replyRate}%` : "—"}</strong>
+          <em className="ov-strip-math">{n(w.replies)} of {n(w.accepted)} leads</em>
         </div>
         <div>
           <span>Campaigns running</span>

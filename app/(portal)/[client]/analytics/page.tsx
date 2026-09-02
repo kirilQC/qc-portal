@@ -1,1 +1,2 @@
-export { default } from "../../analytics/page";
+import Tab from "../../analytics/page";
+export default function ClientAnalytics() { return <Tab />; }
