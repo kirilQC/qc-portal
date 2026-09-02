@@ -23,7 +23,7 @@ import "./brain.css";
 
 type Facts = { label: string; value: string }[];
 type Activity = { latestItem: string; latestDate: string; since: string };
-type Doc = { key: string; label: string; blurb: string; path: string; present: boolean };
+type Doc = { key: string; label: string; blurb: string; path: string; present: boolean; preview: string };
 type FileEntry = { path: string; name: string; title: string; kind: string };
 type Group = { folder: string; files: FileEntry[] };
 type ClientData = {
@@ -166,7 +166,7 @@ export default function BrainApp() {
       <div className="content brn">
         <button className="brn-back" onClick={() => setOpenFolder(null)}>← All of {data.label}</button>
         <h1 className="brn-folder-title">{titleCase(openFolder.folder)}</h1>
-        <div className="brn-grid">
+        <div className="sp-grid">
           {openFolder.files.map((file) => (
             <FileCard key={file.path} file={file} onOpen={() => openEntry(file, setOpenFile)} />
           ))}
@@ -175,78 +175,101 @@ export default function BrainApp() {
     );
   }
 
+  const openDoc = (doc: Doc) => openEntry({ path: doc.path, name: doc.label, title: doc.label, kind: fileKind(doc.path) as string }, setOpenFile);
+  const firstPresent = data.docs.find((doc) => doc.present) ?? null;
+  const briefMissing = !data.docs.find((doc) => doc.key === "brief")?.present;
+  const lead =
+    data.summary ||
+    (firstPresent
+      ? `Start with the ${firstPresent.label}${briefMissing ? " — no brief written yet" : ""}. ${data.fileCount} files across the folder${data.activity.latestDate ? `, last touched ${agoLabel(data.activity.latestDate)}` : ""}.`
+      : `${data.fileCount} files across the folder.`);
+
   return (
     <div className="content brn">
-      {/* Hero — who this client is, and the two dates the file tree cannot carry. */}
-      <header className="brn-hero">
-        <div className="brn-hero-who">
-          <Mark label={data.label} logo={data.logo} size="lg" />
-          <div className="brn-hero-words">
-            <h1>{data.label}</h1>
-            {data.summary ? <p className="brn-hero-summary">{data.summary}</p> : <p className="brn-hero-summary is-empty">No brief written yet.</p>}
-            {data.facts.length > 0 && (
-              <dl className="brn-hero-facts">
-                {data.facts.map((fact) => (
-                  <div key={fact.label}>
-                    <dt>{fact.label}</dt>
-                    <dd>{fact.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
+      {/* The featured lead: who this client is, where to start, and the folder at a glance. */}
+      <div className="sp-hero">
+        <div className="sp-lead">
+          <div className="sp-who">
+            <Mark label={data.label} logo={data.logo} size="lg" />
+            <div><span className="brn-kicker">Client brain</span><h1>{data.label}</h1></div>
           </div>
+          <p className={`sp-start ${data.summary ? "" : "is-empty"}`}>{lead}</p>
+          {data.facts.length > 0 && (
+            <dl className="sp-facts">
+              {data.facts.map((fact) => (
+                <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>
+              ))}
+            </dl>
+          )}
+          {firstPresent && (
+            <button className="sp-cta" onClick={() => openDoc(firstPresent)}>
+              <Glyph path="M5 12h14M13 6l6 6-6 6" /> Start reading
+            </button>
+          )}
         </div>
-        <aside className="brn-hero-side">
-          {data.activity.since && (
-            <div className="brn-hero-stat">
-              <span className="brn-hero-stat-label">Engagement started</span>
-              <span className="brn-hero-stat-value">{spanLabel(data.activity.since)} ago</span>
-            </div>
-          )}
-          {data.activity.latestDate && (
-            <div className="brn-hero-stat">
-              <span className="brn-hero-stat-label">Last added · {agoLabel(data.activity.latestDate)}</span>
-              <span className="brn-hero-stat-value">{fileLabel(data.activity.latestItem, data.folder)}</span>
-            </div>
-          )}
-          <button className="brn-download" onClick={() => void downloadZip()} disabled={zipping}>
+        <aside className="sp-side">
+          <span className="brn-kicker">At a glance</span>
+          {data.activity.since && <Stat label="Engagement started" value={`${spanLabel(data.activity.since)} ago`} />}
+          {data.activity.latestDate && <Stat label={`Last added · ${agoLabel(data.activity.latestDate)}`} value={fileLabel(data.activity.latestItem, data.folder)} />}
+          <Stat label="Core coverage" value={`${data.coverage.have} of ${data.coverage.total}`} />
+          <Stat label="Files in folder" value={String(data.fileCount)} />
+          <button className="sp-download" onClick={() => void downloadZip()} disabled={zipping}>
             <Glyph path="M12 3v12M7 10l5 5 5-5M5 21h14" />
             {zipping ? "Packaging…" : "Download folder (ZIP)"}
           </button>
         </aside>
-      </header>
+      </div>
 
-      {/* The skeleton — the documents every client is expected to have, present or not. */}
-      <div className="brn-grid">
+      {/* The skeleton — each document with a preview of what is actually inside it. */}
+      <div className="sp-grid">
         {data.docs.map((doc) => (
           <button
             key={doc.key}
-            className={`brn-card ${doc.present ? "" : "is-missing"}`}
-            onClick={doc.present ? () => openEntry({ path: doc.path, name: doc.label, title: doc.label, kind: fileKind(doc.path) as string }, setOpenFile) : undefined}
+            className={`sp-card ${doc.present ? "" : "off"}`}
+            onClick={doc.present ? () => openDoc(doc) : undefined}
             disabled={!doc.present}
-            title={doc.blurb}
           >
-            <span className="brn-card-icon"><Glyph path={SLOT_ICON[doc.key] ?? FILE_ICON.doc} /></span>
-            <span className="brn-card-label">{doc.label}</span>
-            <span className="brn-card-note">{doc.present ? doc.blurb : "Not written yet"}</span>
+            <span className="sp-rail" aria-hidden="true" />
+            <span className="sp-card-bd">
+              <span className="sp-card-hd">
+                <span className="sp-fic"><Glyph path={SLOT_ICON[doc.key] ?? FILE_ICON.doc} /></span>
+                <span className={`brn-pill ${doc.present ? "ok" : "miss"}`}>{doc.present ? "Present" : "Missing"}</span>
+              </span>
+              <span className="sp-card-title">{doc.label}</span>
+              <span className={`sp-card-pv ${doc.present ? "" : "is-empty"}`}>{doc.present ? doc.preview || doc.blurb : `Not written yet — ${doc.blurb.toLowerCase()}.`}</span>
+            </span>
           </button>
         ))}
       </div>
 
-      {/* Everything else — folders drill in, loose files open. */}
+      {/* Everything else — folders as banners that peek at their newest files; loose files open directly. */}
       {(folders.length > 0 || rootFiles.length > 0) && (
         <>
           <h2 className="brn-more">More in this folder</h2>
-          <div className="brn-grid">
+          <div className="sp-band">
             {folders.map((group) => (
-              <button key={group.folder} className="brn-card is-folder" onClick={() => setOpenFolder(group)}>
-                <span className="brn-card-icon"><Glyph path="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></span>
-                <span className="brn-card-label">{titleCase(group.folder)}</span>
-                <span className="brn-card-note">{group.files.length} file{group.files.length === 1 ? "" : "s"}</span>
+              <button key={group.folder} className="sp-folder" onClick={() => setOpenFolder(group)}>
+                <span className="sp-folder-ft">
+                  <span className="sp-folder-ic"><Glyph path="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></span>
+                  <b>{titleCase(group.folder)}</b>
+                  <span className="sp-folder-cnt">{group.files.length}</span>
+                </span>
+                <span className="sp-peek">
+                  {group.files.slice(0, 3).map((file) => (
+                    <span key={file.path}>{file.title}</span>
+                  ))}
+                  {group.files.length > 3 && <span className="sp-more">+{group.files.length - 3} more</span>}
+                </span>
               </button>
             ))}
             {rootFiles.map((file) => (
-              <FileCard key={file.path} file={file} onOpen={() => openEntry(file, setOpenFile)} />
+              <button key={file.path} className="sp-folder is-file" onClick={() => openEntry(file, setOpenFile)}>
+                <span className="sp-folder-ft">
+                  <span className="sp-folder-ic"><Glyph path={FILE_ICON[file.kind] ?? FILE_ICON.other} /></span>
+                  <b>{file.title}</b>
+                </span>
+                <span className="sp-peek"><span className="sp-more">{file.kind === "doc" ? "Document" : file.kind}</span></span>
+              </button>
             ))}
           </div>
         </>
@@ -255,12 +278,26 @@ export default function BrainApp() {
   );
 }
 
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="sp-stat">
+      <span>{label}</span>
+      <b>{value}</b>
+    </div>
+  );
+}
+
 function FileCard({ file, onOpen }: { file: FileEntry; onOpen: () => void }) {
   return (
-    <button className="brn-card is-file" onClick={onOpen}>
-      <span className="brn-card-icon"><Glyph path={FILE_ICON[file.kind] ?? FILE_ICON.other} /></span>
-      <span className="brn-card-label">{file.title}</span>
-      <span className="brn-card-note">{file.kind === "doc" ? "Document" : file.kind}</span>
+    <button className="sp-card" onClick={onOpen}>
+      <span className="sp-rail" aria-hidden="true" />
+      <span className="sp-card-bd">
+        <span className="sp-card-hd">
+          <span className="sp-fic"><Glyph path={FILE_ICON[file.kind] ?? FILE_ICON.other} /></span>
+        </span>
+        <span className="sp-card-title">{file.title}</span>
+        <span className="sp-card-pv">{file.kind === "doc" ? "Document" : file.kind}</span>
+      </span>
     </button>
   );
 }
@@ -356,7 +393,7 @@ function DocView({ client, slug, file, onBack }: { client: ClientData; slug: str
           ) : (
             <div className="brn-nonviewable">
               <p>{file.title} is a {file.kind} file — it is part of the folder but not something to read on a page.</p>
-              <a className="brn-download" href={rawUrl} download>
+              <a className="sp-download" href={rawUrl} download>
                 <Glyph path="M12 3v12M7 10l5 5 5-5M5 21h14" /> Download this file
               </a>
             </div>
