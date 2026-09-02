@@ -9,7 +9,7 @@ export type TrendPoint = { week: string; total: number; positive: number; meetin
 type MetricKey = "total" | "positive" | "meetings" | "sent";
 // Connections sent first, so its (large) area and line are drawn behind the reply lines that ride on top.
 const SERIES: { key: MetricKey; label: string; color: string }[] = [
-  { key: "sent", label: "Connections sent", color: "#e0913d" },
+  { key: "sent", label: "Connections sent", color: "#f2c94c" },
   { key: "total", label: "Total replies", color: "#5b8cff" },
   { key: "positive", label: "Positive replies", color: "#46d39a" },
   { key: "meetings", label: "Booked meetings", color: "#a78bfa" },

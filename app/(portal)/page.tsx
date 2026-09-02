@@ -176,7 +176,7 @@ function Overview() {
         ) : (
           <div className="directory">
             {clients.map((client) => (
-              <Link key={client.id} href={`/${client.slug}`} className="tile">
+              <Link key={client.id} href={`/?client=${encodeURIComponent(client.slug)}`} className="tile">
                 <span className="client-logo" style={client.logoUrl ? undefined : { background: client.accentColor || "var(--accent)" }}>
                   {client.logoUrl ? <img src={client.logoUrl} alt="" /> : (client.name[0] || "?").toUpperCase()}
                 </span>
@@ -248,7 +248,7 @@ function Overview() {
           going" is "take me to it". */}
       <section className="ov-tiles">
         {tiles.map((tile) => (
-          <Link key={tile.href} href={`${clientSlug ? `/${clientSlug}` : ""}${tile.href === "/" ? "" : tile.href}`} className="ov-tile">
+          <Link key={tile.href} href={`${tile.href}${clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : ""}`} className="ov-tile">
             <span className="ov-tile-label">{tile.label}</span>
             {tile.value && <strong>{tile.value}</strong>}
             {!tile.value && <em>{tile.note}</em>}

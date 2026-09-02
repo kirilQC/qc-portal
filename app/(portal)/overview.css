@@ -346,4 +346,4 @@
 .ov-strip > div { position: relative; padding-bottom: 26px; }
 .ov-strip-math { position: absolute; right: 18px; bottom: 11px; font-style: normal; font-size: 10.5px; color: var(--muted-2, #6b7280); white-space: nowrap; }
 /* Right (connections-sent) axis labels on the trend chart, tinted to match the amber line. */
-.trend-axis-right { fill: #e0913d; font-size: 11px; opacity: .8; }
+.trend-axis-right { fill: var(--muted-2, #6b7280); font-size: 11px; }
