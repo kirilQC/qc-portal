@@ -241,10 +241,11 @@ function Overview() {
         </div>
       </div>
 
-      <section className="ov-brief">
+      {/* The live activity network is the hero — a wide animated banner with the week's summary over it. */}
+      <ActivityNetwork variant="hero" events={data.feed ?? []} senders={data.senders ?? []} clientSlug={clientSlug}>
         <span className="ov-brief-eyebrow">{data.rangeLabel ?? "This week"}</span>
         <p>{briefing(data)}</p>
-      </section>
+      </ActivityNetwork>
 
       {/* The way on to everything else, directly under the summary — the first thing after "how is it
           going" is "take me to it". */}
@@ -283,8 +284,7 @@ function Overview() {
         </div>
       </section>
 
-      <div className="ov-grid">
-        <div className="ov-column">
+      <div className="ov-grid ov-grid-a">
           <section className="panel">
             <div className="panel-head">
               <h2>{data.rangeLabel ?? "This week"}</h2>
@@ -308,8 +308,10 @@ function Overview() {
               ))}
             </div>
           </section>
+          <ActivityNetwork variant="feed" events={data.feed ?? []} senders={data.senders ?? []} clientSlug={clientSlug} />
+      </div>
 
-          <section className="panel">
+      <section className="panel ov-campaigns">
             <div className="panel-head">
               <h2>Active campaigns</h2>
               <span>{active.length ? `${active.length} running` : ""}</span>
@@ -355,16 +357,7 @@ function Overview() {
             ) : (
               <p className="empty">No campaign is running right now.</p>
             )}
-          </section>
-
-        </div>
-
-        <ActivityNetwork
-          events={data.feed ?? []}
-          senders={data.senders ?? []}
-          clientSlug={clientSlug}
-        />
-      </div>
+      </section>
 
     </div>
   );

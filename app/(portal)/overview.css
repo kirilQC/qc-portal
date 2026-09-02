@@ -275,3 +275,26 @@
 /* Color-coded campaign funnel in the overview Active-campaigns list (reuses the campaigns-page bar). */
 .ov-cfunnel { margin: 9px 0 7px; }
 .ov-legend { margin: 2px 0 14px; }
+
+/* ═══ Design A — activity network as the hero banner ═══ */
+.ov-hero-net { position: relative; height: 322px; border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 16px; overflow: hidden; margin-bottom: 18px; background: radial-gradient(120% 120% at 72% 22%, rgba(124,108,240,.05), #0b0d12 72%); }
+.ov-hero-net .ov-net-scene { position: absolute; inset: 0; }
+.ov-hero-net .ov-net-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ov-hero-net .ov-net-legend { top: 15px; left: 18px; bottom: auto; z-index: 3; }
+.ov-hero-live { position: absolute; top: 15px; right: 18px; z-index: 3; }
+.ov-hero-copy { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 30px 24px; z-index: 2; background: linear-gradient(0deg, rgba(10,11,15,.95), rgba(10,11,15,.66) 52%, transparent); }
+.ov-hero-copy .ov-brief-eyebrow { display: block; }
+.ov-hero-copy p { margin: 9px 0 0; max-width: 74ch; font-size: 18px; line-height: 1.55; letter-spacing: -.01em; color: var(--text); }
+.ov-hero-copy b { color: var(--text); font-weight: 700; }
+
+/* Two-column content row (funnel · live feed), campaigns full-width below. */
+.ov-grid-a { grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); }
+.ov-campaigns { margin-top: 18px; }
+.ov-net-feedonly { position: static; max-height: none; }
+.ov-net-feedonly .ov-net-rail { overflow: visible; padding-top: 4px; }
+
+@media (max-width: 900px) {
+  .ov-grid-a { grid-template-columns: 1fr; }
+  .ov-hero-net { height: 260px; }
+  .ov-hero-copy p { font-size: 16px; }
+}

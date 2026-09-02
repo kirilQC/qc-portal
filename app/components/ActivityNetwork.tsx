@@ -74,10 +74,15 @@ export default function ActivityNetwork({
   events,
   senders,
   clientSlug,
+  variant = "full",
+  children,
 }: {
   events: ActivityEvent[];
   senders: string[];
   clientSlug: string | null;
+  /** "full" = scene + rail (default). "hero" = the animated scene alone, with `children` overlaid. "feed" = the rail alone. */
+  variant?: "full" | "hero" | "feed";
+  children?: React.ReactNode;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // The rail follows the field: a pulse landing is what advances the shown event, so the two never drift.
@@ -260,53 +265,76 @@ export default function ActivityNetwork({
 
   const shown = replies[shownIndex];
 
+  const scene = (
+    <div className="ov-net-scene">
+      <canvas ref={canvasRef} className="ov-net-canvas" aria-hidden="true" />
+      <div className="ov-net-legend" aria-hidden="true">
+        <span><i className="d-sender" />Sender</span>
+        <span><i className="d-lead" />Lead</span>
+        <span><i className="d-warm" />Replied</span>
+      </div>
+    </div>
+  );
+
+  const rail = (
+    <div className="ov-net-rail">
+      <span className="ov-net-lbl">Just in</span>
+      {shown ? (
+        <RailCard event={shown} now={now} clientSlug={clientSlug} />
+      ) : (
+        <p className="empty">No replies yet this week.</p>
+      )}
+
+      {others.length > 0 && (
+        <div className="ov-net-also">
+          {others.map((event, index) => (
+            <div className="ov-net-alsorow" key={`${event.at}-${index}`}>
+              <span className={`ov-net-adot is-${event.kind}`} aria-hidden="true" />
+              <span>{event.title}</span>
+              <time>{ago(event.at, now)}</time>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {replies.length > 1 && (
+        <div className="ov-net-count">
+          <b>{replies.length}</b> replies this week
+          {replies.filter((event) => event.kind === "positive").length > 0 &&
+            <> · <b>{replies.filter((event) => event.kind === "positive").length}</b> warm</>}
+        </div>
+      )}
+    </div>
+  );
+
+  // Hero: the animated scene alone as a wide banner, with the week's summary overlaid over it.
+  if (variant === "hero") {
+    return (
+      <section className="ov-hero-net">
+        {scene}
+        <span className="ov-net-live ov-hero-live" aria-hidden="true"><i />live</span>
+        {children && <div className="ov-hero-copy">{children}</div>}
+      </section>
+    );
+  }
+
+  // Feed: the "Just in" rail alone, in a panel of its own.
+  if (variant === "feed") {
+    return (
+      <section className="panel ov-net-panel ov-net-feedonly">
+        <div className="panel-head"><h2>Recent activity</h2><span className="ov-net-live" aria-hidden="true"><i />live</span></div>
+        {rail}
+      </section>
+    );
+  }
+
   return (
     <section className="panel ov-net-panel">
       <div className="panel-head">
         <h2>Recent activity</h2>
         <span className="ov-net-live" aria-hidden="true"><i />live</span>
       </div>
-
-      <div className="ov-net">
-        <div className="ov-net-scene">
-          <canvas ref={canvasRef} className="ov-net-canvas" aria-hidden="true" />
-          <div className="ov-net-legend" aria-hidden="true">
-            <span><i className="d-sender" />Sender</span>
-            <span><i className="d-lead" />Lead</span>
-            <span><i className="d-warm" />Replied</span>
-          </div>
-        </div>
-
-        {/* The real list. A screen reader gets this, not the canvas. */}
-        <div className="ov-net-rail">
-          <span className="ov-net-lbl">Just in</span>
-          {shown ? (
-            <RailCard event={shown} now={now} clientSlug={clientSlug} />
-          ) : (
-            <p className="empty">No replies yet this week.</p>
-          )}
-
-          {others.length > 0 && (
-            <div className="ov-net-also">
-              {others.map((event, index) => (
-                <div className="ov-net-alsorow" key={`${event.at}-${index}`}>
-                  <span className={`ov-net-adot is-${event.kind}`} aria-hidden="true" />
-                  <span>{event.title}</span>
-                  <time>{ago(event.at, now)}</time>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {replies.length > 1 && (
-            <div className="ov-net-count">
-              <b>{replies.length}</b> replies this week
-              {replies.filter((event) => event.kind === "positive").length > 0 &&
-                <> · <b>{replies.filter((event) => event.kind === "positive").length}</b> warm</>}
-            </div>
-          )}
-        </div>
-      </div>
+      <div className="ov-net">{scene}{rail}</div>
     </section>
   );
 }
