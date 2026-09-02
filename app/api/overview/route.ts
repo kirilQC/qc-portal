@@ -298,9 +298,9 @@ async function build(session: Session, workspaceId: string, range: string) {
       campaign: campaign || null,
       // The rollup is already scoped to this client, so this sender is theirs and not another tenant's.
       sender: senderNames ? senderNames.split(";")[0].trim() : null,
-      // Only positive replies carry their words onto the surface. A neutral "ok thanks" quoted at size
-      // reads as a worse result than it is.
-      quote: isPositive && body ? taste(body) : null,
+      // Every reply carries its words — a card with a name and no message read as broken ("X replied" with
+      // nothing under it). The sentiment still colours it; the quote just always shows.
+      quote: body ? taste(body) : null,
       conversationId: str(conversation.id),
     });
   }

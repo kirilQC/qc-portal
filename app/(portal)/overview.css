@@ -347,3 +347,8 @@
 .ov-strip-math { position: absolute; right: 18px; bottom: 11px; font-style: normal; font-size: 10.5px; color: var(--muted-2, #6b7280); white-space: nowrap; }
 /* Right (connections-sent) axis labels on the trend chart, tinted to match the amber line. */
 .trend-axis-right { fill: var(--muted-2, #6b7280); font-size: 11px; }
+
+/* Icon avatar for non-reply feed events (launched campaign, booked meeting). */
+.ov-net-ic { width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center; font-size: 18px; background: var(--panel-2); border: 1px solid var(--border); }
+.ov-net-ic.is-launch { background: color-mix(in srgb, #8b7cff 16%, transparent); border-color: color-mix(in srgb, #8b7cff 40%, var(--border)); }
+.ov-net-ic.is-meeting { background: color-mix(in srgb, var(--f-positive) 15%, transparent); border-color: color-mix(in srgb, var(--f-positive) 40%, var(--border)); }

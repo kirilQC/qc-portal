@@ -95,7 +95,6 @@ export default function ActivityNetwork({
 
   // Only replies get a pulse and a place in the cycle; launches and meetings sit in the "also" strip.
   const replies = useMemo(() => events.filter((event) => event.kind === "positive" || event.kind === "reply"), [events]);
-  const others = useMemo(() => events.filter((event) => event.kind === "launch" || event.kind === "meeting").slice(0, 2), [events]);
   const senderCount = Math.min(Math.max(senders.length, 3), 6);
 
   useEffect(() => {
@@ -148,16 +147,18 @@ export default function ActivityNetwork({
      * advance it.
      */
     function fire(advanceRail = true) {
-      if (!replies.length) return;
-      const event = replies[cursor % replies.length];
-      if (advanceRail) setShownIndex(cursor % replies.length);
+      // A pulse still represents a reply travelling the network (a launch or a meeting is not a signal moving
+      // between two people), but the rail cycles through EVERY kind of event so launches and meetings fire in too.
+      if (replies.length) {
+        const event = replies[cursor % replies.length];
+        const senderPool = nodes.filter((node) => node.sender);
+        const from = senderPool[Math.floor(Math.random() * senderPool.length)] ?? nodes[0];
+        const leadPool = nodes.filter((node) => !node.sender);
+        const to = leadPool[Math.floor(Math.random() * leadPool.length)] ?? nodes[nodes.length - 1];
+        pulses.push({ from, to, t: 0, speed: 0.02 + Math.random() * 0.01, warm: event.kind === "positive" });
+      }
+      if (advanceRail && events.length) setShownIndex(cursor % events.length);
       cursor += 1;
-
-      const senderPool = nodes.filter((node) => node.sender);
-      const from = senderPool[Math.floor(Math.random() * senderPool.length)] ?? nodes[0];
-      const leadPool = nodes.filter((node) => !node.sender);
-      const to = leadPool[Math.floor(Math.random() * leadPool.length)] ?? nodes[nodes.length - 1];
-      pulses.push({ from, to, t: 0, speed: 0.02 + Math.random() * 0.01, warm: event.kind === "positive" });
     }
 
     function draw() {
@@ -259,11 +260,12 @@ export default function ActivityNetwork({
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-    // Re-seeding on every render would restart the drift; the animation only depends on the reply set.
+    // Re-seeding on every render would restart the drift; it only depends on the event/reply set and senders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [replies.length, senderCount]);
+  }, [replies.length, events.length, senderCount]);
 
-  const shown = replies[shownIndex];
+  const shown = events.length ? events[shownIndex % events.length] : null;
+  const others = events.filter((event) => event !== shown).slice(0, 4);
 
   const scene = (
     <div className="ov-net-scene">
@@ -344,21 +346,30 @@ export default function ActivityNetwork({
   );
 }
 
-/** One reply, with the face, the words, and a way into the conversation. */
+const KIND_ICON: Record<ActivityEvent["kind"], string> = { positive: "", reply: "", launch: "🚀", meeting: "📅" };
+
+/** A feed avatar that falls back to initials when the LinkedIn photo is broken or expired. */
+function FeedAvatar({ photoUrl, initials, warm }: { photoUrl?: string | null; initials?: string; warm: boolean }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <span className={`ov-net-av ${warm ? "is-warm" : ""}`}>
+      {photoUrl && !broken ? <img src={photoUrl} alt="" onError={() => setBroken(true)} /> : (initials || "?")}
+    </span>
+  );
+}
+
+/** One event — a reply (face + words + a way into the inbox) or a launch / booked meeting (icon + headline). */
 function RailCard({ event, now, clientSlug }: { event: ActivityEvent; now: number; clientSlug: string | null }) {
+  const isReply = event.kind === "positive" || event.kind === "reply";
   const href = event.conversationId
     ? `${clientSlug ? `/${clientSlug}` : ""}/inbox?conversation=${encodeURIComponent(event.conversationId)}`
     : `${clientSlug ? `/${clientSlug}` : ""}/inbox`;
 
-  const inner = (
+  const inner = isReply ? (
     <>
-      <span className={`ov-net-av ${event.kind === "positive" ? "is-warm" : ""}`}>
-        {event.photoUrl ? <img src={event.photoUrl} alt="" /> : event.initials || "?"}
-      </span>
+      <FeedAvatar photoUrl={event.photoUrl} initials={event.initials} warm={event.kind === "positive"} />
       <span className="ov-net-body">
-        <span className="ov-net-name">
-          {event.name}<em> {KIND_LABEL[event.kind]}</em>
-        </span>
+        <span className="ov-net-name">{event.name}<em> {KIND_LABEL[event.kind]}</em></span>
         {event.where && <span className="ov-net-where">{event.where}{event.campaign ? ` · ${event.campaign}` : ""}</span>}
         {event.quote && <span className="ov-net-quote">“{event.quote}”</span>}
         <span className="ov-net-foot">
@@ -367,9 +378,18 @@ function RailCard({ event, now, clientSlug }: { event: ActivityEvent; now: numbe
         </span>
       </span>
     </>
+  ) : (
+    <>
+      <span className={`ov-net-ic is-${event.kind}`}>{KIND_ICON[event.kind]}</span>
+      <span className="ov-net-body">
+        <span className="ov-net-name">{event.title}</span>
+        {event.detail && <span className="ov-net-where">{event.detail}</span>}
+        <span className="ov-net-foot"><time>{ago(event.at, now)}</time></span>
+      </span>
+    </>
   );
 
-  return event.conversationId
+  return isReply && event.conversationId
     ? <Link className="ov-net-card is-link" href={href}>{inner}</Link>
     : <div className="ov-net-card">{inner}</div>;
 }
