@@ -23,7 +23,7 @@ import "./brain.css";
 
 type Facts = { label: string; value: string }[];
 type Activity = { latestItem: string; latestDate: string; since: string };
-type Doc = { key: string; label: string; blurb: string; path: string; present: boolean; preview: string };
+type Doc = { key: string; label: string; blurb: string; path: string; present: boolean };
 type FileEntry = { path: string; name: string; title: string; kind: string };
 type Group = { folder: string; files: FileEntry[] };
 type ClientData = {
@@ -231,12 +231,8 @@ export default function BrainApp() {
           >
             <span className="sp-rail" aria-hidden="true" />
             <span className="sp-card-bd">
-              <span className="sp-card-hd">
-                <span className="sp-fic"><Glyph path={SLOT_ICON[doc.key] ?? FILE_ICON.doc} /></span>
-                <span className={`brn-pill ${doc.present ? "ok" : "miss"}`}>{doc.present ? "Present" : "Missing"}</span>
-              </span>
+              <span className="sp-fic"><Glyph path={SLOT_ICON[doc.key] ?? FILE_ICON.doc} /></span>
               <span className="sp-card-title">{doc.label}</span>
-              <span className={`sp-card-pv ${doc.present ? "" : "is-empty"}`}>{doc.present ? doc.preview || doc.blurb : `Not written yet — ${doc.blurb.toLowerCase()}.`}</span>
             </span>
           </button>
         ))}
@@ -292,11 +288,8 @@ function FileCard({ file, onOpen }: { file: FileEntry; onOpen: () => void }) {
     <button className="sp-card" onClick={onOpen}>
       <span className="sp-rail" aria-hidden="true" />
       <span className="sp-card-bd">
-        <span className="sp-card-hd">
-          <span className="sp-fic"><Glyph path={FILE_ICON[file.kind] ?? FILE_ICON.other} /></span>
-        </span>
+        <span className="sp-fic"><Glyph path={FILE_ICON[file.kind] ?? FILE_ICON.other} /></span>
         <span className="sp-card-title">{file.title}</span>
-        <span className="sp-card-pv">{file.kind === "doc" ? "Document" : file.kind}</span>
       </span>
     </button>
   );

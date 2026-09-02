@@ -64,25 +64,13 @@ export async function GET(request: Request) {
     const paths = files.map((file) => file.path);
     const skeleton = clientSkeleton(client.folder, paths) as Skeleton;
 
-    // Read every present skeleton document once, concurrently, so each card can carry a one-line preview
-    // of what is actually inside it — the brief's opening paragraph also becomes the hero summary. It is
-    // at most seven small reads and it is what turns a grid of labels into a grid you can read.
-    const present = skeleton.docs.filter((doc) => doc.present && doc.found);
-    const texts = await Promise.all(
-      present.map((doc) => readClientDoc(client.folder, doc.found).then((read) => read.text).catch(() => "")),
-    );
-    const textByPath = new Map(present.map((doc, index) => [doc.found, texts[index]]));
-    const activity = await brainClientActivity(client.folder).catch(() => ({ latestItem: "", latestDate: "", since: "" }));
-
+    // The brief's opening paragraph, so the hero can say who this client is up top — one extra read.
     const briefPath = skeleton.docs.find((doc) => doc.key === "brief" && doc.present)?.found ?? "";
-    const { summary, facts } = briefSummary(textByPath.get(briefPath) ?? "") as { summary: string; facts: { label: string; value: string }[] };
-
-    // A short preview for a card — the document's own opening sentence, not its purpose blurb.
-    const previewOf = (path: string) => {
-      const text = textByPath.get(path);
-      if (!text) return "";
-      return (briefSummary(text, 150) as { summary: string }).summary;
-    };
+    const [brief, activity] = await Promise.all([
+      briefPath ? readClientDoc(client.folder, briefPath).catch(() => null) : Promise.resolve(null),
+      brainClientActivity(client.folder).catch(() => ({ latestItem: "", latestDate: "", since: "" })),
+    ]);
+    const { summary, facts } = briefSummary(brief?.text ?? "") as { summary: string; facts: { label: string; value: string }[] };
 
     return NextResponse.json({
       ok: true,
@@ -101,7 +89,6 @@ export async function GET(request: Request) {
           blurb: doc.blurb,
           path: doc.found,
           present: doc.present,
-          preview: doc.present ? previewOf(doc.found) : "",
         })),
         groups: skeleton.groups.map((group) => ({
           folder: group.folder,

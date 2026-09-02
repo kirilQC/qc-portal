@@ -190,8 +190,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     { href: "/analytics", label: "Analytics", icon: "analytics" },
     { href: "/meetings", label: "Meetings", icon: "meetings" },
     { href: "/messaging", label: "Messaging", icon: "messaging" },
-    { href: "/calls", label: "Weekly calls", icon: "calls" },
     { href: "/brain", label: "Brain", icon: "brain" },
+    { href: "/calls", label: "Weekly calls", icon: "calls" },
   ];
 
   /** The mark at the top left: the client's when there is one, QC's when there is not. */
