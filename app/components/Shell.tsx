@@ -8,7 +8,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useClientSlug } from "./useClientSlug";
 import SettingsPanel from "./SettingsPanel";
 import AppearanceControl from "./Appearance";
 
@@ -80,8 +81,7 @@ function cachedMe(clientParam: string | null): Me | null {
 }
 
 export default function Shell({ children }: { children: React.ReactNode }) {
-  const params = useSearchParams();
-  const clientParam = params.get("client");
+  const clientParam = useClientSlug();
 
   // Seeded from the cache in the initialiser, so the first paint already carries the right brand.
   const [me, setMe] = useState<Me | null>(() => cachedMe(clientParam));

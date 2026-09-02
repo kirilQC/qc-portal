@@ -6,7 +6,7 @@
    setState calls are inside async callbacks rather than the effect body. */
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useClientSlug } from "../../components/useClientSlug";
 import "./database.css";
 
 /**
@@ -77,8 +77,7 @@ const initials = (name: string) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
 
 function Database() {
-  const params = useSearchParams();
-  const clientSlug = params.get("client");
+  const clientSlug = useClientSlug();
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [search, setSearch] = useState("");

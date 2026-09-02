@@ -6,7 +6,7 @@
    the setState calls sit inside async callbacks rather than the effect body. */
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useClientSlug } from "../../components/useClientSlug";
 import { activeTimeZone } from "../../components/Appearance";
 import "./inbox.css";
 
@@ -93,8 +93,7 @@ function Avatar({ src, alt, fallback }: { src?: string | null; alt: string; fall
 }
 
 function Inbox() {
-  const params = useSearchParams();
-  const clientSlug = params.get("client");
+  const clientSlug = useClientSlug();
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [error, setError] = useState("");

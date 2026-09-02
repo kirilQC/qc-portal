@@ -6,7 +6,7 @@
    setState calls sit inside async callbacks rather than the effect body. */
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useClientSlug } from "../../components/useClientSlug";
 import "./calls.css";
 // Plain ESM, shared with the test runner; see shared/calls.mjs.
 import { parseCall } from "../../../shared/calls.mjs";
@@ -81,7 +81,7 @@ export default function Page() {
 }
 
 function Calls() {
-  const clientSlug = useSearchParams().get("client");
+  const clientSlug = useClientSlug();
 
   const [docs, setDocs] = useState<Doc[]>([]);
   const [error, setError] = useState("");

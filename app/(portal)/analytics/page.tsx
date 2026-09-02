@@ -6,7 +6,7 @@
    setState calls sit inside async callbacks rather than the effect body. */
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useClientSlug } from "../../components/useClientSlug";
 import "./analytics.css";
 
 /**
@@ -79,8 +79,7 @@ const LEADER_METRICS = [
 ] as const;
 
 function Analytics() {
-  const params = useSearchParams();
-  const clientSlug = params.get("client");
+  const clientSlug = useClientSlug();
 
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");

@@ -7,7 +7,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useClientSlug } from "../components/useClientSlug";
 // The funnel's colour tokens live with the campaigns page. Imported rather than copied, so a band means
 // the same thing on both screens by construction.
 import "./campaigns/campaigns.css";
@@ -104,7 +104,7 @@ function briefing(data: Payload): React.ReactNode[] {
       <span key="replies">
         {" "}
         <b>{n(w.replies)}</b> {w.replies === 1 ? "person" : "people"} replied
-        {w.positive > 0 ? <>, <b>{n(w.positive)}</b> of them positive</> : null}
+        {w.positive > 0 ? <>, <b>{n(w.positive)}</b> of which were positive</> : null}
         .
       </span>,
     );
@@ -129,8 +129,7 @@ function briefing(data: Payload): React.ReactNode[] {
 
 
 function Overview() {
-  const params = useSearchParams();
-  const clientSlug = params.get("client");
+  const clientSlug = useClientSlug();
 
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");

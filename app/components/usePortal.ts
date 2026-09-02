@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useClientSlug } from "./useClientSlug";
 import { useCachedJson } from "./cache";
 
 /**
@@ -83,8 +83,7 @@ export type PortalData = {
  * the first load costs nothing on screen.
  */
 export function usePortal() {
-  const params = useSearchParams();
-  const client = params.get("client");
+  const client = useClientSlug();
   const url = `/api/portal${client ? `?client=${encodeURIComponent(client)}` : ""}`;
   const { data, error, loading } = useCachedJson<PortalData>(url);
   return { data, error, loading, clientSlug: client };
