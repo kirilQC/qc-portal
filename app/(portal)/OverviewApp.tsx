@@ -54,7 +54,7 @@ type Payload = {
     totalLeads: number; leadsPending: number; connectionsSent: number; connectionsAccepted: number;
     replies: number; acceptanceRate: number; replyRate: number; progress: number;
   }[];
-  leadsTotal?: number; repliesTotal?: number;
+  leadsTotal?: number; reachedTotal?: number; repliesTotal?: number;
   weeklyTrends?: TrendPoint[];
   feed?: FeedEvent[];
   senders?: string[];
@@ -212,10 +212,17 @@ function Overview() {
   const active = data.activeCampaigns ?? [];
 
   /** The tabs this page hands off to, with the one number that says whether it is worth opening. */
-  const tiles = [
-    { href: "/database", label: "Total leads", value: n(data.leadsTotal ?? 0), note: "reached out to" },
-    { href: "/inbox", label: "Replies", value: n(data.repliesTotal ?? 0), note: "leads that replied" },
-    { href: "/campaigns", label: "Campaigns", value: n(data.campaignsTotal ?? 0), note: `${n(data.campaignsRunning ?? 0)} running` },
+  // Eight figures on one flush grid — four counts up top, four rates/outcomes below. `href` makes a cell
+  // link into its tab; `math` shows the tiny "n of m" under a rate.
+  const cells: { label: string; value: string; href?: string; math?: string }[] = [
+    { label: "Reached out to", value: n(data.reachedTotal ?? 0), href: "/campaigns" },
+    { label: "Total leads", value: n(data.leadsTotal ?? 0), href: "/database" },
+    { label: "Replies", value: n(data.repliesTotal ?? 0), href: "/inbox" },
+    { label: "Campaigns", value: n(data.campaignsTotal ?? 0), href: "/campaigns" },
+    { label: "Acceptance rate", value: w.reached ? `${w.acceptanceRate}%` : "—", math: w.reached ? `${n(w.accepted)} of ${n(w.reached)}` : undefined },
+    { label: "Reply rate", value: w.accepted ? `${w.replyRate}%` : "—", math: w.accepted ? `${n(w.replies)} of ${n(w.accepted)}` : undefined },
+    { label: "Campaigns running", value: n(data.campaignsRunning ?? 0), href: "/campaigns" },
+    { label: "Meetings booked", value: n(data.meetingsBooked ?? 0), href: "/meetings" },
   ];
 
   return (
@@ -249,26 +256,26 @@ function Overview() {
         <p>{briefing(data)}</p>
       </ActivityNetwork>
 
-      {/* One combined stats box: the headline counts up top (clickable into their tabs), the rates and
-          outcomes on a quieter line beneath. */}
+      {/* Eight figures, one flush grid — four across, two rows. Cells with an href link into their tab. */}
       <section className="ov-stats">
-        <div className="ov-stats-top">
-          {tiles.map((tile) => (
-            <Link key={tile.href} href={`${clientSlug ? `/${clientSlug}` : ""}${tile.href}`} className="ov-stat-tile">
-              <strong>{tile.value}</strong>
-              <span>{tile.label}</span>
+        {cells.map((cell) => {
+          const inner = (
+            <>
+              <strong>{cell.value}</strong>
+              <span className="ov-cell-label">{cell.label}</span>
+              {cell.math && <em>{cell.math}</em>}
+            </>
+          );
+          return cell.href ? (
+            <Link key={cell.label} href={`${clientSlug ? `/${clientSlug}` : ""}${cell.href}`} className="ov-cell">
+              {inner}
             </Link>
-          ))}
-        </div>
-        <div className="ov-stats-bot">
-          <span className="ov-stat"><i>Acceptance</i> <b>{w.reached ? `${w.acceptanceRate}%` : "—"}</b>{w.reached ? <em>{n(w.accepted)} of {n(w.reached)}</em> : null}</span>
-          <span className="ov-stat-dot">·</span>
-          <span className="ov-stat"><i>Reply rate</i> <b>{w.accepted ? `${w.replyRate}%` : "—"}</b>{w.accepted ? <em>{n(w.replies)} of {n(w.accepted)}</em> : null}</span>
-          <span className="ov-stat-dot">·</span>
-          <span className="ov-stat"><i>Campaigns running</i> <b>{n(data.campaignsRunning ?? 0)}</b></span>
-          <span className="ov-stat-dot">·</span>
-          <span className="ov-stat"><i>Meetings booked</i> <b>{n(data.meetingsBooked ?? 0)}</b></span>
-        </div>
+          ) : (
+            <div key={cell.label} className="ov-cell">
+              {inner}
+            </div>
+          );
+        })}
       </section>
 
       <section className="panel ov-thisweek">

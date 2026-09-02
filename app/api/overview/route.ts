@@ -498,6 +498,8 @@ async function build(session: Session, workspaceId: string, range: string) {
     weeklyTrends,
     /** For the tiles that link into the other tabs. */
     leadsTotal: leadsCount,
+    /** Every connection request sent across all campaigns — people actually reached out to. */
+    reachedTotal: allTime.reached,
     repliesTotal: allTime.replies,
     meetingsBooked: meetings.length,
     meetingsUpcoming: meetings.filter((row) => row.meeting_at && Date.parse(str(row.meeting_at)) > now).length,
