@@ -3,7 +3,7 @@
 
 "use client";
 
-import { Suspense } from "react";
+
 import ClientHead from "../../../components/ClientHead";
 import { dateTime, usePortal } from "../../../components/usePortal";
 
@@ -88,8 +88,6 @@ function Meetings() {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
       <Meetings />
-    </Suspense>
   );
 }

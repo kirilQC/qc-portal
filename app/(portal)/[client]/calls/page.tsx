@@ -5,7 +5,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- loads on mount and when the client changes; the
    setState calls sit inside async callbacks rather than the effect body. */
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
 import "./calls.css";
 // Plain ESM, shared with the test runner; see shared/calls.mjs.
@@ -74,9 +74,7 @@ function dateParts(iso: string | null): { dow: string; day: string; rest: string
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
       <Calls />
-    </Suspense>
   );
 }
 

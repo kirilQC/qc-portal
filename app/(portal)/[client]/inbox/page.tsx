@@ -5,7 +5,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- the load happens on mount and on client change;
    the setState calls sit inside async callbacks rather than the effect body. */
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
 import { activeTimeZone } from "../../../components/Appearance";
 import "./inbox.css";
@@ -575,8 +575,6 @@ function Submenu({ current, values, onPick, allLabel }: { current: string; value
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
       <Inbox />
-    </Suspense>
   );
 }

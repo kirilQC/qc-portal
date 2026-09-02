@@ -5,7 +5,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- loads on mount and when the client changes; the
    setState calls sit inside async callbacks rather than the effect body. */
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useClientSlug } from "../components/useClientSlug";
 // The funnel's colour tokens live with the campaigns page. Imported rather than copied, so a band means
@@ -216,10 +216,6 @@ function Overview() {
     { href: "/database", label: "Total leads", value: n(data.leadsTotal ?? 0), note: "reached out to" },
     { href: "/inbox", label: "Replies", value: n(data.repliesTotal ?? 0), note: "leads that replied" },
     { href: "/campaigns", label: "Campaigns", value: n(data.campaignsTotal ?? 0), note: `${n(data.campaignsRunning ?? 0)} running` },
-    { href: "/meetings", label: "Meetings", value: n(data.meetingsBooked ?? 0), note: (data.meetingsUpcoming ?? 0) > 0 ? `${data.meetingsUpcoming} upcoming` : "none booked yet" },
-    { href: "/analytics", label: "Analytics", value: "", note: "Rates over time" },
-    { href: "/messaging", label: "Messaging", value: "", note: "What we are sending" },
-    { href: "/calls", label: "Weekly calls", value: "", note: "What was decided" },
   ];
 
   return (
@@ -311,7 +307,6 @@ function Overview() {
                     <i className={step.tone} style={{ width: `${Math.max((step.value / widest) * 100, 1)}%` }} />
                   </span>
                   <b className="ov-fval">{n(step.value)}</b>
-                  <em className="ov-frate">{step.rate === null ? "" : `${step.rate}% ${step.of ?? ""}`}</em>
                 </div>
               ))}
             </div>
@@ -375,8 +370,6 @@ function Overview() {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
       <Overview />
-    </Suspense>
   );
 }

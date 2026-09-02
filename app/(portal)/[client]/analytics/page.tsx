@@ -5,7 +5,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- loads on mount and when the client changes; the
    setState calls sit inside async callbacks rather than the effect body. */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
 import "./analytics.css";
 
@@ -380,8 +380,6 @@ function CardTitle({ title, subtitle }: { title: string; subtitle?: string }) {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
       <Analytics />
-    </Suspense>
   );
 }

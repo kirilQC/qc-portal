@@ -5,7 +5,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- loads on mount and when the client changes; the
    setState calls sit inside an async callback rather than the effect body. */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
 // The funnel's colour tokens and its `.k-*` segment classes live with the campaigns page. Imported
 // rather than copied, so the same band is the same colour on both screens by construction.
@@ -97,9 +97,7 @@ function bucketOf(doc: Doc): "live" | "done" | "none" {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
       <Messaging />
-    </Suspense>
   );
 }
 

@@ -5,7 +5,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- loads on mount and whenever a filter changes; the
    setState calls are inside async callbacks rather than the effect body. */
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
 import "./database.css";
 
@@ -448,8 +448,6 @@ function Field({ label, value, link, wide }: { label: string; value: string | nu
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
       <Database />
-    </Suspense>
   );
 }

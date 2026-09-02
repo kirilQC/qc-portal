@@ -1,7 +1,6 @@
 // Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
 // QC Portal — proprietary. Not licensed for redistribution or resale.
 
-import { Suspense } from "react";
 import Shell from "../components/Shell";
 
 /**
@@ -17,9 +16,5 @@ import Shell from "../components/Shell";
  * The login screen sits outside this group deliberately: it is the one page with no shell to keep.
  */
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense fallback={null}>
-      <Shell>{children}</Shell>
-    </Suspense>
-  );
+  return <Shell>{children}</Shell>;
 }
