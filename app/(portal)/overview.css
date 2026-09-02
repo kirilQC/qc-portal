@@ -323,3 +323,21 @@
   .ov-hero-copy { position: static; width: auto; background: none; padding: 16px 16px 4px; }
   .ov-hero-copy p { text-shadow: none; }
 }
+
+/* ═══ Weekly reply trends chart ═══ */
+.ov-trend { margin-bottom: 18px; }
+.ov-trend .panel-head { padding: 18px 22px 6px; }
+.trend-wrap { position: relative; padding: 6px 20px 16px; }
+.trend-svg { width: 100%; height: auto; display: block; overflow: visible; touch-action: none; }
+.trend-axis { fill: var(--muted-2, #6b7280); font-size: 11px; }
+.trend-xlab { fill: var(--muted-2, #6b7280); font-size: 11px; }
+.trend-legend { display: flex; gap: 26px; justify-content: center; margin-top: 6px; }
+.trend-legend span { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--muted, #9aa0ad); }
+.trend-legend i { width: 18px; height: 3px; border-radius: 2px; position: relative; }
+.trend-legend i::after { content: ; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: inherit; }
+.trend-tip { position: absolute; top: 4px; transform: translateX(-50%); pointer-events: none; background: #0c0e14; border: 1px solid var(--border, rgba(255,255,255,.09)); border-radius: 10px; padding: 9px 12px; font-size: 12px; z-index: 5; box-shadow: 0 12px 30px rgba(0,0,0,.5); white-space: nowrap; }
+.trend-tip b { display: block; font-size: 11px; color: var(--muted-2, #6b7280); font-weight: 600; margin-bottom: 5px; }
+.trend-tip-r { display: flex; align-items: center; gap: 7px; line-height: 1.55; }
+.trend-tip-r i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.trend-tip-r data { margin-left: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.trend-empty { padding: 40px 22px; text-align: center; color: var(--muted-2, #6b7280); font-size: 12.5px; }

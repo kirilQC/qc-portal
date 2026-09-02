@@ -13,6 +13,7 @@ import { useSearchParams } from "next/navigation";
 import "./campaigns/campaigns.css";
 import "./overview.css";
 import ActivityNetwork, { type ActivityEvent } from "../components/ActivityNetwork";
+import TrendsChart, { type TrendPoint } from "./TrendsChart";
 
 /**
  * The client's overview: a month in a sentence, the trend behind it, and what has happened since.
@@ -54,6 +55,7 @@ type Payload = {
     replies: number; acceptanceRate: number; replyRate: number; progress: number;
   }[];
   leadsTotal?: number; repliesTotal?: number;
+  weeklyTrends?: TrendPoint[];
   feed?: FeedEvent[];
   senders?: string[];
 };
@@ -306,6 +308,11 @@ function Overview() {
                 </div>
               ))}
             </div>
+      </section>
+
+      <section className="panel ov-trend">
+        <div className="panel-head"><h2>Weekly reply trends</h2><span>Last 13 weeks</span></div>
+        <TrendsChart data={data.weeklyTrends ?? []} />
       </section>
 
       <section className="panel ov-campaigns">

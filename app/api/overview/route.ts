@@ -441,6 +441,15 @@ async function build(session: Session, workspaceId: string, range: string) {
   // loaded into more than one campaign — that sum is what showed a wildly inflated 15k).
   const leadsCount = await scopedCount(session, "rr_leads", {}, workspaceId).catch(() => allTime.leads);
 
+  // Weekly trend, last 13 weeks (Monday-anchored): total replies, positive replies, booked meetings per week.
+  const WEEKS_BACK = 13;
+  const weekStart = (ms: number) => { const d = new Date(ms); const day = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - day); d.setUTCHours(0, 0, 0, 0); return d.getTime(); };
+  const firstWeek = weekStart(now) - (WEEKS_BACK - 1) * 7 * DAY_MS;
+  const weekIndex = (ms: number) => { const idx = Math.round((weekStart(ms) - firstWeek) / (7 * DAY_MS)); return idx >= 0 && idx < WEEKS_BACK ? idx : -1; };
+  const weeklyTrends = Array.from({ length: WEEKS_BACK }, (_, i) => ({ week: new Date(firstWeek + i * 7 * DAY_MS).toISOString().slice(0, 10), total: 0, positive: 0, meetings: 0 }));
+  for (const row of inbound) { const idx = weekIndex(Date.parse(str(row.sent_at))); if (idx < 0) continue; weeklyTrends[idx].total += 1; if (str(row.sentiment).toLowerCase() === "positive") weeklyTrends[idx].positive += 1; }
+  for (const row of meetings) { const at = str(row.created_at) || str(row.meeting_at); if (!at) continue; const idx = weekIndex(Date.parse(at)); if (idx < 0) continue; weeklyTrends[idx].meetings += 1; }
+
   return {
     client: {
       id: str(workspace.id),
@@ -483,6 +492,7 @@ async function build(session: Session, workspaceId: string, range: string) {
     // The people behind the outreach, for the network's anchor nodes. Names, never ids.
     senders: [...new Set(dailyRows.map((row) => str(row.sender_name)).filter(Boolean))].slice(0, 8),
     bestCampaigns,
+    weeklyTrends,
     /** For the tiles that link into the other tabs. */
     leadsTotal: leadsCount,
     repliesTotal: allTime.replies,
