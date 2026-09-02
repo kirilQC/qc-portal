@@ -4,8 +4,8 @@
 "use client";
 
 import { Suspense } from "react";
-import ClientHead from "../../components/ClientHead";
-import { dateTime, usePortal } from "../../components/usePortal";
+import ClientHead from "../../../components/ClientHead";
+import { dateTime, usePortal } from "../../../components/usePortal";
 
 /** Every meeting booked, upcoming first — for most clients this is the number that matters. */
 function Meetings() {

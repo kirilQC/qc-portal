@@ -6,10 +6,10 @@
    setState calls sit inside async callbacks rather than the effect body. */
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useClientSlug } from "../../components/useClientSlug";
+import { useClientSlug } from "../../../components/useClientSlug";
 import "./calls.css";
 // Plain ESM, shared with the test runner; see shared/calls.mjs.
-import { parseCall } from "../../../shared/calls.mjs";
+import { parseCall } from "../../../../shared/calls.mjs";
 
 /**
  * Weekly calls, read as calls.

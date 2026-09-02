@@ -6,7 +6,7 @@
    reading either during render would make the scale depend on when React happened to re-render. */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Campaign } from "../../components/usePortal";
+import type { Campaign } from "../../../components/usePortal";
 
 /**
  * When each campaign ran, on one scrollable scale.

@@ -6,8 +6,8 @@
    the setState calls sit inside async callbacks rather than the effect body. */
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useClientSlug } from "../../components/useClientSlug";
-import { activeTimeZone } from "../../components/Appearance";
+import { useClientSlug } from "../../../components/useClientSlug";
+import { activeTimeZone } from "../../../components/Appearance";
 import "./inbox.css";
 
 /**

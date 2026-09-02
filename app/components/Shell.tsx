@@ -89,8 +89,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const pathname = usePathname();
   const suffix = clientParam ? `?client=${encodeURIComponent(clientParam)}` : "";
-  const clientHref = (tabHref: string) => `${tabHref}${suffix}`;
-  const activeTab = pathname;
+  // Clean path URLs: a client's pages live at /{slug} and /{slug}/{tab} (real [client] route segments).
+  const clientPrefix = clientParam ? `/${clientParam}` : "";
+  const clientHref = (tabHref: string) => (clientPrefix ? `${clientPrefix}${tabHref === "/" ? "" : tabHref}` : `${tabHref}${suffix}`);
+  // The tab for nav highlighting, with the /{slug} prefix stripped so it still matches item.href ("/messaging").
+  const activeTab = clientPrefix && pathname.startsWith(clientPrefix) ? (pathname.slice(clientPrefix.length) || "/") : pathname;
 
   useEffect(() => {
     try {
@@ -233,7 +236,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className={`shell ${collapsed ? "is-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-head">
-          <Link href={inClient ? `/${suffix}` : "/"} className="brand" title={brandClient?.name ?? "QC Growth"}>
+          <Link href={inClient ? (clientPrefix || "/") : "/"} className="brand" title={brandClient?.name ?? "QC Growth"}>
             {brand}
           </Link>
           <button

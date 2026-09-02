@@ -6,13 +6,13 @@
    setState calls sit inside an async callback rather than the effect body. */
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useClientSlug } from "../../components/useClientSlug";
+import { useClientSlug } from "../../../components/useClientSlug";
 // The funnel's colour tokens and its `.k-*` segment classes live with the campaigns page. Imported
 // rather than copied, so the same band is the same colour on both screens by construction.
 import "../campaigns/campaigns.css";
 import "./messaging.css";
 // Plain ESM, shared with the test runner; see shared/messaging.mjs.
-import { SORTS, positiveRateOf, replyRateOf, sortDocs, totalChars } from "../../../shared/messaging.mjs";
+import { SORTS, positiveRateOf, replyRateOf, sortDocs, totalChars } from "../../../../shared/messaging.mjs";
 
 /**
  * Campaign messaging, read as sequences rather than as documents.

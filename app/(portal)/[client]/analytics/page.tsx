@@ -6,7 +6,7 @@
    setState calls sit inside async callbacks rather than the effect body. */
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useClientSlug } from "../../components/useClientSlug";
+import { useClientSlug } from "../../../components/useClientSlug";
 import "./analytics.css";
 
 /**

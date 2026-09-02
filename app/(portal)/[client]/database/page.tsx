@@ -6,7 +6,7 @@
    setState calls are inside async callbacks rather than the effect body. */
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useClientSlug } from "../../components/useClientSlug";
+import { useClientSlug } from "../../../components/useClientSlug";
 import "./database.css";
 
 /**

@@ -219,7 +219,7 @@ function ClientHealth({ client, open, onToggle }: { client: Ops; open: boolean; 
             {client.lastRun?.error && <Row label="Last error" value={client.lastRun.error} bad />}
           </div>
           <div style={{ padding: "0 4px 4px" }}>
-            <Link className="button ghost small" href={`/?client=${encodeURIComponent(client.slug)}`}>
+            <Link className="button ghost small" href={`/${client.slug}`}>
               Open this client&apos;s portal →
             </Link>
           </div>

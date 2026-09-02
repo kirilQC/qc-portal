@@ -4,9 +4,9 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
-import ClientHead from "../../components/ClientHead";
+import ClientHead from "../../../components/ClientHead";
 import Timeline from "./Timeline";
-import { usePortal, type Campaign } from "../../components/usePortal";
+import { usePortal, type Campaign } from "../../../components/usePortal";
 import "./campaigns.css";
 
 /**
