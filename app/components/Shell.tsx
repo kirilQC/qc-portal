@@ -158,6 +158,25 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const inClient = me?.user.role === "client" || Boolean(clientParam);
   const brandClient = me?.client ?? null;
 
+  // The browser tab wears the client's identity, not QC's: "Arcjet Dashboard" with Arcjet's logo as the
+  // favicon whenever a client is in view, falling back to QC on the directory. A client watching their own
+  // portal should see themselves in the tab strip, the same reason the top-left mark is theirs.
+  useEffect(() => {
+    const name = inClient && brandClient ? brandClient.name : "";
+    document.title = name ? `${name} Dashboard` : "QC Growth";
+    const logo = inClient && brandClient?.logoUrl ? brandClient.logoUrl : "";
+    let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+    if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+    if (logo) {
+      const ext = logo.split("?")[0].split(".").pop()?.toLowerCase();
+      link.type = ext === "svg" ? "image/svg+xml" : ext === "png" ? "image/png" : ext === "ico" ? "image/x-icon" : "image/jpeg";
+      link.href = logo;
+    } else {
+      link.removeAttribute("type");
+      link.href = "/favicon.ico";
+    }
+  }, [inClient, brandClient?.name, brandClient?.logoUrl, pathname]);
+
   const clientPages: { href: string; label: string; icon: string }[] = [
     { href: "/", label: "Overview", icon: "overview" },
     { href: "/inbox", label: "Inbox", icon: "replies" },
