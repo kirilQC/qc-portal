@@ -173,6 +173,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Close the settings menu on any navigation, so it never hangs over the next page.
   useEffect(() => setSettingsOpen(false), [pathname, clientParam]);
 
+  // TEMP nav diagnostic — remove once the two-click issue is understood.
+  useEffect(() => { console.log("[NAV] Shell sees pathname:", pathname); }, [pathname]);
+
   /**
    * A client session always has a client. A staff session has one only once they have opened it, and
    * `me.client` is null for staff — so the URL is what says whether staff are inside a client.

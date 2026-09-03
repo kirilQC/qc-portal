@@ -95,6 +95,9 @@ function Avatar({ src, alt, fallback }: { src?: string | null; alt: string; fall
 function Inbox() {
   const clientSlug = useClientSlug();
 
+  // TEMP nav diagnostic — remove once the two-click issue is understood.
+  useEffect(() => { console.log("[NAV] Inbox MOUNTED"); return () => console.log("[NAV] Inbox unmounted"); }, []);
+
   const [leads, setLeads] = useState<Lead[]>([]);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
