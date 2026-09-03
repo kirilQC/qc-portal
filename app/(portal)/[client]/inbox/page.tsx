@@ -601,12 +601,6 @@ function Inbox() {
                 >
                   {sending ? "Sending…" : justSent ? "Sent ✓" : armed ? "Click again to send" : "Send reply"}
                 </button>
-                {current.cachedReason && (
-                  <div className="reason-box">
-                    <small>WHY THIS SCORE</small>
-                    <p>{current.cachedReason}</p>
-                  </div>
-                )}
               </div>
             </>
           )}

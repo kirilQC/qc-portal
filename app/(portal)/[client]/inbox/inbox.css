@@ -169,8 +169,11 @@
 .lead-row.row-sentiment-positive:hover { background: color-mix(in srgb, var(--green) 13%, var(--panel-2)); }
 .lead-row.row-sentiment-neutral:hover { background: color-mix(in srgb, var(--amber) 11%, var(--panel-2)); }
 .lead-row.row-sentiment-negative:hover { background: color-mix(in srgb, var(--coral) 13%, var(--panel-2)); }
-/* Selection outranks sentiment: which row you are on matters more than how it reads. */
-.lead-row.row-selected[class*="row-sentiment"] { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent); }
+/* Selection is shown as a stronger background overlay, and the sentiment stripe is kept — the colour is
+ * how the queue is read at a glance, and losing it on the row you are reading is exactly the wrong time. */
+.lead-row.row-selected.row-sentiment-positive { background: color-mix(in srgb, var(--green) 16%, var(--panel-2)); box-shadow: inset 3px 0 0 var(--green); }
+.lead-row.row-selected.row-sentiment-neutral { background: color-mix(in srgb, var(--amber) 14%, var(--panel-2)); box-shadow: inset 3px 0 0 var(--amber); }
+.lead-row.row-selected.row-sentiment-negative { background: color-mix(in srgb, var(--coral) 16%, var(--panel-2)); box-shadow: inset 3px 0 0 var(--coral); }
 
 .lead-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .lead-avatar {
