@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useClientSlug } from "../components/useClientSlug";
+import { useCachedJson } from "../components/cache";
 import { PageSkeleton } from "../components/PageSkeleton";
 // The funnel's colour tokens live with the campaigns page. Imported rather than copied, so a band means
 // the same thing on both screens by construction.
@@ -132,36 +133,19 @@ function briefing(data: Payload): React.ReactNode[] {
 function Overview() {
   const clientSlug = useClientSlug();
 
-  const [data, setData] = useState<Payload | null>(null);
-  const [error, setError] = useState("");
   /*
    * A week by default. These are weekly-call clients, so the question on opening the page is "what has
    * happened since we last spoke" rather than "how is the quarter going".
    */
   const [range, setRange] = useState("week");
 
+  // Served from the shared cache: revisiting the overview shows the last figures instantly and refreshes
+  // them in the background, so switching to this tab and back never flashes a loading state again.
+  const search = new URLSearchParams({ range });
+  if (clientSlug) search.set("client", clientSlug);
+  const { data, error } = useCachedJson<Payload>(`/api/overview?${search.toString()}`);
 
-  useEffect(() => {
-    setData(null);
-    void (async () => {
-      try {
-        const search = new URLSearchParams({ range });
-        if (clientSlug) search.set("client", clientSlug);
-        const response = await fetch(`/api/overview?${search.toString()}`, { cache: "no-store" });
-        const payload = (await response.json().catch(() => ({}))) as Payload;
-        if (!response.ok) {
-          setError(payload.error || "That did not load.");
-          return;
-        }
-        setError("");
-        setData(payload);
-      } catch {
-        setError("That did not load.");
-      }
-    })();
-  }, [clientSlug, range]);
-
-  if (error) return <div className="content"><p className="error-note">{error}</p></div>;
+  if (error && !data) return <div className="content"><p className="error-note">{error}</p></div>;
   if (!data) return <PageSkeleton tiles={8} />;
 
   // ── Staff: the client directory ──────────────────────────────────────────────────────────────

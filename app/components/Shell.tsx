@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useClientSlug } from "./useClientSlug";
 import SettingsPanel from "./SettingsPanel";
 import AppearanceControl from "./Appearance";
@@ -90,21 +90,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
-  /**
-   * Navigate on click, imperatively.
-   *
-   * A plain `<Link>` navigates inside a React transition, and on this app that transition would not
-   * commit until the next interaction — the URL and the active tab changed on the first click, but the
-   * page stayed on the old tab until a second click anywhere. `router.push` from the click handler is an
-   * urgent navigation that commits immediately. The `href` stays on the anchor so middle-click and
-   * cmd/ctrl-click still open a new tab, and modified clicks are left to the browser.
-   */
-  const go = (href: string) => (event: React.MouseEvent) => {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-    event.preventDefault();
-    if (href !== pathname) router.push(href);
-  };
   const suffix = clientParam ? `?client=${encodeURIComponent(clientParam)}` : "";
   // Clean path URLs: a client's pages live at /{slug} and /{slug}/{tab} (real [client] route segments).
   const clientPrefix = clientParam ? `/${clientParam}` : "";
@@ -277,8 +262,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {me?.user.role === "staff" && (
             <Link
               href="/"
-              prefetch={false}
-              onClick={go("/")}
               className={`nav-item ${pathname === "/" && !inClient ? "active" : ""}`}
               title="Clients"
             >
@@ -292,8 +275,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={clientHref(item.href)}
-                prefetch={false}
-                onClick={go(clientHref(item.href))}
                 className={`nav-item ${activeTab === item.href ? "active" : ""}`}
                 title={item.label}
               >
@@ -305,7 +286,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
         <div className="sidebar-foot">
           {me?.user.role === "staff" && (
-            <Link href={healthBad ? "/admin/ops" : "/admin"} prefetch={false} onClick={go(healthBad ? "/admin/ops" : "/admin")} className={`nav-item ${pathname.startsWith("/admin") ? "active" : ""}`} title={healthBad ? "Admin — something needs attention" : "Admin"}>
+            <Link href={healthBad ? "/admin/ops" : "/admin"} className={`nav-item ${pathname.startsWith("/admin") ? "active" : ""}`} title={healthBad ? "Admin — something needs attention" : "Admin"}>
               <span className="nav-icon-wrap">
                 <Icon name="admin" />
                 {healthBad && <i className="nav-alert-dot" aria-hidden="true" />}
