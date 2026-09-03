@@ -161,9 +161,6 @@ function Overview() {
     })();
   }, [clientSlug, range]);
 
-  // TEMP nav diagnostic — remove once the two-click issue is understood.
-  useEffect(() => { console.log("[NAV] OverviewApp MOUNTED"); return () => console.log("[NAV] OverviewApp unmounted"); }, []);
-
   if (error) return <div className="content"><p className="error-note">{error}</p></div>;
   if (!data) return <PageSkeleton tiles={8} />;
 

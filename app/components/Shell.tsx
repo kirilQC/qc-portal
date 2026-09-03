@@ -173,9 +173,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Close the settings menu on any navigation, so it never hangs over the next page.
   useEffect(() => setSettingsOpen(false), [pathname, clientParam]);
 
-  // TEMP nav diagnostic — remove once the two-click issue is understood.
-  useEffect(() => { console.log("[NAV] Shell sees pathname:", pathname); }, [pathname]);
-
   /**
    * A client session always has a client. A staff session has one only once they have opened it, and
    * `me.client` is null for staff — so the URL is what says whether staff are inside a client.
@@ -184,21 +181,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const brandClient = me?.client ?? null;
 
   // The browser tab wears the client's identity, not QC's: "Arcjet Dashboard" with Arcjet's logo as the
-  // favicon whenever a client is in view, falling back to QC on the directory. A client watching their own
-  // portal should see themselves in the tab strip, the same reason the top-left mark is theirs.
-  useEffect(() => {
-    const name = inClient && brandClient ? brandClient.name : "";
-    document.title = name ? `${name} Dashboard` : "QC Growth";
-    const logo = inClient && brandClient?.logoUrl ? brandClient.logoUrl : "";
-    // Replace the icon element rather than mutating its href: changing href on an existing <link rel=icon>
-    // is ignored by several browsers, and Next injects its own icon links that would otherwise win. Remove
-    // them all, add a fresh one, and let the browser sniff the image type (a wrong `type` gets it rejected).
-    document.querySelectorAll('link[rel~="icon"], link[rel="shortcut icon"]').forEach((el) => el.remove());
-    const link = document.createElement("link");
-    link.rel = "icon";
-    link.href = logo || "/favicon.ico";
-    document.head.appendChild(link);
-  }, [inClient, brandClient?.name, brandClient?.logoUrl, pathname]);
+  // favicon whenever a client is in view, falling back to QC on the directory. These are rendered as real
+  // <title>/<link> elements in the tree below — React 19 hoists them into <head> and manages them itself.
+  //
+  // This used to hand-edit the head in an effect (querySelectorAll(...).remove() + appendChild). That was
+  // the two-click navigation bug: React also owns the head, so on the next render it tried to removeChild a
+  // node the effect had already deleted, threw "Cannot read properties of null (reading 'removeChild')",
+  // and left the render half-committed — so a tab click changed the URL but not the screen until a second
+  // click forced a recovery render. Declaring the tags lets React add/replace/remove them without a crash.
+  const pageTitle = inClient && brandClient ? `${brandClient.name} Dashboard` : "QC Growth";
+  const faviconHref = inClient && brandClient?.logoUrl ? brandClient.logoUrl : "";
 
   const clientPages: { href: string; label: string; icon: string }[] = [
     { href: "/", label: "Overview", icon: "overview" },
@@ -255,6 +247,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`shell ${collapsed ? "is-collapsed" : ""}`}>
+      {/* Hoisted into <head> and managed by React — never hand-edited (see the note above). */}
+      <title>{pageTitle}</title>
+      {faviconHref ? <link rel="icon" href={faviconHref} /> : null}
       <aside className="sidebar">
         <div className="sidebar-head">
           <Link href={inClient ? (clientPrefix || "/") : "/"} className="brand" title={brandClient?.name ?? "QC Growth"}>
