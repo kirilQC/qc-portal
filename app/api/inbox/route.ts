@@ -19,7 +19,7 @@
  */
 import { NextResponse } from "next/server";
 import { resolveScope } from "../../lib/auth-context";
-import { num, scopedByConversation, scopedRows, str, type Row } from "../../lib/db";
+import { num, scopedByConversation, scopedCount, scopedRows, str, type Row } from "../../lib/db";
 import type { Session } from "../../lib/session";
 
 export const maxDuration = 60;
@@ -237,8 +237,13 @@ export async function GET(request: Request) {
   if (!workspaceId) return NextResponse.json({ ok: false, error: "Pick a client first." }, { status: 400 });
 
   try {
-    const conversations = await buildInbox(session, workspaceId);
-    return NextResponse.json({ ok: true, conversations });
+    // The true, uncapped count of reply conversations for the headline metrics — the table itself only
+    // loads the most recent LIMIT of them, so counting the loaded rows undercounts and reads as capped.
+    const [conversations, conversationTotal] = await Promise.all([
+      buildInbox(session, workspaceId),
+      scopedCount(session, "rr_conversations", {}, workspaceId).catch(() => 0),
+    ]);
+    return NextResponse.json({ ok: true, conversations, conversationTotal });
   } catch (error) {
     return NextResponse.json(
       { ok: false, conversations: [], error: error instanceof Error ? error.message : "The inbox did not load." },

@@ -456,6 +456,12 @@ async function build(session: Session, workspaceId: string, range: string) {
   // loaded into more than one campaign — that sum is what showed a wildly inflated 15k).
   const leadsCount = await scopedCount(session, "rr_leads", {}, workspaceId).catch(() => allTime.leads);
 
+  // "Replies" is the number of leads who have replied — one conversation is one lead who replied, so it
+  // is the true count of conversation threads, uncapped. This is the SAME figure the inbox shows, so the
+  // two pages agree. It deliberately does NOT use the sum of each campaign's HeyReach reply count, which
+  // double-counts anyone who replied across more than one campaign (that sum read 688 against 627 here).
+  const repliesCount = await scopedCount(session, "rr_conversations", {}, workspaceId).catch(() => allTime.replies);
+
   // Weekly trend, last 13 weeks (Monday-anchored): total replies, positive replies, booked meetings per week.
   const WEEKS_BACK = 13;
   const weekStart = (ms: number) => { const d = new Date(ms); const day = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - day); d.setUTCHours(0, 0, 0, 0); return d.getTime(); };
@@ -519,7 +525,7 @@ async function build(session: Session, workspaceId: string, range: string) {
     leadsTotal: leadsCount,
     /** Every connection request sent across all campaigns — people actually reached out to. */
     reachedTotal: allTime.reached,
-    repliesTotal: allTime.replies,
+    repliesTotal: repliesCount,
     meetingsBooked: meetings.length,
     meetingsUpcoming: meetings.filter((row) => row.meeting_at && Date.parse(str(row.meeting_at)) > now).length,
     sparklines: {

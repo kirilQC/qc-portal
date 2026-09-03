@@ -96,6 +96,7 @@ function Inbox() {
   const clientSlug = useClientSlug();
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [conversationTotal, setConversationTotal] = useState(0);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
@@ -203,6 +204,7 @@ function Inbox() {
           return;
         }
         setLeads(payload.conversations ?? []);
+        setConversationTotal(Number(payload.conversationTotal ?? 0));
         setError("");
       } catch {
         setError("The inbox did not load.");
@@ -315,8 +317,13 @@ function Inbox() {
     if (searchOpen) searchInput.current?.focus();
   }, [searchOpen]);
 
-  // The five metrics, computed from what is on screen, exactly as Reply Radar computes them.
-  const totalReplies = filtered.reduce((sum, lead) => sum + lead.replies, 0);
+  // "Replies" is distinct leads who have replied — one conversation is one such lead — so it is the count
+  // of conversation threads, which is exactly the figure the overview shows. For "all replies" that is the
+  // true uncapped total from the server; for a narrower range it is the conversations in view. It is NOT
+  // the sum of reply messages, which double-counted anyone who replied more than once (that read 627
+  // against the overview's 688, and both were wrong).
+  const isAllReplies = filter === "all";
+  const repliesValue = isAllReplies ? conversationTotal : filtered.length;
   const needsReply = filtered.filter((lead) => lead.messages.at(-1)?.direction === "inbound").length;
   const positive = filtered.filter((lead) => lead.sentiment === "positive").length;
   const scored = filtered.filter((lead) => lead.sentiment).length;
@@ -335,9 +342,9 @@ function Inbox() {
       {error && <p className="error-note" style={{ margin: "20px 32px 0" }}>{error}</p>}
 
       <div className="inbox-metrics">
-        <Metric label={`Replies ${rangeWord}`} value={String(totalReplies)} tone="purple" />
+        <Metric label={`Replies ${rangeWord}`} value={String(repliesValue)} tone="purple" />
         <Metric label={`Number of leads needing reply ${rangeWord}`} value={String(needsReply)} tone="coral" />
-        <Metric label="Conversations" value={String(filtered.length)} tone="amber" />
+        <Metric label="Conversations" value={String(isAllReplies ? conversationTotal : filtered.length)} tone="amber" />
         <Metric label="Positive replies" value={String(positive)} tone="green" />
         <Metric label={`Positive reply rate ${rangeWord}`} value={`${positiveRate}%`} tone="green" />
       </div>
