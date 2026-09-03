@@ -267,6 +267,22 @@
 .composer-body { padding: 12px; }
 .composer-body p { margin: 0; color: #e5e2ff; font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; }
 .composer-empty { color: #7a73ad !important; }
+.composer-input {
+  display: block; width: 100%; box-sizing: border-box; resize: vertical; min-height: 84px;
+  padding: 12px; border: 0; background: transparent; color: #e5e2ff;
+  font: inherit; font-size: 12px; line-height: 1.55; outline: none;
+}
+.composer-input::placeholder { color: #7a73ad; }
+.composer-error { margin: 0 12px; color: #ff9a8f; font-size: 10.5px; line-height: 1.45; }
+.composer-send {
+  display: block; width: calc(100% - 24px); margin: 10px 12px 12px; padding: 11px 14px;
+  border: 0; border-radius: 8px; cursor: pointer;
+  background: var(--accent); color: #fff; font-size: 12.5px; font-weight: 700; letter-spacing: .01em;
+  transition: filter .13s ease, background .13s ease;
+}
+.composer-send:hover:not(:disabled) { filter: brightness(1.08); }
+.composer-send:disabled { opacity: .5; cursor: default; }
+.composer-send.is-armed { background: #d9822b; }
 .reason-box { margin: 0 12px 12px; padding: 10px 12px; border-radius: 7px; background: #201d38; }
 .reason-box small { display: block; margin-bottom: 4px; color: var(--accent); font-size: 8px; letter-spacing: .1em; font-weight: 750; }
 .reason-box p { margin: 0; color: #c9c4e8; font-size: 11px; line-height: 1.5; }

@@ -5,7 +5,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- the load happens on mount and on client change;
    the setState calls sit inside async callbacks rather than the effect body. */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
 import { activeTimeZone } from "../../../components/Appearance";
 import "./inbox.css";
@@ -112,6 +112,14 @@ function Inbox() {
   const [starredOnly, setStarredOnly] = useState(false);
   const [stars, setStars] = useState<string[]>([]);
   const [submenu, setSubmenu] = useState<string | null>(null);
+
+  // The reply composer. `armed` is the confirm step — a first press arms it, a second actually sends, so
+  // a message never leaves on a single stray click. Editing the text disarms it.
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [justSent, setJustSent] = useState(false);
 
   useEffect(() => {
     try {
@@ -241,6 +249,62 @@ function Inbox() {
   }, [leads, search, filter, campaignFilter, senderFilter, sentimentFilter, tierFilter, starredOnly, stars, sort]);
 
   const current = filtered.find((lead) => lead.id === selectedId) ?? filtered[0] ?? null;
+
+  // Seed the composer with the AI draft whenever the open conversation changes, and reset the send state.
+  const currentId = current?.id ?? "";
+  useEffect(() => {
+    setDraft(current?.cachedDraft ?? "");
+    setArmed(false);
+    setSendError("");
+    setJustSent(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId]);
+
+  const sendReply = useCallback(async () => {
+    const message = draft.trim();
+    if (!current || !message || sending) return;
+    // First press only arms the confirm; the second actually sends.
+    if (!armed) {
+      setArmed(true);
+      return;
+    }
+    setSending(true);
+    setSendError("");
+    try {
+      const response = await fetch("/api/inbox/reply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ conversationId: current.id, message, confirm: "send", client: clientSlug }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        setSendError(payload.error || "That reply could not be sent.");
+        setArmed(false);
+        return;
+      }
+      const sentAt = String(payload.sentAt ?? "") || new Date().toISOString();
+      // Show the sent message immediately; HeyReach reports it back on the next sync and merges.
+      setLeads((was) =>
+        was.map((lead) =>
+          lead.id === current.id
+            ? {
+                ...lead,
+                cachedDraft: message,
+                lastMessageAt: sentAt,
+                messages: [...lead.messages, { id: `sent-${sentAt}`, body: message, direction: "outbound", sentAt, authorName: "You" }],
+              }
+            : lead,
+        ),
+      );
+      setArmed(false);
+      setJustSent(true);
+    } catch {
+      setSendError("That reply could not be sent.");
+      setArmed(false);
+    } finally {
+      setSending(false);
+    }
+  }, [draft, current, sending, armed, clientSlug]);
 
   useEffect(() => {
     threadEnd.current?.scrollIntoView({ block: "end" });
@@ -471,9 +535,6 @@ function Inbox() {
                 </div>
 
                 <div className="detail-tags">
-                  <span className={`score-pill ${band(current.score)}`}>
-                    {current.score} · {band(current.score)}
-                  </span>
                   {current.campaignName && <span className="tag-outline">{current.campaignName}</span>}
                   {current.sentiment && (
                     <span className={`sentiment-badge sentiment-${current.sentiment}`}>{current.sentiment}</span>
@@ -515,15 +576,31 @@ function Inbox() {
                 <div ref={threadEnd} />
               </div>
 
-              {/* The draft as it stands in the record. Read-only: see the note at the top of this file. */}
+              {/* Editable AI draft + send, straight to the lead on LinkedIn through HeyReach. */}
               <div className="composer">
                 <div className="composer-top">
                   <span>AI DRAFT</span>
-                  <em>read-only here</em>
                 </div>
-                <div className="composer-body">
-                  {current.cachedDraft ? <p>{current.cachedDraft}</p> : <p className="composer-empty">No draft written for this conversation yet.</p>}
-                </div>
+                <textarea
+                  className="composer-input"
+                  value={draft}
+                  onChange={(event) => {
+                    setDraft(event.target.value);
+                    setArmed(false);
+                    setJustSent(false);
+                    setSendError("");
+                  }}
+                  placeholder="Write a reply, or edit the AI draft…"
+                  rows={4}
+                />
+                {sendError && <p className="composer-error">{sendError}</p>}
+                <button
+                  className={`composer-send ${armed ? "is-armed" : ""}`}
+                  onClick={() => void sendReply()}
+                  disabled={sending || !draft.trim()}
+                >
+                  {sending ? "Sending…" : justSent ? "Sent ✓" : armed ? "Click again to send" : "Send reply"}
+                </button>
                 {current.cachedReason && (
                   <div className="reason-box">
                     <small>WHY THIS SCORE</small>
