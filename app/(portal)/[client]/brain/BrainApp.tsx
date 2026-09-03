@@ -238,34 +238,26 @@ export default function BrainApp() {
         ))}
       </div>
 
-      {/* Everything else — folders as banners that peek at their newest files; loose files open directly. */}
+      {/* Everything else — the same compact cards as the skeleton above. Folders open to their files; the
+          file count sits in the corner. Loose files open directly. */}
       {(folders.length > 0 || rootFiles.length > 0) && (
         <>
           <h2 className="brn-more">More in this folder</h2>
-          <div className="sp-band">
+          <div className="sp-grid">
             {folders.map((group) => (
-              <button key={group.folder} className="sp-folder" onClick={() => setOpenFolder(group)}>
-                <span className="sp-folder-ft">
-                  <span className="sp-folder-ic"><Glyph path="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></span>
-                  <b>{titleCase(group.folder)}</b>
-                  <span className="sp-folder-cnt">{group.files.length}</span>
-                </span>
-                <span className="sp-peek">
-                  {group.files.slice(0, 3).map((file) => (
-                    <span key={file.path}>{file.title}</span>
-                  ))}
-                  {group.files.length > 3 && <span className="sp-more">+{group.files.length - 3} more</span>}
+              <button key={group.folder} className="sp-card" onClick={() => setOpenFolder(group)}>
+                <span className="sp-rail" aria-hidden="true" />
+                <span className="sp-card-bd">
+                  <span className="sp-card-hd">
+                    <span className="sp-fic"><Glyph path="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></span>
+                    <span className="sp-card-count">{group.files.length}</span>
+                  </span>
+                  <span className="sp-card-title">{titleCase(group.folder)}</span>
                 </span>
               </button>
             ))}
             {rootFiles.map((file) => (
-              <button key={file.path} className="sp-folder is-file" onClick={() => openEntry(file, setOpenFile)}>
-                <span className="sp-folder-ft">
-                  <span className="sp-folder-ic"><Glyph path={FILE_ICON[file.kind] ?? FILE_ICON.other} /></span>
-                  <b>{file.title}</b>
-                </span>
-                <span className="sp-peek"><span className="sp-more">{file.kind === "doc" ? "Document" : file.kind}</span></span>
-              </button>
+              <FileCard key={file.path} file={file} onOpen={() => openEntry(file, setOpenFile)} />
             ))}
           </div>
         </>

@@ -90,10 +90,20 @@ export async function GET(request: Request) {
           path: doc.found,
           present: doc.present,
         })),
-        groups: skeleton.groups.map((group) => ({
-          folder: group.folder,
-          files: group.files.map((file) => ({ path: file.path, name: file.name, title: fileTitle(file.path), kind: fileKind(file.path) })),
-        })),
+        groups: skeleton.groups
+          .map((group) => ({
+            folder: group.folder,
+            // Drop any stray do-not-contact file: it is already its own "Do not contact" card above, and
+            // listing it again under a folder is a confusing duplicate.
+            files: group.files
+              .filter((file) => {
+                const base = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z]/g, "");
+                return base !== "dnc" && base !== "donotcontact";
+              })
+              .map((file) => ({ path: file.path, name: file.name, title: fileTitle(file.path), kind: fileKind(file.path) })),
+          }))
+          // A folder that held only that file is now empty — don't show an empty folder card.
+          .filter((group) => group.files.length > 0),
       },
     });
   } catch (error) {

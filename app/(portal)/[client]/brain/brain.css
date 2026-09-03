@@ -78,6 +78,8 @@
 .sp-rail { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); }
 .sp-card.off .sp-rail { background: var(--border); }
 .sp-card-bd { display: flex; flex-direction: column; gap: 14px; padding: 17px 18px 18px; min-height: 96px; }
+.sp-card-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.sp-card-count { font-size: 12px; font-weight: 650; color: var(--muted-2); font-variant-numeric: tabular-nums; }
 .sp-fic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: var(--accent-soft); background: color-mix(in srgb, var(--accent) 15%, transparent); }
 .sp-card.off .sp-fic { color: var(--muted-2); background: var(--panel-2); }
 .sp-fic svg { width: 17px; height: 17px; }
