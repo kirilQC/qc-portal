@@ -167,8 +167,22 @@ async function build(session: Session, workspaceId: string, range: string) {
   const accepted30 = sumDaily(windowStart, now + DAY_MS, "connections_accepted");
   const reachedPrev = sumDaily(previousStart, windowStart, "connections_sent");
 
-  const replies30 = inbound.filter((row) => inWindow(str(row.sent_at), windowStart, now + DAY_MS));
-  const repliesPrev = inbound.filter((row) => inWindow(str(row.sent_at), previousStart, windowStart)).length;
+  // Distinct people who replied in the window — one row per conversation (their most recent message in
+  // it), NOT one row per message. `inbound` is every inbound message, so counting it raw double-counts
+  // anyone who replied more than once — which is how "replied" could read higher than "accepted" and
+  // show the same person twice in the live feed. De-duplicating by conversation fixes both.
+  const latestReplyPerConversation = (from: number, to: number) => {
+    const byConversation = new Map<string, Row>();
+    for (const row of inbound) {
+      if (!inWindow(str(row.sent_at), from, to)) continue;
+      const id = str(row.conversation_id);
+      const held = byConversation.get(id);
+      if (!held || Date.parse(str(row.sent_at)) > Date.parse(str(held.sent_at))) byConversation.set(id, row);
+    }
+    return [...byConversation.values()];
+  };
+  const replies30 = latestReplyPerConversation(windowStart, now + DAY_MS);
+  const repliesPrev = latestReplyPerConversation(previousStart, windowStart).length;
   const scored30 = replies30.filter((row) => ["positive", "neutral", "negative"].includes(str(row.sentiment).toLowerCase()));
   const positive30 = scored30.filter((row) => str(row.sentiment).toLowerCase() === "positive").length;
 

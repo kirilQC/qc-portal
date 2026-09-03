@@ -220,7 +220,8 @@ export default function BrainApp() {
         </aside>
       </div>
 
-      {/* The skeleton — each document with a preview of what is actually inside it. */}
+      {/* Every document and folder on one plane: the expected skeleton first, then the folders and any
+          loose files, all as the same compact card. */}
       <div className="sp-grid">
         {data.docs.map((doc) => (
           <button
@@ -236,32 +237,22 @@ export default function BrainApp() {
             </span>
           </button>
         ))}
+        {folders.map((group) => (
+          <button key={group.folder} className="sp-card" onClick={() => setOpenFolder(group)}>
+            <span className="sp-rail" aria-hidden="true" />
+            <span className="sp-card-bd">
+              <span className="sp-card-hd">
+                <span className="sp-fic"><Glyph path="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></span>
+                <span className="sp-card-count">{group.files.length}</span>
+              </span>
+              <span className="sp-card-title">{titleCase(group.folder)}</span>
+            </span>
+          </button>
+        ))}
+        {rootFiles.map((file) => (
+          <FileCard key={file.path} file={file} onOpen={() => openEntry(file, setOpenFile)} />
+        ))}
       </div>
-
-      {/* Everything else — the same compact cards as the skeleton above. Folders open to their files; the
-          file count sits in the corner. Loose files open directly. */}
-      {(folders.length > 0 || rootFiles.length > 0) && (
-        <>
-          <h2 className="brn-more">More in this folder</h2>
-          <div className="sp-grid">
-            {folders.map((group) => (
-              <button key={group.folder} className="sp-card" onClick={() => setOpenFolder(group)}>
-                <span className="sp-rail" aria-hidden="true" />
-                <span className="sp-card-bd">
-                  <span className="sp-card-hd">
-                    <span className="sp-fic"><Glyph path="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></span>
-                    <span className="sp-card-count">{group.files.length}</span>
-                  </span>
-                  <span className="sp-card-title">{titleCase(group.folder)}</span>
-                </span>
-              </button>
-            ))}
-            {rootFiles.map((file) => (
-              <FileCard key={file.path} file={file} onOpen={() => openEntry(file, setOpenFile)} />
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
