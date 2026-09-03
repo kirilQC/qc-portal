@@ -119,36 +119,37 @@ async function build(session: Session, workspaceId: string, range: string) {
   const workspace = workspaceRows[0];
   if (!workspace) throw new Error("That client was not found.");
 
-  // The people behind those conversations, for the feed and the latest-replies list.
+  // The people behind those conversations and the inbound messages both hang off `conversations` and
+  // nothing else, so they are fetched together rather than one after the other.
   const leadIds = [...new Set(conversations.map((row) => str(row.lead_id)).filter(Boolean))].slice(0, 300);
-  const leads = leadIds.length
-    ? await scopedRows(
-        session,
-        "rr_leads",
-        { select: "id,name,role,company,linkedin_profile_url,raw_data", id: `in.(${leadIds.join(",")})`, limit: String(leadIds.length) },
-        workspaceId,
-      )
-    : [];
-  const leadById = new Map(leads.map((row) => [str(row.id), row]));
-
-  // Inbound messages, for reply counts by date and the sentiment on each.
   const conversationIds = conversations.map((row) => str(row.id)).filter(Boolean);
-  const inbound = conversationIds.length
-    ? await scopedByConversation(
-        session,
-        "rr_messages",
-        conversationIds,
-        {
-          // The body is what makes the network worth looking at — the actual words somebody replied,
-          // not a label saying a reply happened. It was never selected before, so every "quote" on the
-          // old feed would have had to be invented; now there is a real one to show.
-          select: "conversation_id,sent_at,body,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
-          direction: "eq.inbound",
-          limit: "1000",
-        },
-        workspaceId,
-      ).catch(() => [] as Row[])
-    : [];
+  const [leads, inbound] = await Promise.all([
+    leadIds.length
+      ? scopedRows(
+          session,
+          "rr_leads",
+          { select: "id,name,role,company,linkedin_profile_url,raw_data", id: `in.(${leadIds.join(",")})`, limit: String(leadIds.length) },
+          workspaceId,
+        )
+      : Promise.resolve([] as Row[]),
+    conversationIds.length
+      ? scopedByConversation(
+          session,
+          "rr_messages",
+          conversationIds,
+          {
+            // The body is what makes the network worth looking at — the actual words somebody replied,
+            // not a label saying a reply happened. It was never selected before, so every "quote" on the
+            // old feed would have had to be invented; now there is a real one to show.
+            select: "conversation_id,sent_at,body,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
+            direction: "eq.inbound",
+            limit: "1000",
+          },
+          workspaceId,
+        ).catch(() => [] as Row[])
+      : Promise.resolve([] as Row[]),
+  ]);
+  const leadById = new Map(leads.map((row) => [str(row.id), row]));
 
   // ── The two windows ──────────────────────────────────────────────────────────────────────────
 

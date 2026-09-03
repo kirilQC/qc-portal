@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useClientSlug } from "../components/useClientSlug";
+import { PageSkeleton } from "../components/PageSkeleton";
 // The funnel's colour tokens live with the campaigns page. Imported rather than copied, so a band means
 // the same thing on both screens by construction.
 import "./[client]/campaigns/campaigns.css";
@@ -161,7 +162,7 @@ function Overview() {
   }, [clientSlug, range]);
 
   if (error) return <div className="content"><p className="error-note">{error}</p></div>;
-  if (!data) return <div className="content"><p className="loading">Loading…</p></div>;
+  if (!data) return <PageSkeleton tiles={8} />;
 
   // ── Staff: the client directory ──────────────────────────────────────────────────────────────
   if (data.view === "directory") {

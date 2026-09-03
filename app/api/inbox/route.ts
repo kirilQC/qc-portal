@@ -104,12 +104,28 @@ async function buildInbox(session: Session, workspaceId: string) {
       session,
       "rr_messages",
       conversationIds,
-      { select: "id,conversation_id,direction,body,sent_at,raw_data", order: "sent_at.asc", limit: "8000" },
+      {
+        // Only the handful of reply_radar fields the inbox actually reads, extracted server-side —
+        // never the whole raw_data blob. Selecting raw_data pulled the entire HeyReach payload and
+        // enrichment for every one of up to 8,000 messages, which was the bulk of the inbox's load time.
+        select:
+          "id,conversation_id,direction,body,sent_at," +
+          "sender_name:raw_data->reply_radar->sender->>name," +
+          "sentiment:raw_data->reply_radar->>sentiment," +
+          "cached_draft:raw_data->reply_radar->>cached_draft," +
+          "cached_reason:raw_data->reply_radar->>cached_reason," +
+          "analyzed_at:raw_data->reply_radar->>analyzed_at",
+        order: "sent_at.asc",
+        limit: "8000",
+      },
       workspaceId,
     ),
   ]);
 
   const leadById = new Map(leads.map((row) => [str(row.id), row]));
+
+  /** Which lead a conversation belongs to, built once so the message loop below is not O(messages × conversations). */
+  const leadIdByConversation = new Map(conversations.map((row) => [str(row.id), str(row.lead_id)]));
 
   /** Messages grouped by conversation, in the order they were sent. */
   const threadByConversation = new Map<string, Message[]>();
@@ -119,8 +135,8 @@ async function buildInbox(session: Session, workspaceId: string) {
   for (const row of messages) {
     const key = str(row.conversation_id);
     const direction = str(row.direction) === "outbound" ? "outbound" : "inbound";
-    const senderName = str((radar(row.raw_data).sender as Record<string, unknown>)?.name ?? "");
-    const lead = leadById.get(str(conversations.find((c) => str(c.id) === key)?.lead_id ?? ""));
+    const senderName = str(row.sender_name);
+    const lead = leadById.get(leadIdByConversation.get(key) ?? "");
 
     const message: Message = {
       id: str(row.id),
@@ -146,7 +162,8 @@ async function buildInbox(session: Session, workspaceId: string) {
 
       const thread = threadByConversation.get(id) ?? [];
       const inbound = latestInbound.get(id);
-      const cached = radar(inbound?.raw_data);
+      // The reply_radar fields were extracted in the query above, so they sit on the row directly now.
+      const cached = (inbound ?? {}) as Row;
       const leadRadar = radar(lead.raw_data);
       const enrichment = (leadRadar.ai_ark ?? {}) as Record<string, unknown>;
 
