@@ -264,6 +264,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {me?.user.role === "staff" && (
             <Link
               href="/"
+              prefetch={false}
               className={`nav-item ${pathname === "/" && !inClient ? "active" : ""}`}
               title="Clients"
             >
@@ -277,6 +278,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={clientHref(item.href)}
+                // Prefetch off: with it on, a tab click updated the URL but left the old page on screen
+                // until a second click. Fetching the route on click instead makes navigation commit the
+                // first time. The route trees are small, so the cost is negligible.
+                prefetch={false}
                 className={`nav-item ${activeTab === item.href ? "active" : ""}`}
                 title={item.label}
               >
@@ -288,7 +293,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
         <div className="sidebar-foot">
           {me?.user.role === "staff" && (
-            <Link href={healthBad ? "/admin/ops" : "/admin"} className={`nav-item ${pathname.startsWith("/admin") ? "active" : ""}`} title={healthBad ? "Admin — something needs attention" : "Admin"}>
+            <Link href={healthBad ? "/admin/ops" : "/admin"} prefetch={false} className={`nav-item ${pathname.startsWith("/admin") ? "active" : ""}`} title={healthBad ? "Admin — something needs attention" : "Admin"}>
               <span className="nav-icon-wrap">
                 <Icon name="admin" />
                 {healthBad && <i className="nav-alert-dot" aria-hidden="true" />}

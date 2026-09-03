@@ -4,15 +4,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    // Keep prefetched route trees warm for a short window. `dynamic: 0` (the old value, and Next's own
-    // default) makes every hover-prefetch instantly stale, so a tab click could not use it — the router
-    // refetched the shell mid-click, which is what showed up as "URL changes, old page stays, click
-    // again". A positive window lets the prefetch actually serve the click, so tabs switch on the first
-    // one. Page *data* is unaffected: every page fetches its own numbers client-side with `no-store`, so
-    // only the static shell is cached here, never a stale figure.
-    staleTimes: { dynamic: 30, static: 180 },
-  },
+  // No `experimental.staleTimes` here on purpose. The tab navigation would change the URL but leave the
+  // old page on screen until a second click; that reconciliation bug tracks with the experimental
+  // staleTimes flag + prefetch caching on this Next version, so the flag is removed entirely (defaults)
+  // and the nav links disable prefetch (see Shell). Page data is fetched client-side with `no-store`
+  // regardless, so nothing here affects freshness.
 };
 
 export default nextConfig;
