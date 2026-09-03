@@ -219,6 +219,31 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 .page-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .content { padding: 32px; max-width: 1320px; width: 100%; margin: 0 auto; }
 
+/* ── Loading skeleton ────────────────────────────────────────────────────────────────────────────
+   Shown the instant a tab is clicked (via each segment's loading.tsx), so a navigation always produces
+   immediate feedback instead of the previous page lingering. A slow shimmer sweeps across placeholders
+   shaped like the page that is arriving. */
+.sk { animation: sk-fade .18s ease both; }
+.sk-sh {
+  position: relative; overflow: hidden;
+  background: var(--panel); border: 1px solid var(--border-soft); border-radius: 14px;
+}
+.sk-sh::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--muted-2) 16%, transparent), transparent);
+  animation: sk-shimmer 1.35s ease-in-out infinite;
+}
+.sk-head { display: flex; align-items: center; gap: 16px; margin-bottom: 26px; }
+.sk-logo { width: 52px; height: 52px; border-radius: 13px; flex: none; }
+.sk-title { width: 190px; height: 30px; border-radius: 8px; }
+.sk-hero { height: 190px; border-radius: 18px; margin-bottom: 16px; }
+.sk-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-bottom: 16px; }
+.sk-tile { height: 96px; }
+.sk-panel { height: 260px; border-radius: 16px; }
+@keyframes sk-shimmer { 100% { transform: translateX(100%); } }
+@keyframes sk-fade { from { opacity: .35; } to { opacity: 1; } }
+@media (max-width: 720px) { .sk-tiles { grid-template-columns: repeat(2, 1fr); } }
+
 /* ── Page heading ───────────────────────────────────────────────────────────────────────────────── */
 
 .page-head { margin-bottom: 28px; }

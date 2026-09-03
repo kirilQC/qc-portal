@@ -384,8 +384,8 @@ async function build(session: Session, workspaceId: string, range: string) {
       ]
     : [
         { key: "reached", label: "Reached", value: reached30, tone: "f1", rate: null as number | null, of: null as string | null },
-        { key: "accepted", label: "Accepted", value: accepted30, tone: "f2", rate: rate(accepted30, reached30), of: "of reached" },
-        { key: "replied", label: "Replied", value: replies30.length, tone: "f3", rate: rate(replies30.length, accepted30), of: "of accepted" },
+        { key: "accepted", label: "Accepted", value: accepted30, tone: "f2", rate: Math.min(100, rate(accepted30, reached30)), of: "of reached" },
+        { key: "replied", label: "Replied", value: replies30.length, tone: "f3", rate: Math.min(100, rate(replies30.length, reached30)), of: "of reached" },
         { key: "warm", label: "Replied positively", value: positive30, tone: "f4", rate: rate(positive30, scored30.length), of: `of ${scored30.length} read closely` },
       ];
 
@@ -471,9 +471,13 @@ async function build(session: Session, workspaceId: string, range: string) {
       scored: scored30.length,
       positive: positive30,
       positiveRate: rate(positive30, scored30.length),
-      acceptanceRate: rate(accepted30, reached30),
-      // Reply rate is out of accepted connections — nobody replies to a request that was never accepted.
-      replyRate: rate(replies30.length, accepted30),
+      // Both rates are out of the people we reached out to in the window, and clamped at 100%. Dividing
+      // the replies received this week by the connections *accepted* this week (the intuitive "reply
+      // rate") is wrong on a rolling window: a reply this week can come from someone who accepted weeks
+      // ago, so that ratio drifts past 100% (107 replies over 104 accepts = 103%, which is nonsense).
+      // Measuring both against "reached" keeps them comparable and always ≤ 100%.
+      acceptanceRate: Math.min(100, rate(accepted30, reached30)),
+      replyRate: Math.min(100, rate(replies30.length, reached30)),
       // The previous window, so the briefing can say whether this one was better.
       previousReached: reachedPrev,
       previousReplies: repliesPrev,

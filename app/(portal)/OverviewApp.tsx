@@ -220,7 +220,7 @@ function Overview() {
     { label: "Replies", value: n(data.repliesTotal ?? 0), href: "/inbox" },
     { label: "Campaigns", value: n(data.campaignsTotal ?? 0), href: "/campaigns" },
     { label: "Acceptance rate", value: w.reached ? `${w.acceptanceRate}%` : "—", math: w.reached ? `${n(w.accepted)} of ${n(w.reached)}` : undefined },
-    { label: "Reply rate", value: w.accepted ? `${w.replyRate}%` : "—", math: w.accepted ? `${n(w.replies)} of ${n(w.accepted)}` : undefined },
+    { label: "Reply rate", value: w.reached ? `${w.replyRate}%` : "—", math: w.reached ? `${n(w.replies)} of ${n(w.reached)}` : undefined },
     { label: "Campaigns running", value: n(data.campaignsRunning ?? 0), href: "/campaigns" },
     { label: "Meetings booked", value: n(data.meetingsBooked ?? 0), href: "/meetings" },
   ];
