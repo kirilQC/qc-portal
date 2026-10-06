@@ -638,3 +638,25 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 }
 .nav-icon-wrap .nav-alert-dot { position: absolute; top: -2px; right: -3px; }
 .nav-alert-dot.inline { margin-left: auto; box-shadow: 0 0 0 2px color-mix(in srgb, var(--coral) 25%, transparent); }
+
+/* ═══ Background: a faint dot grid with ripples of light (see AppBackground.tsx) ══════════════════ */
+.app-bg {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.6px);
+  background-size: 18px 18px;
+}
+.shell > .sidebar, .shell > .main { position: relative; z-index: 1; }
+.app-bg-ripple {
+  position: absolute; width: 1400px; height: 1400px; border-radius: 50%;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--accent) 90%, #fff) 1.2px, transparent 1.9px);
+  background-size: 18px 18px;
+  -webkit-mask: radial-gradient(circle, transparent 50%, #000 57%, #000 61%, transparent 69%);
+  mask: radial-gradient(circle, transparent 50%, #000 57%, #000 61%, transparent 69%);
+  transform: scale(0); opacity: 0;
+  animation: app-ripple 7s cubic-bezier(.2, .6, .4, 1) forwards;
+}
+.app-bg-ripple.is-violet { background-image: radial-gradient(circle, rgba(185, 170, 255, .95) 1.2px, transparent 1.9px); }
+@keyframes app-ripple { 0% { transform: scale(0); opacity: .9; } 75% { opacity: .5; } 100% { transform: scale(1); opacity: 0; } }
+/* Cards let the grid show faintly through, so the page reads as one surface rather than boxes on black. */
+.panel, .ov-stats { background: color-mix(in srgb, var(--panel) 90%, transparent); }
+body.light-mode .app-bg-ripple { opacity: .6; }

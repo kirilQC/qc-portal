@@ -13,6 +13,7 @@ import { useClientSlug } from "./useClientSlug";
 import { useCachedJson } from "./cache";
 import SettingsPanel from "./SettingsPanel";
 import { applyAppearance, readAppearance } from "./Appearance";
+import AppBackground from "./AppBackground";
 
 /**
  * The frame every signed-in page sits in.
@@ -256,6 +257,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`shell ${collapsed ? "is-collapsed" : ""}`}>
+      {/* The dot grid and its ripples, behind everything. */}
+      <AppBackground />
       {/* Hoisted into <head> and managed by React — never hand-edited (see the note above). */}
       <title>{pageTitle}</title>
       {faviconHref ? <link rel="icon" href={faviconHref} /> : null}
