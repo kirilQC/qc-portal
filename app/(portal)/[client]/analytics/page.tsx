@@ -188,11 +188,11 @@ function Analytics() {
       // charts are read independently and neither flattens the other.
       stackMax: Math.max(...daily.map((_, index) => sum(senders, (sender) => sender.byDay[index] ?? 0)), 1),
       metric,
-      // Split at the client's own average for the chosen rate (pooled over the rankable campaigns, the
-      // same way the headline averages are computed): at or above it is best, below it underperforming.
-      benchmark: pooledRate(ranked, metric.id),
-      leaders: [...ranked].filter((row) => metric.of(row) >= pooledRate(ranked, metric.id)).sort((a, b) => metric.of(b) - metric.of(a)).slice(0, 6),
-      laggards: [...ranked].filter((row) => metric.of(row) < pooledRate(ranked, metric.id)).sort((a, b) => metric.of(a) - metric.of(b)).slice(0, 6),
+      // Split at the client's own average for the chosen rate — the very figure in the "Average … rate"
+      // tile above (pooled over every campaign) — at or above it is best, below it underperforming.
+      benchmark: pooledRate(campaigns, metric.id),
+      leaders: [...ranked].filter((row) => metric.of(row) >= pooledRate(campaigns, metric.id)).sort((a, b) => metric.of(b) - metric.of(a)).slice(0, 6),
+      laggards: [...ranked].filter((row) => metric.of(row) < pooledRate(campaigns, metric.id)).sort((a, b) => metric.of(a) - metric.of(b)).slice(0, 6),
       leaderMax: Math.max(...ranked.map((row) => metric.of(row)), 1),
     };
   }, [data, leaderMetric]);
