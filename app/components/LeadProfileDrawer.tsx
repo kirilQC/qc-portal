@@ -4,6 +4,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import "./qc-lead.css";
 import { activeTimeZone } from "./Appearance";
 
@@ -132,7 +133,8 @@ export default function LeadProfileDrawer({ lead, clientSlug, onClose }: {
   const name = detail?.name || lead.name;
   const photo = detail?.photoUrl ?? lead.photoUrl ?? null;
 
-  return (
+  // Rendered on <body>, outside the page's scaled scroll area, so it is drawn at QC Command's own size.
+  return createPortal(
     // The backdrop's click is the pointer twin of Escape, as in QC Command.
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div className="qc-lead database-drawer-backdrop" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -163,7 +165,8 @@ export default function LeadProfileDrawer({ lead, clientSlug, onClose }: {
           )}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

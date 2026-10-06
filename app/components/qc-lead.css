@@ -165,3 +165,6 @@
 .qc-lead .bubble.latest-inbound:after{color:color-mix(in srgb, var(--accent) 60%, var(--muted));font-weight:700}
 @media (max-width:760px){.qc-lead .database-field-grid{grid-template-columns:minmax(0,1fr)!important}}
 @media (max-width:760px){.qc-lead .database-company-link,.qc-lead .database-field-value{overflow-wrap:anywhere;word-break:break-word}}
+/* Portal-only: links read as QC Command's (no underline), and the device's chosen zoom still applies. */
+.qc-lead a { text-decoration: none; }
+.qc-lead { zoom: var(--zoom, 1); }
