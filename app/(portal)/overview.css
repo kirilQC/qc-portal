@@ -509,3 +509,13 @@ a.ov-cell:hover { background: var(--panel-2); }
   .drp-months { grid-template-columns: 1fr; }
   .drp-months > .drp-month:first-child { display: none; }
 }
+
+/* ═══ Overview polish: bigger section headers and campaign names, quieter chart text ═══ */
+.ov-wide .panel-head h2 { font-size: 18px; font-weight: 680; letter-spacing: -.015em; }
+.ov-wide .ov-thisweek .panel-head h2 { font-size: 18px; }
+.ov-atop strong { font-size: 15px; font-weight: 650; }
+.ov-afoot { font-size: 11.5px; }
+.ov-daysleft { color: var(--text); font-weight: 600; }
+.act-axis { font-size: 10.5px; }
+.act-x { font-size: 11px; }
+.act-panel-gap { margin-top: 26px; }

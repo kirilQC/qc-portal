@@ -58,6 +58,8 @@ type Payload = {
     campaignId: string; name: string; launchedAt: string | null; senders: string[]; senderCount: number;
     totalLeads: number; leadsPending: number; connectionsSent: number; connectionsAccepted: number;
     replies: number; acceptanceRate: number; replyRate: number; progress: number;
+    /** Days of sending left at the senders' daily cap; null when it can't be worked out (no senders). */
+    daysLeft?: number | null;
   }[];
   leadsTotal?: number; reachedTotal?: number; repliesTotal?: number;
   activity?: { smoothed: boolean; points: ActivityPoint[] };
@@ -350,6 +352,9 @@ function Overview() {
                         <div className="ov-afoot">
                           <span>{n(campaign.connectionsSent)} of {n(campaign.totalLeads)} worked</span>
                           {campaign.leadsPending > 0 && <span>{n(campaign.leadsPending)} left</span>}
+                          {campaign.daysLeft != null && campaign.daysLeft > 0 && (
+                            <span className="ov-daysleft">{campaign.daysLeft === 1 ? "1 day" : `${n(campaign.daysLeft)} days`} of sending left</span>
+                          )}
                           <span>{campaign.senders.length ? campaign.senders.join(", ") : `${campaign.senderCount} sender${campaign.senderCount === 1 ? "" : "s"}`}</span>
                         </div>
                       </div>

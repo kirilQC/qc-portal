@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * The overview's activity chart: two panels on one daily timeline.
@@ -29,10 +29,11 @@ export type ActivityPoint = {
 };
 
 const COLORS = { sent: "#f59e0b", replies: "#5b8cff", positive: "#2fbf7f", meetings: "#c05bd9" } as const;
-const W = 1000, ML = 44, MR = 18;
-const IW = W - ML - MR;
-const TOP = { h: 116, mt: 10, mb: 8 };
-const BOTTOM = { h: 236, mt: 24, mb: 36 };
+const ML = 38, MR = 14;
+// Heights are real pixels: the chart is drawn at its on-screen width (see `width` below), so text and
+// strokes keep their size instead of growing with the viewBox on a wide screen.
+const TOP = { h: 120, mt: 10, mb: 8 };
+const BOTTOM = { h: 240, mt: 24, mb: 30 };
 
 /** Whole-number ticks with a 1/2/5 × 10ⁿ step and at most five gaps, so the axis never reads "3, 5, 8". */
 function ticks(max: number): number[] {
@@ -79,6 +80,21 @@ const one = (v: number) => (Math.round(v * 10) / 10).toLocaleString("en-US");
 
 export default function ActivityChart({ points, smoothed }: { points: ActivityPoint[]; smoothed: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
+  // Drawn at the container's real width, so a 10px label is 10px on every screen. (It used to be a fixed
+  // 1000-unit viewBox scaled to fit, which blew the axis text up to ~20px on a wide monitor.)
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(1000);
+  const hasPoints = points.length > 0;
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => setWidth(Math.max(320, Math.round(el.clientWidth)));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasPoints]); // re-measure once there is a chart to measure
+  const W = width, IW = W - ML - MR;
 
   if (!points.length) return <p className="trend-empty">No activity to chart yet.</p>;
 
@@ -120,7 +136,7 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
   const point = hover === null ? null : points[hover];
 
   return (
-    <div className="act-wrap" onPointerLeave={() => setHover(null)}>
+    <div className="act-wrap" ref={wrapRef} onPointerLeave={() => setHover(null)}>
       <div className="act-panel-label">Connections sent</div>
       <svg viewBox={`0 0 ${W} ${TOP.h}`} className="act-svg" onPointerMove={onMove} onPointerDown={onMove} role="img"
         aria-label={`Connections sent: ${points.reduce((t, p) => t + p.sent, 0)} over ${points.length} days`}>
@@ -132,8 +148,7 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
         </defs>
         {sentTicks.map((t) => (
           <g key={t}>
-            <line x1={ML} x2={W - MR} y1={yTop(t)} y2={yTop(t)} className="act-grid" />
-            <text x={ML - 12} y={yTop(t) + 4} textAnchor="end" className="act-axis">{t.toLocaleString("en-US")}</text>
+            <text x={ML - 10} y={yTop(t) + 4} textAnchor="end" className="act-axis">{t.toLocaleString("en-US")}</text>
           </g>
         ))}
         <path d={area(sentLine, topBase)} fill="url(#act-sent)" />
@@ -144,7 +159,7 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
         </>}
       </svg>
 
-      <div className="act-panel-label">Replies and meetings{smoothed ? " · 7-day average" : ""}</div>
+      <div className="act-panel-label act-panel-gap">Replies and meetings{smoothed ? " · 7-day average" : ""}</div>
       <svg viewBox={`0 0 ${W} ${BOTTOM.h}`} className="act-svg" onPointerMove={onMove} onPointerDown={onMove} role="img"
         aria-label={`Replies: ${points.reduce((t, p) => t + p.replies, 0)}, positive replies: ${points.reduce((t, p) => t + p.positive, 0)}, meetings booked: ${points.reduce((t, p) => t + p.meetings, 0)}`}>
         <defs>
@@ -157,8 +172,7 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
         </defs>
         {replyTicks.map((t) => (
           <g key={t}>
-            <line x1={ML} x2={W - MR} y1={yBottom(t)} y2={yBottom(t)} className="act-grid" />
-            <text x={ML - 12} y={yBottom(t) + 4} textAnchor="end" className="act-axis">{t.toLocaleString("en-US")}</text>
+            <text x={ML - 10} y={yBottom(t) + 4} textAnchor="end" className="act-axis">{t.toLocaleString("en-US")}</text>
           </g>
         ))}
         {points.map((p, i) => showLabel(i) ? (

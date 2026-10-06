@@ -126,7 +126,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
       { select: "campaign_id,name,status,launched_at,sender_ids,total_leads,leads_pending,connections_sent,connections_accepted,replies,messages_started" },
       workspaceId,
     ),
-    scopedRows(session, "rr_daily_stats", { select: "day,sender_id,sender_name,connections_sent,connections_accepted", limit: "5000" }, workspaceId),
+    scopedRows(session, "rr_daily_stats", { select: "day,sender_id,sender_name,daily_limit,connections_sent,connections_accepted", limit: "5000" }, workspaceId),
     scopedRows(
       session,
       "rr_conversations",
@@ -429,6 +429,10 @@ async function build(session: Session, workspaceId: string, range: string, custo
    * a much smaller number than the replies received, and a percentage with no denominator beside it is
    * the kind of figure a client quotes back at you.
    */
+  // The per-sender daily cap HeyReach reports (the highest seen), or 25 when nothing was reported.
+  const reportedCaps = dailyRows.map((row) => num(row.daily_limit)).filter((value) => value > 0);
+  const senderCap = reportedCaps.length ? Math.max(...reportedCaps) : 25;
+
   const funnel = windowDays === null
     ? [
         { key: "leads", label: "Leads in campaigns", value: allTime.leads, tone: "f0", rate: null as number | null, of: null as string | null },
@@ -477,6 +481,9 @@ async function build(session: Session, workspaceId: string, range: string, custo
         senderCount: senderIds.length,
         totalLeads: leads,
         leadsPending: pending,
+        // Days of sending left: what is still queued over what this campaign's senders can send in a day,
+        // the same arithmetic as the analytics page (each sender works the campaign up to its daily cap).
+        daysLeft: pending > 0 && senderIds.length ? Math.ceil(pending / (senderIds.length * senderCap)) : pending > 0 ? null : 0,
         connectionsSent: sent,
         connectionsAccepted: accepted,
         replies: num(row.replies),
