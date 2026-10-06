@@ -107,7 +107,7 @@ async function build(session: Session, workspaceId: string, range: string) {
     scopedRows(
       session,
       "rr_conversations",
-      { select: "id,lead_id,last_message_at,last_message_direction", order: "last_message_at.desc", limit: "400" },
+      { select: "id,lead_id,last_message_at,last_message_direction", order: "last_message_at.desc", limit: "600" },
       workspaceId,
     ),
     scopedRows(
@@ -125,7 +125,9 @@ async function build(session: Session, workspaceId: string, range: string) {
 
   // The people behind those conversations and the inbound messages both hang off `conversations` and
   // nothing else, so they are fetched together rather than one after the other.
-  const leadIds = [...new Set(conversations.map((row) => str(row.lead_id)).filter(Boolean))].slice(0, 300);
+  // Leads are only needed to name people in the 24-card feed, and conversations arrive newest first, so
+  // the most recent hundred cover it with room to spare — without reading a lead per conversation.
+  const leadIds = [...new Set(conversations.map((row) => str(row.lead_id)).filter(Boolean))].slice(0, 100);
   const conversationIds = conversations.map((row) => str(row.id)).filter(Boolean);
   const [leads, inbound] = await Promise.all([
     leadIds.length
@@ -207,10 +209,11 @@ async function build(session: Session, workspaceId: string, range: string) {
     }),
     { leads: 0, reached: 0, accepted: 0, replies: 0 },
   );
-  // People, not messages — someone who replied positively twice is one positive reply, as QC Command counts it.
-  const positiveAllTime = new Set(
-    inbound.filter((row) => str(row.sentiment).toLowerCase() === "positive").map((row) => str(row.conversation_id)),
-  ).size;
+  // People whose latest reply was judged positive — QC Command's definition, the one this page already
+  // uses for a week or a month, and the one the inbox's "Positive replies" counts. Counting every positive
+  // message (or anyone ever positive) gave three different figures for the same client across the portal.
+  const positiveAllTime = latestReplyPerConversation(0, now + DAY_MS)
+    .filter((row) => str(row.sentiment).toLowerCase() === "positive").length;
 
   /** Conversations where the lead spoke last — the ones waiting on a response. */
   const waiting = conversations.filter((row) => str(row.last_message_direction) === "inbound").length;
@@ -472,6 +475,9 @@ async function build(session: Session, workspaceId: string, range: string) {
   // two pages agree. It deliberately does NOT use the sum of each campaign's HeyReach reply count, which
   // double-counts anyone who replied across more than one campaign (that sum read 688 against 627 here).
   const repliesCount = repliesCountRaw ?? allTime.replies;
+  const lifetime = windowDays === null;
+  /** Leads HeyReach messaged, lifetime — the reply-rate denominator QC Command uses (accepted as fallback). */
+  const messagedAll = campaignRows.reduce((total, row) => total + (num(row.messages_started) || num(row.connections_accepted)), 0);
 
   // Weekly trend, last 13 weeks (Monday-anchored): total replies, positive replies, booked meetings per week.
   const WEEKS_BACK = 13;
@@ -495,7 +501,26 @@ async function build(session: Session, workspaceId: string, range: string) {
     range,
     rangeLabel,
     ranges: Object.entries(RANGES).map(([key, value]) => ({ key, label: value.label })),
-    window: {
+    window: lifetime ? {
+      // All time is the whole engagement, so it is told with the lifetime totals the tiles and the funnel
+      // on the same screen use. Summing the daily rows instead read 3,779 reached beside a tile saying
+      // 5,617 — the daily series only starts when collection did, not when the engagement did.
+      days: windowDays,
+      reached: allTime.reached,
+      accepted: allTime.accepted,
+      replies: repliesCount,
+      scored: scored30.length,
+      positive: positiveAllTime,
+      positiveRate: rate(positive30, scored30.length),
+      acceptanceRate: Math.min(100, rate(allTime.accepted, allTime.reached)),
+      // Lifetime reply rate is HeyReach's definition, as QC Command and the analytics page show it:
+      // replies over leads messaged. The figures behind it are sent so the "n of m" names them.
+      replyRate: Math.min(100, rate(allTime.replies, messagedAll)),
+      replyPart: allTime.replies,
+      replyOf: messagedAll,
+      previousReached: 0,
+      previousReplies: 0,
+    } : {
       days: windowDays,
       reached: reached30,
       accepted: accepted30,

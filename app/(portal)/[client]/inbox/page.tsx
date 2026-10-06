@@ -539,7 +539,7 @@ function Inbox() {
                     )}
                   </div>
                   {current.companyPhotoUrl && (
-                    <img className="company-logo" src={current.companyPhotoUrl} alt={`${current.company} logo`} />
+                    <img className="company-logo" src={current.companyPhotoUrl} alt={`${current.company} logo`} onError={(event) => { event.currentTarget.style.display = "none"; }} />
                   )}
                 </div>
 

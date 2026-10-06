@@ -39,6 +39,8 @@ type Payload = {
   window?: {
     days: number; reached: number; accepted: number; replies: number; scored: number; positive: number;
     positiveRate: number; acceptanceRate: number; replyRate: number; previousReached: number; previousReplies: number;
+    /** All time only: the reply rate's own numerator and denominator (replies over leads messaged). */
+    replyPart?: number; replyOf?: number;
   };
   allTime?: { leads: number; reached: number; accepted: number; replies: number; positive: number; acceptanceRate: number; replyRate: number; positiveRate: number };
   waiting?: number; campaignsRunning?: number; campaignsTotal?: number; sendersActive?: number;
@@ -203,7 +205,7 @@ function Overview() {
     { label: "Replies", value: n(data.repliesTotal ?? 0), href: "/inbox" },
     { label: "Campaigns", value: n(data.campaignsTotal ?? 0), href: "/campaigns" },
     { label: "Acceptance rate", value: w.reached ? `${w.acceptanceRate}%` : "—", math: w.reached ? `${n(w.accepted)} of ${n(w.reached)}` : undefined },
-    { label: "Reply rate", value: w.reached ? `${w.replyRate}%` : "—", math: w.reached ? `${n(w.replies)} of ${n(w.reached)}` : undefined },
+    { label: "Reply rate", value: w.reached ? `${w.replyRate}%` : "—", math: w.reached ? (w.replyOf != null ? `${n(w.replyPart ?? 0)} of ${n(w.replyOf)} messaged` : `${n(w.replies)} of ${n(w.reached)}`) : undefined },
     { label: "Campaigns running", value: n(data.campaignsRunning ?? 0), href: "/campaigns" },
     { label: "Meetings booked", value: n(data.meetingsBooked ?? 0), href: "/meetings" },
   ];

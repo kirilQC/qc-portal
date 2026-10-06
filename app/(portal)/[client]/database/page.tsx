@@ -73,6 +73,11 @@ function dateParts(iso: string | null): { date: string; time: string } {
   };
 }
 
+/** Logos are decoration: a dead link (enrichment CDN URLs expire) is hidden rather than drawn broken. */
+const hideBroken = (event: React.SyntheticEvent<HTMLImageElement>) => {
+  event.currentTarget.style.display = "none";
+};
+
 /** A lead photo that falls back to initials when the URL is dead (LinkedIn photo links expire). */
 function Avatar({ src, name }: { src?: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
@@ -96,6 +101,13 @@ function Database() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Lead | null>(null);
+  // A dialog closes on Escape — the drawer is announced as one, so it has to behave like one.
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setSelected(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected]);
   const [detail, setDetail] = useState<LeadDetail | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [detailTab, setDetailTab] = useState<"overview" | "activity">("overview");
@@ -273,7 +285,7 @@ function Database() {
                   {detail?.companyProfile?.name && (
                     <Section title="Current company">
                       <div className="db-company">
-                        {detail.companyProfile.logo && <img className="db-company-logo" src={detail.companyProfile.logo} alt="" />}
+                        {detail.companyProfile.logo && <img className="db-company-logo" src={detail.companyProfile.logo} alt="" onError={hideBroken} />}
                         <div className="db-fields">
                           <Field label="Company" value={detail.companyProfile.name} />
                           <Field label="Website" value={detail.companyProfile.website} link={detail.companyProfile.website} />
@@ -296,7 +308,7 @@ function Database() {
                         {detail.experience.map((employer, index) => (
                           <article key={`${employer.company}-${index}`}>
                             <header>
-                              {employer.logo && <img src={employer.logo} alt="" />}
+                              {employer.logo && <img src={employer.logo} alt="" onError={hideBroken} />}
                               <div>
                                 {employer.url ? (
                                   <a href={employer.url} target="_blank" rel="noreferrer">{employer.company} ↗</a>

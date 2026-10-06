@@ -25,7 +25,7 @@ import type { Session } from "../../lib/session";
 export const maxDuration = 60;
 
 /** How many conversations one request will assemble. The page pages through with "See 10 more". */
-const LIMIT = 300;
+const LIMIT = 600;
 
 type Message = { id: string; body: string; direction: string; sentAt: string; authorName: string };
 
