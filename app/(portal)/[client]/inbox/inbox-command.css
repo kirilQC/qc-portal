@@ -179,7 +179,7 @@ body.light-mode .inbox-wrap .lead-avatar, body.light-mode .inbox-wrap .large-ava
 .inbox-wrap .date-cell strong,
 .inbox-wrap .date-cell span,
 .inbox-wrap .turn-cell strong { font-size: 12.5px; }
-.inbox-wrap .lead-main .lead-name-text { margin-top: 0; }
+.inbox-wrap .lead-main .lead-name-text { margin-top: 0; color: var(--text); }
 .inbox-wrap .lead-main span { margin-top: 3px; }
 .inbox-wrap .campaign-cell strong,
 .inbox-wrap .sender-cell strong,
@@ -229,14 +229,16 @@ body.light-mode .inbox-wrap .lead-avatar, body.light-mode .inbox-wrap .large-ava
 .inbox-wrap .tag-dot { display: inline-block; width: 8px; height: 8px; flex: none; margin-right: 7px; border-radius: 50%; vertical-align: middle; }
 .inbox-wrap .uf-sub-note { margin: 6px 10px; font-size: 11.5px; color: var(--muted-2); }
 
-.inbox-wrap .tag-add-wrap { position: relative; }
+/* The popover hangs from the tag row, not the button, so it stays inside the card wherever the button wraps. */
+.inbox-wrap .detail-tags { position: relative; }
+.inbox-wrap .tag-add-wrap { position: static; }
 .inbox-wrap .tag-add {
   padding: 2px 8px; border: 1px dashed var(--border); border-radius: 999px; background: transparent;
   color: var(--muted); font: inherit; font-size: 10.5px; font-weight: 600; cursor: pointer;
 }
 .inbox-wrap .tag-add:hover { color: var(--text); border-color: var(--muted-2); }
 .inbox-wrap .tag-pop {
-  position: absolute; left: 0; top: calc(100% + 6px); z-index: 50; width: 240px; padding: 8px;
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 50; width: 240px; max-width: 100%; padding: 8px;
   border: 1px solid var(--border); border-radius: 11px; background: var(--panel); box-shadow: 0 18px 44px rgba(0,0,0,.45);
 }
 .inbox-wrap .tag-pop-list { max-height: 200px; overflow-y: auto; padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border-soft); }
