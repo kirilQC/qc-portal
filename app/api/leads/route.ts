@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import { resolveScope } from "../../lib/auth-context";
 import { num, scopedCount, scopedRows, str } from "../../lib/db";
+import { qcConversations } from "../../lib/qc-conversations";
 
 export const maxDuration = 60;
 
@@ -75,11 +76,16 @@ export async function GET(request: Request) {
   }
 
   try {
+    // The lead database is the people QC's campaigns engaged (lib/qc-conversations). Leads who only ever
+    // answered the client's own campaigns stay out of it, as their replies stay out of the inbox.
+    const qc = await qcConversations(session, workspaceId);
+    if (!qc.leadIds.size) return NextResponse.json({ ok: true, leads: [], total: 0, hasMore: false, nextOffset: offset });
+    params.id = `in.(${[...qc.leadIds].join(",")})`;
     // The page count and the client's actual total, fetched together — the header count costs nothing
     // extra and is what the subheading should say.
     const [rows, total] = await Promise.all([
       scopedRows(session, "rr_lead_index", params, workspaceId),
-      scopedCount(session, "rr_lead_index", params.or ? { or: params.or } : {}, workspaceId),
+      scopedCount(session, "rr_lead_index", { id: params.id, ...(params.or ? { or: params.or } : {}) }, workspaceId),
     ]);
 
     const asList = (value: unknown): string[] => {

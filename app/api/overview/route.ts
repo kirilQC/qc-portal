@@ -19,8 +19,9 @@
  */
 import { NextResponse } from "next/server";
 import { resolveScope } from "../../lib/auth-context";
-import { num, scopedByConversation, scopedCount, scopedRows, str, type Row } from "../../lib/db";
+import { num, scopedByConversation, scopedRows, str, type Row } from "../../lib/db";
 import type { Session } from "../../lib/session";
+import { qcConversations } from "../../lib/qc-conversations";
 
 export const maxDuration = 60;
 
@@ -118,7 +119,9 @@ async function build(session: Session, workspaceId: string, range: string, custo
 
   // The two exact counts depend on nothing else, so they ride along with the first batch rather than
   // adding two more round trips at the end.
-  const [workspaceRows, campaignRows, dailyRows, conversations, meetings, leadsCountRaw, repliesCountRaw, overrideRows] = await Promise.all([
+  // QC's conversations only (lib/qc-conversations): read alongside the batch, applied right after it.
+  const qcPromise = qcConversations(session, workspaceId);
+  const [workspaceRows, campaignRows, dailyRows, allConversations, meetings, , , overrideRows] = await Promise.all([
     scopedRows(session, "rr_workspaces", { select: "id,name,slug,logo_url,accent_color,website_url", limit: "1" }, workspaceId),
     scopedRows(
       session,
@@ -139,8 +142,9 @@ async function build(session: Session, workspaceId: string, range: string, custo
       { select: "id,invitee_name,invitee_title,company_name,meeting_at,created_at,campaign,status", order: "created_at.desc", limit: "500" },
       workspaceId,
     ),
-    scopedCount(session, "rr_leads", {}, workspaceId).catch(() => null),
-    scopedCount(session, "rr_conversations", {}, workspaceId).catch(() => null),
+    // (The lead and reply totals used to be table counts here; they now come from QC's own sets below.)
+    Promise.resolve(null),
+    Promise.resolve(null),
     // A staff-set "Meetings booked" figure, when there is one. Empty (not an error) if the table has not
     // been created yet, so the page keeps working on the automatic count.
     scopedRows(session, "qc_portal_meeting_overrides", { select: "meetings_booked,set_at", limit: "1" }, workspaceId).catch(() => [] as Row[]),
@@ -148,6 +152,16 @@ async function build(session: Session, workspaceId: string, range: string, custo
 
   const workspace = workspaceRows[0];
   if (!workspace) throw new Error("That client was not found.");
+
+  /*
+   * Everything below — replies, the feed, the chart, the calendar, "waiting" — is built from these, so
+   * replies to the client's own (non-QC) campaigns never reach a single figure. Replies and the lead
+   * database are the exact sizes of QC's own sets, not table counts that include the client's work.
+   */
+  const qc = await qcPromise;
+  const conversations = allConversations.filter((row) => qc.ids.has(str(row.id)));
+  const repliesCountRaw: number | null = qc.ids.size;
+  const leadsCountRaw: number | null = qc.leadIds.size;
 
   // The people behind those conversations and the inbound messages both hang off `conversations` and
   // nothing else, so they are fetched together rather than one after the other.

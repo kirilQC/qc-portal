@@ -19,7 +19,8 @@
  */
 import { NextResponse } from "next/server";
 import { resolveScope } from "../../lib/auth-context";
-import { num, scopedByConversation, scopedCount, scopedRows, str, type Row } from "../../lib/db";
+import { num, scopedByConversation, scopedRows, str, type Row } from "../../lib/db";
+import { qcConversations } from "../../lib/qc-conversations";
 import type { Session } from "../../lib/session";
 
 export const maxDuration = 60;
@@ -243,17 +244,12 @@ export async function GET(request: Request) {
   try {
     // The true, uncapped count of reply conversations for the headline metrics — the table itself only
     // loads the most recent LIMIT of them, so counting the loaded rows undercounts and reads as capped.
-    const [all, storedTotal] = await Promise.all([
-      buildInbox(session, workspaceId),
-      scopedCount(session, "rr_conversations", {}, workspaceId).catch(() => 0),
-    ]);
-    // A conversation outside any campaign is not part of the programme the client is paying for, so the
-    // portal leaves it out entirely (it stays in QC Command, which owns the data). The total drops by
-    // the same rows: exact while every conversation fits in one load, and close beyond that.
-    const conversations = all.filter((row) => Boolean(row.campaignName?.trim()));
-    const conversationTotal =
-      all.length < LIMIT ? conversations.length : Math.max(conversations.length, storedTotal - (all.length - conversations.length));
-    return NextResponse.json({ ok: true, conversations, conversationTotal });
+    const [all, qc] = await Promise.all([buildInbox(session, workspaceId), qcConversations(session, workspaceId)]);
+    // Only QC's work: a conversation from a QC campaign (lib/qc-conversations). Replies to the client's own
+    // campaigns, or with no campaign at all, stay in QC Command and never reach the portal. The total is
+    // the exact count of QC conversations, not a count of what fitted in this page.
+    const conversations = all.filter((row) => qc.ids.has(row.id));
+    return NextResponse.json({ ok: true, conversations, conversationTotal: qc.ids.size });
   } catch (error) {
     return NextResponse.json(
       { ok: false, conversations: [], error: error instanceof Error ? error.message : "The inbox did not load." },

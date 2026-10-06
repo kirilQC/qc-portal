@@ -25,6 +25,7 @@
 import { NextResponse } from "next/server";
 import { resolveScope } from "../../lib/auth-context";
 import { num, scopedByConversation, scopedRows, str, type Row } from "../../lib/db";
+import { qcConversations } from "../../lib/qc-conversations";
 import type { Session } from "../../lib/session";
 
 export const maxDuration = 60;
@@ -102,7 +103,9 @@ async function build(session: Session, workspaceId: string) {
   if (!workspace) throw new Error("That client was not found.");
 
   // Inbound messages, for the reply and sentiment counts. Two short strings per row, not the payload.
-  const conversationIds = conversations.map((row) => str(row.id)).filter(Boolean);
+  // QC's conversations only (lib/qc-conversations): replies to the client's own campaigns are not ours.
+  const qc = await qcConversations(session, workspaceId);
+  const conversationIds = conversations.map((row) => str(row.id)).filter((id) => id && qc.ids.has(id));
   const inbound = conversationIds.length
     ? await scopedByConversation(
         session,
