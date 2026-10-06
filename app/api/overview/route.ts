@@ -72,7 +72,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    const asked = new URL(request.url).searchParams.get("range") ?? "week";
+    const params = new URL(request.url).searchParams;
+    const asked = params.get("range") ?? "week";
+    // A custom range from the calendar: two YYYY-MM-DD days, inclusive, in order, ending no later than
+    // today and spanning at most two years. Anything else is refused rather than guessed at.
+    if (asked === "custom") {
+      const from = params.get("from") ?? "", to = params.get("to") ?? "";
+      const valid = /^\d{4}-\d{2}-\d{2}$/;
+      const start = Date.parse(`${from}T00:00:00Z`), end = Date.parse(`${to}T00:00:00Z`);
+      const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+      if (!valid.test(from) || !valid.test(to) || !Number.isFinite(start) || !Number.isFinite(end) || start > end || end > today || end - start > 731 * DAY_MS) {
+        return NextResponse.json({ ok: false, error: "Pick a start and end date, ending today or earlier." }, { status: 400 });
+      }
+      return NextResponse.json({ ok: true, view: "client", ...(await build(session, workspaceId, "custom", { from, to })) });
+    }
     const range = asked in RANGES ? asked : "week";
     return NextResponse.json({ ok: true, view: "client", ...(await build(session, workspaceId, range)) });
   } catch (error) {
@@ -83,14 +96,24 @@ export async function GET(request: Request) {
   }
 }
 
-async function build(session: Session, workspaceId: string, range: string) {
+async function build(session: Session, workspaceId: string, range: string, custom?: { from: string; to: string }) {
   const now = Date.now();
-  const { label: rangeLabel, days: windowDays } = RANGES[range];
+  const customStart = custom ? Date.parse(`${custom.from}T00:00:00Z`) : 0;
+  const customEnd = custom ? Date.parse(`${custom.to}T00:00:00Z`) + DAY_MS : 0;
+  const shortDate = (ms: number, year = false) => new Date(ms).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}) });
+  const { label: rangeLabel, days: windowDays } = custom
+    ? {
+        label: custom.from === custom.to ? shortDate(customStart, true) : `${shortDate(customStart)} – ${shortDate(customEnd - DAY_MS, true)}`,
+        days: Math.round((customEnd - customStart) / DAY_MS),
+      }
+    : RANGES[range];
+  /** Where the window closes: the end of the chosen last day for a custom range, otherwise now (plus slack for today). */
+  const windowEnd = custom ? customEnd : now + DAY_MS;
   /*
    * All time has no start, so the window is opened at the epoch rather than special-cased through every
    * sum below. The figures then come out the same way for all three ranges and only the funnel differs.
    */
-  const windowStart = windowDays === null ? 0 : now - windowDays * DAY_MS;
+  const windowStart = custom ? customStart : windowDays === null ? 0 : now - windowDays * DAY_MS;
   const previousStart = windowDays === null ? 0 : windowStart - windowDays * DAY_MS;
 
   // The two exact counts depend on nothing else, so they ride along with the first batch rather than
@@ -180,8 +203,8 @@ async function build(session: Session, workspaceId: string, range: string) {
   const sumDaily = (from: number, to: number, field: "connections_sent" | "connections_accepted") =>
     totals.reduce((total, row) => (inWindow(`${str(row.day).slice(0, 10)}T12:00:00Z`, from, to) ? total + num(row[field]) : total), 0);
 
-  const reached30 = sumDaily(windowStart, now + DAY_MS, "connections_sent");
-  const accepted30 = sumDaily(windowStart, now + DAY_MS, "connections_accepted");
+  const reached30 = sumDaily(windowStart, windowEnd, "connections_sent");
+  const accepted30 = sumDaily(windowStart, windowEnd, "connections_accepted");
   const reachedPrev = sumDaily(previousStart, windowStart, "connections_sent");
 
   // Distinct people who replied in the window — one row per conversation (their most recent message in
@@ -198,7 +221,7 @@ async function build(session: Session, workspaceId: string, range: string) {
     }
     return [...byConversation.values()];
   };
-  const replies30 = latestReplyPerConversation(windowStart, now + DAY_MS);
+  const replies30 = latestReplyPerConversation(windowStart, windowEnd);
   const repliesPrev = latestReplyPerConversation(previousStart, windowStart).length;
   const scored30 = replies30.filter((row) => ["positive", "neutral", "negative"].includes(str(row.sentiment).toLowerCase()));
   const positive30 = scored30.filter((row) => str(row.sentiment).toLowerCase() === "positive").length;
@@ -389,7 +412,7 @@ async function build(session: Session, workspaceId: string, range: string) {
   const bySender = new Map<string, number>();
   for (const row of dailyRows) {
     const name = str(row.sender_name);
-    if (!name || !inWindow(`${str(row.day).slice(0, 10)}T12:00:00Z`, windowStart, now + DAY_MS)) continue;
+    if (!name || !inWindow(`${str(row.day).slice(0, 10)}T12:00:00Z`, windowStart, windowEnd)) continue;
     bySender.set(name, (bySender.get(name) ?? 0) + num(row.connections_sent));
   }
   const busiestSender = [...bySender.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
@@ -499,9 +522,11 @@ async function build(session: Session, workspaceId: string, range: string) {
    * The raw daily figures still travel with each point for the tooltip. Meetings count on the day booked.
    */
   const SMOOTH_DAYS = 7;
-  const smoothing = windowDays !== 7;
+  // A week (or any short custom range) reads fine day by day; longer ranges get the 7-day average.
+  const smoothing = windowDays === null || windowDays > 14;
   const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-  const today = Date.parse(`${isoDay(now)}T00:00:00Z`);
+  // The chart's last day: today, or the last day of a custom range.
+  const today = custom ? customEnd - DAY_MS : Date.parse(`${isoDay(now)}T00:00:00Z`);
   let span = windowDays ?? 0;
   if (windowDays === null) {
     const activity = [

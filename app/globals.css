@@ -217,6 +217,10 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 .icon-button:hover { color: var(--text); border-color: var(--accent); }
 
 .page-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+/* The page and sidebar still scroll (wheel, trackpad, keyboard, touch) but draw no scrollbar: a light
+   system scrollbar down the right edge of a dark dashboard read as a stray strip of chrome. */
+.page-scroll, .sidebar, html, body { scrollbar-width: none; -ms-overflow-style: none; }
+.page-scroll::-webkit-scrollbar, .sidebar::-webkit-scrollbar, html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .content { padding: 32px; max-width: 1320px; width: 100%; margin: 0 auto; }
 
 /* ── Loading skeleton ────────────────────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import "./[client]/campaigns/campaigns.css";
 import "./overview.css";
 import ActivityNetwork, { type ActivityEvent } from "../components/ActivityNetwork";
 import ActivityChart, { type ActivityPoint } from "./ActivityChart";
+import DateRangePicker, { type DayRange } from "./DateRangePicker";
 
 /**
  * The client's overview: a month in a sentence, the trend behind it, and what has happened since.
@@ -90,7 +91,7 @@ function briefing(data: Payload): React.ReactNode[] {
   if (!w.reached && !w.replies) {
     return [
       <span key="quiet">
-        Nothing has gone out {w.days ? `in the last ${w.days} days` : "yet"}. Campaigns that are paused or finished show on the{" "}
+        Nothing has gone out {data.range === "custom" ? "in this period" : w.days ? `in the last ${w.days} days` : "yet"}. Campaigns that are paused or finished show on the{" "}
         <b>Campaigns</b> tab with what they produced.
       </span>,
     ];
@@ -140,10 +141,12 @@ function Overview() {
    * happened since we last spoke" rather than "how is the quarter going".
    */
   const [range, setRange] = useState("week");
+  const [custom, setCustom] = useState<DayRange | null>(null);
 
   // Served from the shared cache: revisiting the overview shows the last figures instantly and refreshes
   // them in the background, so switching to this tab and back never flashes a loading state again.
   const search = new URLSearchParams({ range });
+  if (range === "custom" && custom) { search.set("from", custom.from); search.set("to", custom.to); }
   if (clientSlug) search.set("client", clientSlug);
   const { data, error, reload } = useCachedJson<Payload>(`/api/overview?${search.toString()}`);
 
@@ -186,7 +189,8 @@ function Overview() {
   // The actual calendar span the window covers, e.g. "8/26 – 9/2", so "This week" says which week.
   const rangeSpan = (() => {
     const days = data.window?.days;
-    if (!days) return "";
+    // A custom range already names its own dates in the label.
+    if (!days || data.range === "custom") return "";
     const end = new Date();
     const start = new Date(end.getTime() - days * 86_400_000);
     const f = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
@@ -236,6 +240,7 @@ function Overview() {
               {option.label}
             </button>
           ))}
+          <DateRangePicker value={custom} active={data.range === "custom"} onApply={(next) => { setCustom(next); setRange("custom"); }} />
         </div>
       </div>
 
@@ -305,7 +310,7 @@ function Overview() {
       <section className="panel ov-trend">
         <div className="panel-head">
           <h2>Activity</h2>
-          <span>{data.range === "all" ? "Since the engagement started" : data.range === "month" ? "Last 30 days" : "Last 7 days"}</span>
+          <span>{data.range === "all" ? "Since the engagement started" : data.range === "custom" ? data.rangeLabel : data.range === "month" ? "Last 30 days" : "Last 7 days"}</span>
         </div>
         <ActivityChart points={data.activity?.points ?? []} smoothed={Boolean(data.activity?.smoothed)} />
       </section>
