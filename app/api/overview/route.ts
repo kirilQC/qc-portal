@@ -482,15 +482,62 @@ async function build(session: Session, workspaceId: string, range: string) {
   /** Leads HeyReach messaged, lifetime — the reply-rate denominator QC Command uses (accepted as fallback). */
   const messagedAll = campaignRows.reduce((total, row) => total + (num(row.messages_started) || num(row.connections_accepted)), 0);
 
-  // Weekly trend, last 13 weeks (Monday-anchored): total replies, positive replies, booked meetings per week.
-  const WEEKS_BACK = 13;
+  // Monday-anchored weeks, for the all-time activity chart.
   const weekStart = (ms: number) => { const d = new Date(ms); const day = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - day); d.setUTCHours(0, 0, 0, 0); return d.getTime(); };
-  const firstWeek = weekStart(now) - (WEEKS_BACK - 1) * 7 * DAY_MS;
-  const weekIndex = (ms: number) => { const idx = Math.round((weekStart(ms) - firstWeek) / (7 * DAY_MS)); return idx >= 0 && idx < WEEKS_BACK ? idx : -1; };
-  const weeklyTrends = Array.from({ length: WEEKS_BACK }, (_, i) => ({ week: new Date(firstWeek + i * 7 * DAY_MS).toISOString().slice(0, 10), total: 0, positive: 0, meetings: 0, sent: 0 }));
-  for (const row of inbound) { const idx = weekIndex(Date.parse(str(row.sent_at))); if (idx < 0) continue; weeklyTrends[idx].total += 1; if (str(row.sentiment).toLowerCase() === "positive") weeklyTrends[idx].positive += 1; }
-  for (const row of meetings) { const at = str(row.created_at) || str(row.meeting_at); if (!at) continue; const idx = weekIndex(Date.parse(at)); if (idx < 0) continue; weeklyTrends[idx].meetings += 1; }
-  for (const row of totals) { const idx = weekIndex(Date.parse(`${str(row.day).slice(0, 10)}T12:00:00Z`)); if (idx < 0) continue; weeklyTrends[idx].sent += num(row.connections_sent); }
+
+  /*
+   * The activity chart, laid out the way HeyReach's dashboard graph is: one point per day for a week or a
+   * month (today included, so the line ends where the data ends rather than in a fake cliff), one point per
+   * Monday-anchored week for all time, starting at the first week anything happened.
+   *
+   * Replies and positive replies are PEOPLE, not messages: a conversation counts once per point, and is
+   * positive when its latest reply in that point was judged positive (QC Command's definition). Counting
+   * messages made a week read 40 when 30 people replied. Meetings count on the day they were booked.
+   */
+  const granularity: "day" | "week" = windowDays === null ? "week" : "day";
+  const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const bucketKey = (ms: number) => (granularity === "day" ? isoDay(ms) : isoDay(weekStart(ms)));
+  let bucketKeys: string[] = [];
+  if (granularity === "day") {
+    const today = Date.parse(`${isoDay(now)}T00:00:00Z`);
+    bucketKeys = Array.from({ length: windowDays ?? 7 }, (_, i) => isoDay(today - ((windowDays ?? 7) - 1 - i) * DAY_MS));
+  } else {
+    const activity = [
+      ...totals.filter((row) => num(row.connections_sent) > 0).map((row) => Date.parse(`${str(row.day).slice(0, 10)}T12:00:00Z`)),
+      ...inbound.map((row) => Date.parse(str(row.sent_at))),
+      ...meetings.map((row) => Date.parse(str(row.created_at) || str(row.meeting_at))),
+    ].filter(Number.isFinite);
+    const first = activity.length ? weekStart(Math.min(...activity)) : weekStart(now);
+    const last = weekStart(now);
+    const span = Math.min(104, Math.round((last - first) / (7 * DAY_MS)) + 1);
+    bucketKeys = Array.from({ length: span }, (_, i) => isoDay(last - (span - 1 - i) * 7 * DAY_MS));
+  }
+  const bucketIndex = new Map(bucketKeys.map((key, i) => [key, i]));
+  const activitySeries = bucketKeys.map((date) => ({ date, sent: 0, replies: 0, positive: 0, meetings: 0 }));
+  for (const row of totals) {
+    const i = bucketIndex.get(bucketKey(Date.parse(`${str(row.day).slice(0, 10)}T12:00:00Z`)));
+    if (i !== undefined) activitySeries[i].sent += num(row.connections_sent);
+  }
+  const latestInBucket = new Map<string, Row>();
+  for (const row of inbound) {
+    const at = Date.parse(str(row.sent_at));
+    if (!Number.isFinite(at)) continue;
+    const key = bucketKey(at);
+    if (!bucketIndex.has(key)) continue;
+    const id = `${key}|${str(row.conversation_id)}`;
+    const held = latestInBucket.get(id);
+    if (!held || at > Date.parse(str(held.sent_at))) latestInBucket.set(id, row);
+  }
+  for (const [id, row] of latestInBucket) {
+    const i = bucketIndex.get(id.slice(0, id.indexOf("|")))!;
+    activitySeries[i].replies += 1;
+    if (str(row.sentiment).toLowerCase() === "positive") activitySeries[i].positive += 1;
+  }
+  for (const row of meetings) {
+    const at = Date.parse(str(row.created_at) || str(row.meeting_at));
+    const i = Number.isFinite(at) ? bucketIndex.get(bucketKey(at)) : undefined;
+    if (i !== undefined) activitySeries[i].meetings += 1;
+  }
 
   return {
     client: {
@@ -559,7 +606,7 @@ async function build(session: Session, workspaceId: string, range: string) {
     // The people behind the outreach, for the network's anchor nodes. Names, never ids.
     senders: [...new Set(dailyRows.map((row) => str(row.sender_name)).filter(Boolean))].slice(0, 8),
     bestCampaigns,
-    weeklyTrends,
+    activity: { granularity, points: activitySeries },
     /** For the tiles that link into the other tabs. */
     leadsTotal: leadsCount,
     /** Every connection request sent across all campaigns — people actually reached out to. */

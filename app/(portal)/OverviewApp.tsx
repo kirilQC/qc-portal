@@ -13,7 +13,7 @@ import { PageSkeleton } from "../components/PageSkeleton";
 import "./[client]/campaigns/campaigns.css";
 import "./overview.css";
 import ActivityNetwork, { type ActivityEvent } from "../components/ActivityNetwork";
-import TrendsChart, { type TrendPoint } from "./TrendsChart";
+import ActivityChart, { type ActivityPoint } from "./ActivityChart";
 
 /**
  * The client's overview: a month in a sentence, the trend behind it, and what has happened since.
@@ -59,7 +59,7 @@ type Payload = {
     replies: number; acceptanceRate: number; replyRate: number; progress: number;
   }[];
   leadsTotal?: number; reachedTotal?: number; repliesTotal?: number;
-  weeklyTrends?: TrendPoint[];
+  activity?: { granularity: "day" | "week"; points: ActivityPoint[] };
   feed?: FeedEvent[];
   senders?: string[];
 };
@@ -301,8 +301,11 @@ function Overview() {
       </section>
 
       <section className="panel ov-trend">
-        <div className="panel-head"><h2>Weekly reply trends</h2></div>
-        <TrendsChart data={data.weeklyTrends ?? []} />
+        <div className="panel-head">
+          <h2>Activity</h2>
+          <span>{data.range === "all" ? "By week, since the engagement started" : data.range === "month" ? "Last 30 days" : "Last 7 days"}</span>
+        </div>
+        <ActivityChart points={data.activity?.points ?? []} granularity={data.activity?.granularity ?? "day"} />
       </section>
 
       <section className="panel ov-campaigns">

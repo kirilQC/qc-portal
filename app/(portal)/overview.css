@@ -425,3 +425,31 @@ a.ov-cell:hover { background: var(--panel-2); }
 .ov-cell-actions button[type="submit"] { background: var(--accent, #f07a3a); border-color: transparent; color: #fff; }
 .ov-cell-actions button:disabled { opacity: .5; cursor: default; }
 .ov-cell-error { color: #f0716b !important; }
+
+/* ═══ Activity chart — HeyReach's dashboard graph ═══ */
+.ov-trend .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ov-trend .panel-head span { font-size: 12px; color: var(--muted-2); }
+.act-wrap { position: relative; padding: 8px 20px 16px; }
+.act-svg { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; }
+.act-grid { stroke: var(--border); stroke-width: 1; }
+.act-axis { fill: var(--muted-2); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.act-x { font-size: 12px; }
+.act-guide { stroke: var(--muted-2); stroke-width: 1; stroke-dasharray: 3 4; }
+.act-tip {
+  position: absolute; top: 10px; transform: translateX(14px); pointer-events: none; z-index: 5; min-width: 210px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 8px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .28); font-size: 12.5px;
+}
+.act-tip.is-left { transform: translateX(calc(-100% - 14px)); }
+.act-tip b { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.act-tip-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--text); }
+.act-tip-row i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.act-tip-row span { flex: 1; }
+.act-tip-row data {
+  min-width: 34px; padding: 1px 7px; border: 1px solid var(--border); border-radius: 6px; text-align: center;
+  font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.act-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; margin-top: 4px; }
+.act-legend span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.act-legend i { width: 8px; height: 8px; border-radius: 50%; }
+@media (max-width: 700px) { .act-wrap { padding: 6px 10px 12px; } .act-tip { min-width: 180px; } }
