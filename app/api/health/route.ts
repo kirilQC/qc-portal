@@ -13,6 +13,7 @@
  * key is a real and otherwise invisible failure, and a length alone does not narrow a 32-byte secret.
  */
 import { NextResponse } from "next/server";
+import { currentSession } from "../../lib/auth-context";
 
 
 export const dynamic = "force-dynamic";
@@ -61,5 +62,9 @@ export async function GET() {
 
   const ready = env.SESSION_SECRET.set && env.SUPABASE_URL.set && env.SUPABASE_SERVICE_ROLE_KEY.set && urlLooksRight;
 
+  // Anyone gets the verdict; only a signed-in staff member gets the diagnosis. Which secrets exist, their
+  // lengths and the database's own error text are of no use to a visitor and some use to an attacker.
+  const staff = await currentSession().then((session) => session?.role === "staff").catch(() => false);
+  if (!staff) return NextResponse.json({ ok: true, ready, database: usersTable.startsWith("reachable") ? "ok" : "error" });
   return NextResponse.json({ ok: true, ready, env, urlLooksRight, usersTable });
 }

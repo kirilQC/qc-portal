@@ -296,6 +296,8 @@ function connectionCopy(doc: Doc): string {
  * judge an opener. Only campaigns over 50 requests sent, because a rate on a handful of requests is noise.
  */
 function BestMessaging({ docs }: { docs: Doc[] }) {
+  // Collapsed by default: the documents below are what people open this tab for; the ranking is one click away.
+  const [open, setOpen] = useState(false);
   const ranked = docs
     .filter((d) => d.campaign && d.stats && d.stats.connectionsSent >= 50 && connectionCopy(d))
     .map((d) => ({ doc: d, copy: connectionCopy(d), acc: d.stats!.acceptanceRate, rep: d.stats!.replyRate, sent: d.stats!.connectionsSent, accepted: d.stats!.connectionsAccepted, replies: d.stats!.replies }))
@@ -303,12 +305,18 @@ function BestMessaging({ docs }: { docs: Doc[] }) {
     .slice(0, 20);
   if (!ranked.length) return null;
   return (
-    <section className="best-msg">
-      <div className="best-msg-head">
-        <h2>Messaging that performed best</h2>
-        <p>Connection request copy, ranked by acceptance rate · campaigns over 50 requests sent</p>
-      </div>
-      <div className="best-msg-list">
+    <section className={`best-msg ${open ? "is-open" : ""}`}>
+      <button type="button" className="best-msg-head" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
+        <span>
+          <span className="best-msg-title">Messaging that performed best</span>
+          <span className="best-msg-sub">Connection request copy, ranked by acceptance rate · campaigns over 50 requests sent</span>
+        </span>
+        <span className="best-msg-toggle">
+          {open ? "Hide" : `Show ${ranked.length}`}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+        </span>
+      </button>
+      {open && <div className="best-msg-list">
         {ranked.map(({ doc, copy, acc, rep, sent, accepted, replies }) => (
           <div className="best-msg-row" key={doc.path}>
             <div className="best-msg-rates">
@@ -321,7 +329,7 @@ function BestMessaging({ docs }: { docs: Doc[] }) {
             </div>
           </div>
         ))}
-      </div>
+      </div>}
     </section>
   );
 }

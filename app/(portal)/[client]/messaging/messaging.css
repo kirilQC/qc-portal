@@ -291,3 +291,13 @@
 .best-msg-body h3 { margin: 0 0 8px; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
 .best-msg-body p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--muted, #9aa0ad); }
 @media (max-width: 640px) { .best-msg-row { flex-direction: column; gap: 12px; } .best-msg-rates { flex-direction: row; width: auto; gap: 26px; } }
+/* Collapsible: the header is the toggle. */
+.best-msg { padding: 0; }
+.best-msg-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 22px 30px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 16px; }
+.best-msg-head:hover { background: color-mix(in srgb, var(--panel-2, #151821) 60%, transparent); }
+.best-msg-toggle { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 9px; font-size: 12.5px; font-weight: 600; color: var(--muted, #9aa0ad); }
+.best-msg-toggle svg { transition: transform .18s ease; }
+.best-msg.is-open .best-msg-toggle svg { transform: rotate(180deg); }
+.best-msg-list { padding: 0 30px 10px; margin-top: 0; }
+.best-msg-title { display: block; font-size: 21px; font-weight: 750; letter-spacing: -.02em; }
+.best-msg-sub { display: block; margin-top: 6px; font-size: 13px; color: var(--muted-2, #7a8290); }
