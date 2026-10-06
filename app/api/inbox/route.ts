@@ -243,10 +243,16 @@ export async function GET(request: Request) {
   try {
     // The true, uncapped count of reply conversations for the headline metrics — the table itself only
     // loads the most recent LIMIT of them, so counting the loaded rows undercounts and reads as capped.
-    const [conversations, conversationTotal] = await Promise.all([
+    const [all, storedTotal] = await Promise.all([
       buildInbox(session, workspaceId),
       scopedCount(session, "rr_conversations", {}, workspaceId).catch(() => 0),
     ]);
+    // A conversation outside any campaign is not part of the programme the client is paying for, so the
+    // portal leaves it out entirely (it stays in QC Command, which owns the data). The total drops by
+    // the same rows: exact while every conversation fits in one load, and close beyond that.
+    const conversations = all.filter((row) => Boolean(row.campaignName?.trim()));
+    const conversationTotal =
+      all.length < LIMIT ? conversations.length : Math.max(conversations.length, storedTotal - (all.length - conversations.length));
     return NextResponse.json({ ok: true, conversations, conversationTotal });
   } catch (error) {
     return NextResponse.json(

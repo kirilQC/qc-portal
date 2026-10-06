@@ -165,7 +165,10 @@ async function build(session: Session, workspaceId: string, range: string, custo
             // the slowest read on the page (and timed out under load). The photo is per-person enrichment
             // with nothing client-specific in it; the sender comes from the message below instead of the
             // lead's cross-client rollup.
-            select: "id,name,role,company,linkedin_profile_url,photo:raw_data->reply_radar->ai_ark->>profilePhotoSource",
+            // The two campaign fields the inbox reads, only to leave out the same no-campaign people it does.
+            select:
+              "id,name,role,company,linkedin_profile_url,photo:raw_data->reply_radar->ai_ark->>profilePhotoSource," +
+              "rollup_campaigns:raw_data->reply_radar->rollup->campaign_names,lead_campaign:raw_data->reply_radar->campaign->>name",
             id: `in.(${leadIds.join(",")})`,
             limit: String(leadIds.length),
           },
@@ -333,6 +336,9 @@ async function build(session: Session, workspaceId: string, range: string, custo
     if (!message) continue;
     const lead = leadById.get(str(conversation.lead_id));
     if (!lead) continue;
+    // Someone outside every campaign is hidden from the inbox, so they are not news here either.
+    const rollupCampaigns = Array.isArray(lead.rollup_campaigns) ? lead.rollup_campaigns.map(str).join("") : str(lead.rollup_campaigns);
+    if (!rollupCampaigns.trim() && !str(lead.lead_campaign).trim()) continue;
     const name = str(lead.name) || "Someone";
     const where = [str(lead.role), str(lead.company)].filter(Boolean).join(" @ ");
     const campaign = str(message.campaign);
