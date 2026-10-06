@@ -63,7 +63,7 @@ function radar(raw: unknown): Record<string, unknown> {
   return reply && typeof reply === "object" ? (reply as Record<string, unknown>) : {};
 }
 
-async function buildInbox(session: Session, workspaceId: string) {
+async function buildInbox(session: Session, workspaceId: string, qcIds: Set<string>) {
   // Conversations first — they carry the score, tier and the workspace tenancy that everything else
   // is proved against.
   const conversations = await scopedRows(
@@ -72,10 +72,12 @@ async function buildInbox(session: Session, workspaceId: string) {
     {
       select: "id,lead_id,heyreach_conversation_id,score,tier,score_reason,last_message_at,last_message_direction,last_refreshed_at",
       order: "last_message_at.desc",
-      limit: String(LIMIT),
+      // Read wider than the page and cut to QC's conversations straight away, before any lead or message
+      // is fetched: a client's own campaigns would otherwise use up LIMIT and push QC's out of the inbox.
+      limit: String(LIMIT * 4),
     },
     workspaceId,
-  );
+  ).then((rows) => rows.filter((row) => qcIds.has(str(row.id))).slice(0, LIMIT));
   if (!conversations.length) return [];
 
   const leadIds = [...new Set(conversations.map((row) => str(row.lead_id)).filter(Boolean))];
@@ -244,7 +246,8 @@ export async function GET(request: Request) {
   try {
     // The true, uncapped count of reply conversations for the headline metrics — the table itself only
     // loads the most recent LIMIT of them, so counting the loaded rows undercounts and reads as capped.
-    const [all, qc] = await Promise.all([buildInbox(session, workspaceId), qcConversations(session, workspaceId)]);
+    const qc = await qcConversations(session, workspaceId);
+    const all = await buildInbox(session, workspaceId, qc.ids);
     // Only QC's work: a conversation from a QC campaign (lib/qc-conversations). Replies to the client's own
     // campaigns, or with no campaign at all, stay in QC Command and never reach the portal. The total is
     // the exact count of QC conversations, not a count of what fitted in this page.
