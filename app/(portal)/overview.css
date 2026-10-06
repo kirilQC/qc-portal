@@ -300,7 +300,8 @@ a.ov-cell:hover { background: var(--panel-2); }
 @media (max-width: 700px) {
   .ov-brief { padding: 20px; }
   .ov-brief p { font-size: 16px; }
-  .ov-fstep { grid-template-columns: 96px minmax(0, 1fr); }
+  /* Name, bar, figure — the rate column drops, the figure stays beside its bar instead of wrapping. */
+  .ov-fstep { grid-template-columns: 86px minmax(0, 1fr) 52px; gap: 10px; }
   .ov-fstep > em { display: none; }
 }
 
@@ -351,8 +352,10 @@ a.ov-cell:hover { background: var(--panel-2); }
 @media (max-width: 1000px) { .ov-hero-feed { width: 300px; } .ov-hero-copy { width: 52%; } }
 @media (max-width: 760px) {
   .ov-hero-net { height: auto; min-height: 440px; }
-  .ov-hero-feed { position: static; width: auto; max-width: none; margin: 12px; }
-  .ov-hero-copy { position: static; width: auto; background: none; padding: 16px 16px 4px; }
+  /* Relative, not static: the network canvas is absolutely positioned over the whole hero, and a static
+     element paints underneath it whatever its z-index — on phones the summary sentence was invisible. */
+  .ov-hero-feed { position: relative; width: auto; max-width: none; margin: 12px; }
+  .ov-hero-copy { position: relative; width: auto; background: none; padding: 16px 16px 4px; }
   .ov-hero-copy p { text-shadow: none; }
 }
 

@@ -53,7 +53,13 @@ export async function GET(request: Request) {
     // Base columns plus the two the view adds. The generated columns Reply Radar's schema.sql documents
     // (icp_score, ai_title, campaign_names, …) do not exist on the live table — `create table if not
     // exists` never patched it — so everything they would have carried is read out of raw_data below.
-    select: "id,name,role,company,linkedin_profile_url,linkedin_id,created_at,last_reply_at,reply_count,raw_data",
+    // `reply_radar` and the three email fields out of raw_data, not the whole HeyReach payload — a page of
+    // fifty full blobs was most of this read's time. `reply_radar` is scoped by `scopedRows` exactly as
+    // raw_data is (shared/tenancy.mjs).
+    select:
+      "id,name,role,company,linkedin_profile_url,linkedin_id,created_at,last_reply_at,reply_count," +
+      "reply_radar:raw_data->reply_radar,email_address:raw_data->>email_address," +
+      "custom_email:raw_data->>custom_email,enriched_email:raw_data->>enriched_email",
     order: sort,
     limit: String(limit),
     offset: String(offset),
@@ -84,8 +90,8 @@ export async function GET(request: Request) {
     };
 
     const leads = rows.map((row) => {
-      const raw = (row.raw_data ?? {}) as Record<string, unknown>;
-      const radar = (raw.reply_radar ?? {}) as Record<string, unknown>;
+      const raw = row as Record<string, unknown>;
+      const radar = (row.reply_radar ?? {}) as Record<string, unknown>;
       const enrichment = (radar.ai_ark ?? {}) as Record<string, unknown>;
       const rollup = (radar.rollup ?? {}) as Record<string, unknown>;
       const enrichedCompany = (enrichment.company ?? {}) as Record<string, unknown>;

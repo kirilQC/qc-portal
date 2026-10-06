@@ -123,14 +123,23 @@ function stripTopLevel(raw, rollup) {
 }
 
 /**
- * Scope every `raw_data` in a result set.
+ * Scope every `raw_data` in a result set — and every `reply_radar`, the name a read uses when it selects
+ * only that sub-object (`reply_radar:raw_data->reply_radar`) to skip the HeyReach payload around it.
+ * The sub-object carries the same cross-client attributions and rollup, so it is cut down the same way.
  *
- * Rows without one pass straight through, which is most tables — this only costs anything on the two
+ * Rows without either pass straight through, which is most tables — this only costs anything on the two
  * that carry a lead blob.
  */
 export function scopeRows(rows, workspaceId) {
   if (!Array.isArray(rows)) return rows;
-  return rows.map((row) =>
-    isObject(row) && "raw_data" in row ? { ...row, raw_data: scopeRawData(row.raw_data, workspaceId) } : row,
-  );
+  return rows.map((row) => {
+    if (!isObject(row)) return row;
+    let out = row;
+    if ("raw_data" in out) out = { ...out, raw_data: scopeRawData(out.raw_data, workspaceId) };
+    if ("reply_radar" in out) {
+      const scoped = scopeRawData({ reply_radar: out.reply_radar }, workspaceId);
+      out = { ...out, reply_radar: isObject(scoped) ? scoped.reply_radar : out.reply_radar };
+    }
+    return out;
+  });
 }

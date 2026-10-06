@@ -116,7 +116,7 @@
 
 /* ── The two panes ──────────────────────────────────────────────────────────────────────────────── */
 
-.inbox-grid { display: grid; grid-template-columns: minmax(0, 62fr) minmax(340px, 38fr); gap: 14px; align-items: start; }
+.inbox-grid { display: grid; grid-template-columns: minmax(0, var(--left, 62fr)) 10px minmax(300px, var(--right, 38fr)); gap: 14px; align-items: start; }
 
 .queue-card { border: 1px solid var(--border); border-radius: 11px; background: var(--panel); overflow: hidden; }
 /*
@@ -303,6 +303,7 @@ body.light-mode .reason-box p { color: #403a70; }
 
 @media (max-width: 1240px) {
   .inbox-grid { grid-template-columns: 1fr; }
+  .pane-divider { display: none; }
   .detail-card { position: static; }
   .inbox-metrics { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 }
@@ -310,7 +311,9 @@ body.light-mode .reason-box p { color: #403a70; }
   .inbox-wrap { padding: 20px 18px 50px; }
   /* The queue collapses to the two columns that identify a row; the rest is in the detail pane. */
   .table-head { display: none; }
-  .lead-row { grid-template-columns: 1fr auto; gap: 8px; }
+  .lead-row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
+  /* The wide-table minimum would otherwise keep the collapsed two-column rows 860px wide. */
+  .queue-scroll > * { min-width: 0; }
   .lead-row .cell:nth-child(2),
   .lead-row .cell:nth-child(3),
   .lead-row .cell:nth-child(4) { display: none; }

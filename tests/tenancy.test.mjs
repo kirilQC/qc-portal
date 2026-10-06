@@ -173,3 +173,20 @@ test("a non-array is handed back as it came", () => {
   assert.equal(scopeRows(null, ARCJET), null);
   assert.equal(scopeRows(undefined, ARCJET), undefined);
 });
+
+test("a row that selected only reply_radar is scoped the same as one carrying the whole raw_data", () => {
+  const [row] = scopeRows([{ id: "lead-1", reply_radar: NOAM.reply_radar }], ARCJET);
+  const text = dump(row);
+  for (const foreign of ["Cotool", "Wiz", "CT049", "WZ012", "Max Pollard", "Roi Galipapa", "Eyal Ezra"]) {
+    assert.ok(!text.includes(foreign), `${foreign} leaked through a reply_radar-only select`);
+  }
+  assert.equal(row.reply_radar.rollup.campaign_names, "AJ004: Post BH'26 Campaign");
+  assert.equal(row.reply_radar.rollup.sender_names, "David Mytton");
+  assert.equal(row.reply_radar.enrichment_status, "enriched");
+});
+
+test("a reply_radar-only select with no workspace in play keeps nothing cross-client", () => {
+  const [row] = scopeRows([{ id: "lead-1", reply_radar: NOAM.reply_radar }], null);
+  assert.deepEqual(row.reply_radar.attributions, []);
+  assert.equal(row.reply_radar.rollup.campaign_names, "");
+});

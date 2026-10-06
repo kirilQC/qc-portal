@@ -181,11 +181,13 @@ function CampaignRow({ row }: { row: Campaign }) {
   const launched = row.launchedAt
     ? new Date(row.launchedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
-  // Sending = HeyReach says it's running AND there are still leads queued. Paused = has leads left but is
-  // not actively sending. Done = nothing left to contact. This is what "still active" actually means.
+  // HeyReach's own status decides, as it does for "Campaigns running" on the overview and analytics:
+  // Sending = HeyReach says it is running (a campaign with nobody left to invite can still be working
+  // through follow-ups — reading that as "Done" disagreed with HeyReach and with the running count).
+  // Paused = stopped with leads still to contact. Done = stopped with nothing left.
   const statusRaw = (row.status ?? "").toUpperCase();
   const isActive = statusRaw === "IN_PROGRESS" || statusRaw === "ACTIVE";
-  const state = untouched <= 0 ? "done" : isActive ? "sending" : "paused";
+  const state = isActive ? "sending" : untouched > 0 ? "paused" : "done";
   const stateLabel = state === "sending" ? "Sending" : state === "paused" ? "Paused" : "Done";
   /** No reply of this campaign's has ever been classified, so its positive rate means nothing yet. */
   const unscored = row.replies > 0 && row.scoredReplies === 0;

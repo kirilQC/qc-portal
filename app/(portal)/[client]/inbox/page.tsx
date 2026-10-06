@@ -93,6 +93,14 @@ function Inbox() {
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState("");
+  const detailRef = useRef<HTMLElement>(null);
+  /** Select a lead; on a stacked (narrow) layout the thread is below the list, so bring it into view. */
+  const openLead = useCallback((id: string) => {
+    setSelectedId(id);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1240px)").matches) {
+      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  }, []);
   const [search, setSearch] = useState("");
   const [visible, setVisible] = useState(10);
   const [campaignFilter, setCampaignFilter] = useState("");
@@ -421,7 +429,9 @@ function Inbox() {
         </div>
       </div>
 
-      <div className="inbox-grid" ref={grid} style={{ gridTemplateColumns: `minmax(0, ${split}fr) 10px minmax(300px, ${100 - split}fr)` }}>
+      {/* The split is handed to CSS as variables, not as an inline grid: an inline grid-template beat the
+          stylesheet's narrow-screen rule, so on a phone the queue was squeezed to a strip of avatars. */}
+      <div className="inbox-grid" ref={grid} style={{ "--left": `${split}fr`, "--right": `${100 - split}fr` } as React.CSSProperties}>
         <div className="queue-card">
           <div className="queue-scroll">
           <div className="table-head">
@@ -446,8 +456,8 @@ function Inbox() {
                     className={`lead-row ${current?.id === lead.id ? "row-selected" : ""} ${lead.sentiment ? `row-sentiment-${lead.sentiment}` : ""}`}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedId(lead.id)}
-                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(lead.id); } }}
+                    onClick={() => openLead(lead.id)}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openLead(lead.id); } }}
                   >
                     <div className="lead-main">
                       <div className="lead-avatar">
@@ -504,7 +514,7 @@ function Inbox() {
           }}
         />
 
-        <aside className="detail-card">
+        <aside className="detail-card" ref={detailRef}>
           {!current ? (
             <p className="empty">No conversation selected.</p>
           ) : (

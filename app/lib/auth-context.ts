@@ -17,11 +17,46 @@
 import { cookies } from "next/headers";
 import { SESSION_COOKIE, readSession, type Session } from "./session";
 import { scopedRows, str } from "./db";
+import { getUser } from "./users";
 
-/** The signed-in session, or null. */
+/**
+ * Whether a validly-signed session still belongs to a live login.
+ *
+ * The signature proves the cookie was issued, not that the login behind it still exists. Sessions are
+ * long-lived and nothing server-side can cancel one, so without this a user who was switched off or
+ * deleted kept reading their workspace — and could even mint a fresh login through /api/account. So the
+ * login is re-read: it must exist, be active, and still have the role and workspace the cookie claims.
+ * Cached per user for a short window so a page's burst of requests costs one lookup, not one each; a
+ * deactivation therefore takes effect within LIVE_TTL_MS. Fails closed if the lookup itself fails.
+ */
+const LIVE_TTL_MS = 30_000;
+const liveCache = new Map<string, { at: number; ok: boolean }>();
+
+async function stillLive(session: Session): Promise<boolean> {
+  const key = `${session.userId}|${session.role}|${session.workspaceId ?? ""}`;
+  const hit = liveCache.get(key);
+  if (hit && Date.now() - hit.at < LIVE_TTL_MS) return hit.ok;
+  let ok = false;
+  try {
+    const user = await getUser(session.userId);
+    ok = Boolean(
+      user && user.isActive && user.role === session.role &&
+      (session.role === "staff" || user.workspaceId === session.workspaceId),
+    );
+  } catch {
+    return false;
+  }
+  if (liveCache.size > 5000) liveCache.clear();
+  liveCache.set(key, { at: Date.now(), ok });
+  return ok;
+}
+
+/** The signed-in session, or null — null too when the login behind a valid cookie is gone or switched off. */
 export async function currentSession(): Promise<Session | null> {
   const store = await cookies();
-  return readSession(store.get(SESSION_COOKIE)?.value);
+  const session = await readSession(store.get(SESSION_COOKIE)?.value);
+  if (!session) return null;
+  return (await stillLive(session)) ? session : null;
 }
 
 /** The signed-in session, or a thrown error — for code paths that have no meaning without one. */

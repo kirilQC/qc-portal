@@ -93,7 +93,9 @@ async function build(session: Session, workspaceId: string, range: string) {
   const windowStart = windowDays === null ? 0 : now - windowDays * DAY_MS;
   const previousStart = windowDays === null ? 0 : windowStart - windowDays * DAY_MS;
 
-  const [workspaceRows, campaignRows, dailyRows, conversations, meetings] = await Promise.all([
+  // The two exact counts depend on nothing else, so they ride along with the first batch rather than
+  // adding two more round trips at the end.
+  const [workspaceRows, campaignRows, dailyRows, conversations, meetings, leadsCountRaw, repliesCountRaw] = await Promise.all([
     scopedRows(session, "rr_workspaces", { select: "id,name,slug,logo_url,accent_color,website_url", limit: "1" }, workspaceId),
     scopedRows(
       session,
@@ -114,6 +116,8 @@ async function build(session: Session, workspaceId: string, range: string) {
       { select: "id,invitee_name,invitee_title,company_name,meeting_at,created_at,campaign,status", order: "created_at.desc", limit: "500" },
       workspaceId,
     ),
+    scopedCount(session, "rr_leads", {}, workspaceId).catch(() => null),
+    scopedCount(session, "rr_conversations", {}, workspaceId).catch(() => null),
   ]);
 
   const workspace = workspaceRows[0];
@@ -128,7 +132,15 @@ async function build(session: Session, workspaceId: string, range: string) {
       ? scopedRows(
           session,
           "rr_leads",
-          { select: "id,name,role,company,linkedin_profile_url,raw_data", id: `in.(${leadIds.join(",")})`, limit: String(leadIds.length) },
+          {
+            // Only the photo out of raw_data, never the blob: the whole HeyReach payload per lead made this
+            // the slowest read on the page (and timed out under load). The photo is per-person enrichment
+            // with nothing client-specific in it; the sender comes from the message below instead of the
+            // lead's cross-client rollup.
+            select: "id,name,role,company,linkedin_profile_url,photo:raw_data->reply_radar->ai_ark->>profilePhotoSource",
+            id: `in.(${leadIds.join(",")})`,
+            limit: String(leadIds.length),
+          },
           workspaceId,
         )
       : Promise.resolve([] as Row[]),
@@ -141,7 +153,7 @@ async function build(session: Session, workspaceId: string, range: string) {
             // The body is what makes the network worth looking at — the actual words somebody replied,
             // not a label saying a reply happened. It was never selected before, so every "quote" on the
             // old feed would have had to be invented; now there is a real one to show.
-            select: "conversation_id,sent_at,body,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
+            select: "conversation_id,sent_at,body,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name,sender:raw_data->reply_radar->sender->>name",
             direction: "eq.inbound",
             limit: "1000",
           },
@@ -195,7 +207,10 @@ async function build(session: Session, workspaceId: string, range: string) {
     }),
     { leads: 0, reached: 0, accepted: 0, replies: 0 },
   );
-  const positiveAllTime = inbound.filter((row) => str(row.sentiment).toLowerCase() === "positive").length;
+  // People, not messages — someone who replied positively twice is one positive reply, as QC Command counts it.
+  const positiveAllTime = new Set(
+    inbound.filter((row) => str(row.sentiment).toLowerCase() === "positive").map((row) => str(row.conversation_id)),
+  ).size;
 
   /** Conversations where the lead spoke last — the ones waiting on a response. */
   const waiting = conversations.filter((row) => str(row.last_message_direction) === "inbound").length;
@@ -294,11 +309,6 @@ async function build(session: Session, workspaceId: string, range: string) {
     const campaign = str(message.campaign);
     const isPositive = str(message.sentiment).toLowerCase() === "positive";
 
-    // The photo already loaded for the inbox and the lead table, from the scoped enrichment blob.
-    const radar = ((lead.raw_data as Record<string, unknown>)?.reply_radar ?? {}) as Record<string, unknown>;
-    const enrichment = (radar.ai_ark ?? {}) as Record<string, unknown>;
-    const rollup = (radar.rollup ?? {}) as Record<string, unknown>;
-    const senderNames = str(rollup.sender_names);
 
     const body = str(message.body);
     events.push({
@@ -308,11 +318,11 @@ async function build(session: Session, workspaceId: string, range: string) {
       detail: [where, campaign].filter(Boolean).join(" · "),
       name,
       initials: initialsOf(name),
-      photoUrl: enrichment.profilePhotoSource ? str(enrichment.profilePhotoSource) : null,
+      photoUrl: lead.photo ? str(lead.photo) : null,
       where,
       campaign: campaign || null,
-      // The rollup is already scoped to this client, so this sender is theirs and not another tenant's.
-      sender: senderNames ? senderNames.split(";")[0].trim() : null,
+      // From the message itself, which belongs to this client's conversation — so the sender is theirs.
+      sender: str(message.sender) || null,
       // Every reply carries its words — a card with a name and no message read as broken ("X replied" with
       // nothing under it). The sentiment still colours it; the quote just always shows.
       quote: body ? taste(body) : null,
@@ -455,13 +465,13 @@ async function build(session: Session, workspaceId: string, range: string) {
   // The real size of this client's lead database — distinct people in rr_leads, counted with a cheap
   // Content-Range header, NOT the sum of every campaign's list size (which double-counts anyone who was
   // loaded into more than one campaign — that sum is what showed a wildly inflated 15k).
-  const leadsCount = await scopedCount(session, "rr_leads", {}, workspaceId).catch(() => allTime.leads);
+  const leadsCount = leadsCountRaw ?? allTime.leads;
 
   // "Replies" is the number of leads who have replied — one conversation is one lead who replied, so it
   // is the true count of conversation threads, uncapped. This is the SAME figure the inbox shows, so the
   // two pages agree. It deliberately does NOT use the sum of each campaign's HeyReach reply count, which
   // double-counts anyone who replied across more than one campaign (that sum read 688 against 627 here).
-  const repliesCount = await scopedCount(session, "rr_conversations", {}, workspaceId).catch(() => allTime.replies);
+  const repliesCount = repliesCountRaw ?? allTime.replies;
 
   // Weekly trend, last 13 weeks (Monday-anchored): total replies, positive replies, booked meetings per week.
   const WEEKS_BACK = 13;

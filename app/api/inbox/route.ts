@@ -91,7 +91,11 @@ async function buildInbox(session: Session, workspaceId: string) {
             // table — `create table if not exists` does not patch an existing one — so asking for them
             // is a 400. Everything they would have held is derived from raw_data below instead, which
             // is where the importer actually writes it.
-            select: "id,name,role,company,linkedin_profile_url,linkedin_id,raw_data",
+            //
+            // Only `reply_radar` out of raw_data, never the HeyReach payload around it — the whole blob per
+            // lead made this read slow enough to time out under load. `scopedRows` scopes `reply_radar`
+            // exactly as it scopes raw_data (shared/tenancy.mjs), so no other client's facts survive.
+            select: "id,name,role,company,linkedin_profile_url,linkedin_id,reply_radar:raw_data->reply_radar",
             id: `in.(${leadIds.join(",")})`,
             limit: String(leadIds.length),
           },
@@ -164,7 +168,7 @@ async function buildInbox(session: Session, workspaceId: string) {
       const inbound = latestInbound.get(id);
       // The reply_radar fields were extracted in the query above, so they sit on the row directly now.
       const cached = (inbound ?? {}) as Row;
-      const leadRadar = radar(lead.raw_data);
+      const leadRadar = radar({ reply_radar: lead.reply_radar });
       const enrichment = (leadRadar.ai_ark ?? {}) as Record<string, unknown>;
 
       const name = str(lead.name) || "Unnamed";
