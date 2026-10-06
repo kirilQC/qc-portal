@@ -95,7 +95,7 @@ async function build(session: Session, workspaceId: string, range: string) {
 
   // The two exact counts depend on nothing else, so they ride along with the first batch rather than
   // adding two more round trips at the end.
-  const [workspaceRows, campaignRows, dailyRows, conversations, meetings, leadsCountRaw, repliesCountRaw] = await Promise.all([
+  const [workspaceRows, campaignRows, dailyRows, conversations, meetings, leadsCountRaw, repliesCountRaw, overrideRows] = await Promise.all([
     scopedRows(session, "rr_workspaces", { select: "id,name,slug,logo_url,accent_color,website_url", limit: "1" }, workspaceId),
     scopedRows(
       session,
@@ -118,6 +118,9 @@ async function build(session: Session, workspaceId: string, range: string) {
     ),
     scopedCount(session, "rr_leads", {}, workspaceId).catch(() => null),
     scopedCount(session, "rr_conversations", {}, workspaceId).catch(() => null),
+    // A staff-set "Meetings booked" figure, when there is one. Empty (not an error) if the table has not
+    // been created yet, so the page keeps working on the automatic count.
+    scopedRows(session, "qc_portal_meeting_overrides", { select: "meetings_booked,set_at", limit: "1" }, workspaceId).catch(() => [] as Row[]),
   ]);
 
   const workspace = workspaceRows[0];
@@ -562,7 +565,11 @@ async function build(session: Session, workspaceId: string, range: string) {
     /** Every connection request sent across all campaigns — people actually reached out to. */
     reachedTotal: allTime.reached,
     repliesTotal: repliesCount,
-    meetingsBooked: meetings.length,
+    // A staff override wins; otherwise the count of meetings QC Command knows about.
+    meetingsBooked: overrideRows[0] ? num(overrideRows[0].meetings_booked) : meetings.length,
+    meetingsBookedAuto: meetings.length,
+    meetingsOverridden: Boolean(overrideRows[0]),
+    canEditMeetings: session.role === "staff",
     meetingsUpcoming: meetings.filter((row) => row.meeting_at && Date.parse(str(row.meeting_at)) > now).length,
     sparklines: {
       reached: reachedSeries,

@@ -112,3 +112,22 @@ create table if not exists qc_portal_health_state (
 );
 
 alter table qc_portal_health_state enable row level security;
+
+-- ── Meetings-booked override ───────────────────────────────────────────────────────────────────
+--
+-- The "Meetings booked" figure a client sees is counted from rr_meetings, which only knows meetings that
+-- reached QC Command (a calendar webhook, a manual log). Some are booked outside it — a call set up over
+-- email, a meeting the client booked themselves off our intro — and staff need to be able to say the
+-- real number. One row per client; a row present means "show this number instead of the count", and
+-- deleting it hands the figure back to the automatic count. Portal-only: QC Command never reads it.
+--
+-- RLS on with no policies like every other table here: the service key bypasses it and the app layer is
+-- the wall. Clients read their own row (it is their figure); only staff write, gated in the route.
+create table if not exists qc_portal_meeting_overrides (
+  workspace_id     uuid primary key,
+  meetings_booked  integer not null check (meetings_booked >= 0),
+  set_by           text,
+  set_at           timestamptz not null default now()
+);
+
+alter table qc_portal_meeting_overrides enable row level security;

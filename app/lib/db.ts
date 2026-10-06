@@ -51,6 +51,9 @@ const CLIENT_READABLE: Record<string, string> = {
   // A client reads its own manual campaign attributions so the corrected link shows on their screen;
   // writing one is staff work and is gated in the route, not here.
   qc_portal_messaging_links: "workspace_id",
+  // A client reads its own meetings-booked override, since it is the figure on their screen; setting
+  // one is staff work, gated in /api/admin/meetings-override.
+  qc_portal_meeting_overrides: "workspace_id",
 };
 
 /** Tables only a staff session may read. Never reachable from a client session, filtered or not. */

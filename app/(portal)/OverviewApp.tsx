@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useClientSlug } from "../components/useClientSlug";
 import { useCachedJson } from "../components/cache";
@@ -47,6 +47,8 @@ type Payload = {
   busiestSender?: { name: string; sent: number } | null;
   bestCampaigns?: { name: string; reached: number; accepted: number; replyRate: number }[];
   meetingsBooked?: number; meetingsUpcoming?: number;
+  /** The automatic count, whether staff have overridden it, and whether this viewer may. */
+  meetingsBookedAuto?: number; meetingsOverridden?: boolean; canEditMeetings?: boolean;
   range?: string;
   rangeLabel?: string;
   ranges?: { key: string; label: string }[];
@@ -143,7 +145,7 @@ function Overview() {
   // them in the background, so switching to this tab and back never flashes a loading state again.
   const search = new URLSearchParams({ range });
   if (clientSlug) search.set("client", clientSlug);
-  const { data, error } = useCachedJson<Payload>(`/api/overview?${search.toString()}`);
+  const { data, error, reload } = useCachedJson<Payload>(`/api/overview?${search.toString()}`);
 
   if (error && !data) return <div className="content"><p className="error-note">{error}</p></div>;
   if (!data) return <PageSkeleton tiles={8} />;
@@ -244,6 +246,18 @@ function Overview() {
       {/* Eight figures, one flush grid — four across, two rows. Cells with an href link into their tab. */}
       <section className="ov-stats">
         {cells.map((cell) => {
+          if (cell.label === "Meetings booked" && data.canEditMeetings) {
+            return (
+              <MeetingsCell
+                key={cell.label}
+                value={data.meetingsBooked ?? 0}
+                auto={data.meetingsBookedAuto ?? data.meetingsBooked ?? 0}
+                overridden={Boolean(data.meetingsOverridden)}
+                clientSlug={clientSlug}
+                onSaved={reload}
+              />
+            );
+          }
           const inner = (
             <>
               <strong>{cell.value}</strong>
@@ -345,5 +359,91 @@ function Overview() {
 export default function Page() {
   return (
       <Overview />
+  );
+}
+
+/**
+ * The "Meetings booked" tile as staff see it: the same figure, plus a way to set it by hand.
+ *
+ * The automatic count only knows meetings that reached QC Command, so staff can override it for a client
+ * (a call booked over email, one the client set up off our intro). Clients see only the number — never
+ * whether it was set by hand. "Use count" deletes the override and hands the tile back to the count.
+ */
+function MeetingsCell({ value, auto, overridden, clientSlug, onSaved }: {
+  value: number; auto: number; overridden: boolean; clientSlug: string | null; onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Focus the field when it opens, so a number can be typed straight away.
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  const save = async (meetingsBooked: number | null) => {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/meetings-override", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ client: clientSlug, meetingsBooked }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "That did not save.");
+      setEditing(false);
+      onSaved();
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "That did not save.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="ov-cell ov-cell-staff">
+        <strong>{n(value)}</strong>
+        <span className="ov-cell-label">Meetings booked</span>
+        <em>
+          {overridden ? `Set by QC · counted ${n(auto)}` : "Counted automatically"}
+          {" · "}
+          <button type="button" className="ov-cell-edit" onClick={() => { setDraft(String(value)); setEditing(true); }}>
+            Edit
+          </button>
+        </em>
+      </div>
+    );
+  }
+
+  const parsed = Number(draft);
+  const valid = draft.trim() !== "" && Number.isInteger(parsed) && parsed >= 0;
+  return (
+    <form
+      className="ov-cell ov-cell-staff ov-cell-editing"
+      onSubmit={(event) => { event.preventDefault(); if (valid && !busy) void save(parsed); }}
+    >
+      <input
+        type="number"
+        min={0}
+        step={1}
+        inputMode="numeric"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Escape") setEditing(false); }}
+        aria-label="Meetings booked"
+        ref={inputRef}
+      />
+      <span className="ov-cell-actions">
+        <button type="submit" disabled={!valid || busy}>{busy ? "Saving…" : "Save"}</button>
+        {overridden && (
+          <button type="button" disabled={busy} onClick={() => void save(null)}>Use count ({n(auto)})</button>
+        )}
+        <button type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+      </span>
+      {error && <em className="ov-cell-error">{error}</em>}
+    </form>
   );
 }
