@@ -49,7 +49,8 @@ export default function ReplyCalendar({ data }: { data: CalendarData }) {
   const best = past.reduce<CalendarDay | null>((top, day) => (day.replies > (top?.replies ?? 0) ? day : top), null);
   const byWeekday = [0, 0, 0, 0, 0, 0, 0];
   for (const day of past) byWeekday[(new Date(`${day.date}T12:00:00Z`).getUTCDay() + 6) % 7] += day.replies;
-  const busiest = Math.max(...byWeekday) > 0 ? `${WEEKDAYS[byWeekday.indexOf(Math.max(...byWeekday))]}s` : "—";
+  const DAY_NAMES = ["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"];
+  const busiest = Math.max(...byWeekday) > 0 ? DAY_NAMES[byWeekday.indexOf(Math.max(...byWeekday))] : "—";
   const monthName = fmt(`${data.month}-01`, { month: "long" });
   const total = past.reduce((sum, day) => sum + day[metric], 0);
 
