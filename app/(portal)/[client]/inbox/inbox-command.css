@@ -83,7 +83,7 @@
 .inbox-wrap .lead-words { min-width: 0; }
 .inbox-wrap .lead-name { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 620; color: var(--text); min-width: 0; }
 /* The lead's name and the line under it, as QC Command sets them: small, quiet, one line each. */
-.inbox-wrap .lead-main span { display: block; margin-top: 4px; font-size: 9px; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-wrap .lead-main span { display: block; margin-top: 4px; font-size: 9px; line-height: 1.5; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .inbox-wrap .lead-main .lead-name-text { margin-top: 4px; font-weight: 620; min-width: 0; }
 .inbox-wrap .lead-main .responded-check { display: inline; margin-top: 0; color: var(--green); font-size: 11px; overflow: visible; }
 .inbox-wrap .lead-main .lead-star { display: inline; margin-top: 0; font-size: 11px; overflow: visible; }
@@ -92,9 +92,9 @@
 .inbox-wrap .turn-cell { text-align: center; min-width: 0; }
 .inbox-wrap .campaign-cell strong,
 .inbox-wrap .sender-cell strong { display: block; font-size: 9px; font-weight: 760; line-height: 1.4; color: var(--text); }
-.inbox-wrap .date-cell strong { display: block; font-size: 9px; font-weight: 750; color: var(--text); font-variant-numeric: tabular-nums; }
-.inbox-wrap .date-cell span { display: block; margin-top: 4px; font-size: 9px; color: var(--muted-2); white-space: nowrap; }
-.inbox-wrap .turn-cell strong { font-size: 13px; font-weight: 560; color: #c9cdd7; }
+.inbox-wrap .date-cell strong { display: block; font-size: 9px; line-height: 1.4; font-weight: 750; color: var(--text); font-variant-numeric: tabular-nums; }
+.inbox-wrap .date-cell span { display: block; margin-top: 4px; font-size: 9px; line-height: 1.4; color: var(--muted-2); white-space: nowrap; }
+.inbox-wrap .turn-cell strong { font-size: 13px; line-height: 1.4; font-weight: 560; color: #c9cdd7; }
 
 /* ── The conversation pane ───────────────────────────────────────────────────────────────────── */
 .inbox-wrap .detail-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
