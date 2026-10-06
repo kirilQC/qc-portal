@@ -48,6 +48,8 @@ export type CampaignRow = {
   connectionsSent: number;
   connectionsAccepted: number;
   replies: number;
+  /** Leads HeyReach has messaged — the reply-rate denominator, as QC Command uses it. */
+  messagesStarted: number;
   positiveReplies: number;
   /**
    * How many of this campaign's replies have actually been through sentiment analysis.
@@ -190,7 +192,7 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       "rr_campaign_stats",
       {
         select:
-          "campaign_id,name,status,launched_at,sender_ids,total_leads,leads_pending,connections_sent,connections_accepted,replies",
+          "campaign_id,name,status,launched_at,sender_ids,total_leads,leads_pending,connections_sent,connections_accepted,replies,messages_started",
       },
       workspaceId,
     ),
@@ -206,9 +208,15 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
     if (id && name && !senderNames.has(id)) senderNames.set(id, name);
   }
 
-  // Positive replies, and how many replies were scored at all, per campaign.
-  const positiveByCampaign = new Map<string, number>();
-  const scoredByCampaign = new Map<string, number>();
+  // Positive replies, and how many replies were scored at all, per campaign — counted per person
+  // (distinct conversation), not per message, exactly as QC Command counts them.
+  const positiveLeads = new Map<string, Set<string>>();
+  const scoredLeads = new Map<string, Set<string>>();
+  const addTo = (map: Map<string, Set<string>>, key: string, id: string) => {
+    const set = map.get(key) ?? new Set<string>();
+    set.add(id);
+    map.set(key, set);
+  };
   /** The newest message seen per campaign — where a run is taken to have ended. */
   const lastActivityByCampaign = new Map<string, string>();
   const conversationIds = conversations.map((row) => str(row.id)).filter(Boolean);
@@ -220,7 +228,7 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       {
         // Both directions: inbound carries the sentiment, and either can be the last sign of life.
         select:
-          "direction,sent_at,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
+          "direction,sent_at,conversation_id,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
         limit: "1000",
       },
       workspaceId,
@@ -242,11 +250,13 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       const verdict = str(message.sentiment).toLowerCase();
       // A message carries a sentiment only once it has been classified; absent is not "neutral".
       if (verdict === "positive" || verdict === "neutral" || verdict === "negative") {
-        scoredByCampaign.set(key, (scoredByCampaign.get(key) ?? 0) + 1);
-        if (verdict === "positive") positiveByCampaign.set(key, (positiveByCampaign.get(key) ?? 0) + 1);
+        addTo(scoredLeads, key, str(message.conversation_id));
+        if (verdict === "positive") addTo(positiveLeads, key, str(message.conversation_id));
       }
     }
   }
+  const positiveByCampaign = new Map([...positiveLeads].map(([key, set]) => [key, set.size]));
+  const scoredByCampaign = new Map([...scoredLeads].map(([key, set]) => [key, set.size]));
 
   return rows
     .map((row) => {
@@ -254,6 +264,7 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
       const sent = num(row.connections_sent);
       const accepted = num(row.connections_accepted);
       const replies = num(row.replies);
+      const messagesStarted = num(row.messages_started);
       const key = name.trim().toLowerCase();
       const positiveReplies = positiveByCampaign.get(key) ?? 0;
       const scoredReplies = scoredByCampaign.get(key) ?? 0;
@@ -271,13 +282,15 @@ export async function getCampaigns(session: Session, workspaceId: string): Promi
         connectionsSent: sent,
         connectionsAccepted: accepted,
         replies,
+        messagesStarted,
         positiveReplies,
         scoredReplies,
         lastActivityAt,
         acceptanceRate: rate(accepted, sent),
-        // Reply and positive-reply rates are both out of *accepted*, not sent — nobody can reply to a
-        // request that was never accepted. Reply Radar's convention, reproduced so the two agree.
-        replyRate: rate(replies, accepted),
+        // Reply rate is HeyReach's definition, as QC Command shows it: replies over leads messaged,
+        // falling back to accepted for rows stored before messages were collected. Positive-reply rate
+        // is out of accepted. Reproduced exactly so the portal and the internal tool agree.
+        replyRate: rate(replies, messagesStarted || accepted),
         positiveReplyRate: rate(positiveReplies, accepted),
       };
     })

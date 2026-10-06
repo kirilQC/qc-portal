@@ -2,10 +2,8 @@
 // QC Portal — proprietary. Not licensed for redistribution or resale.
 
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect -- loads on mount and when the client changes; the
-   setState calls sit inside async callbacks rather than the effect body. */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useClientSlug } from "../components/useClientSlug";
 import { useCachedJson } from "../components/cache";
@@ -88,7 +86,7 @@ function briefing(data: Payload): React.ReactNode[] {
   if (!w.reached && !w.replies) {
     return [
       <span key="quiet">
-        Nothing has gone out in the last {w.days} days. Campaigns that are paused or finished show on the{" "}
+        Nothing has gone out {w.days ? `in the last ${w.days} days` : "yet"}. Campaigns that are paused or finished show on the{" "}
         <b>Campaigns</b> tab with what they produced.
       </span>,
     ];

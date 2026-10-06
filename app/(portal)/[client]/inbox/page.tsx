@@ -54,14 +54,6 @@ const FILTERS: [string, Filter][] = [
   ["Follow-ups", "follow-ups"],
 ];
 
-/** Reply Radar's bands for the urgency pill. */
-const band = (score: number): "hot" | "warm" | "cold" | "nurture" => {
-  if (score >= 75) return "hot";
-  if (score >= 50) return "warm";
-  if (score >= 25) return "cold";
-  return "nurture";
-};
-
 /**
  * Dates rendered in the reader's chosen zone rather than their machine's.
  *

@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CONNECTION_LIMIT, SORTS, campaignCode, matchCampaign, messageLength, nameSimilarity, nameTokens,
-  parseSequence, positiveRateOf, replyRateOf, sortDocs, splitFrontmatter, totalChars, variablesIn,
+  parseSequence, positiveRateOf, sortDocs, splitFrontmatter, totalChars, variablesIn,
 } from "../shared/messaging.mjs";
 
 const ACOS_V2 = `---

@@ -25,7 +25,7 @@ import { NextResponse } from "next/server";
 import { currentSession, resolveScope } from "../../lib/auth-context";
 import { scopedRows, str } from "../../lib/db";
 import { getCampaigns } from "../../lib/portal-data";
-import { READABLE_FOLDERS, brainConfigured, findFolder, listDocs, readDoc } from "../../lib/brain";
+import { READABLE_FOLDERS, brainConfigured, findFolder, listDocs, readDoc, resolveActualFolder } from "../../lib/brain";
 // Plain ESM so the test runner can import the same code the server runs; see shared/messaging.mjs.
 import { matchCampaign, parseSequence, splitFrontmatter } from "../../../shared/messaging.mjs";
 
@@ -85,7 +85,12 @@ export async function GET(request: Request) {
 
     const rows = await scopedRows(scoped, "rr_workspaces", { select: "brain_folder,slug,name", limit: "1" }, workspaceId);
     const row = rows[0];
-    const clientFolder = str(row?.brain_folder) || str(row?.slug);
+    // Resolved the same way the Brain tab resolves it: a workspace slug (`bluevia`) is not reliably the
+    // folder name (`bluevia-health`), so taking the slug as-is reported "no folder" for clients whose
+    // Brain tab worked fine.
+    const clientFolder = row
+      ? await resolveActualFolder({ slug: str(row.slug), name: str(row.name), brainFolder: str(row.brain_folder) })
+      : "";
     const clientName = str(row?.name) || "This client";
     const label = READABLE_FOLDERS.messaging.label;
 

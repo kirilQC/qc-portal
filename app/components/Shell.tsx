@@ -6,7 +6,7 @@
    preference out of localStorage (unavailable during render) and closing the settings menu on
    navigation. Neither can be derived from props or state. */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClientSlug } from "./useClientSlug";
@@ -85,14 +85,24 @@ function cachedMe(clientParam: string | null): Me | null {
 export default function Shell({ children }: { children: React.ReactNode }) {
   const clientParam = useClientSlug();
 
-  // Seeded from the cache in the initialiser, so the first paint already carries the right brand.
-  const [me, setMe] = useState<Me | null>(() => cachedMe(clientParam));
+  // Seeded from the cache in a layout effect — before the first paint, so it still carries the right brand.
+  // Not in the useState initialiser: the server has no sessionStorage, so reading it during render made the
+  // client's first render differ from the server HTML and threw a hydration error on every hard load.
+  const [me, setMe] = useState<Me | null>(null);
+  useLayoutEffect(() => {
+    const cached = cachedMe(clientParam);
+    if (cached) setMe(cached);
+  }, [clientParam]);
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const pathname = usePathname();
-  const suffix = clientParam ? `?client=${encodeURIComponent(clientParam)}` : "";
+  // A client session has exactly one client, so its own slug wins over whatever the URL segment says —
+  // otherwise a client who reached /inbox directly would get links built from a "client" called inbox.
+  const ownSlug = me?.user.role === "client" ? me.client?.slug || null : null;
+  const navSlug = ownSlug ?? clientParam;
+  const suffix = navSlug ? `?client=${encodeURIComponent(navSlug)}` : "";
   // Clean path URLs: a client's pages live at /{slug} and /{slug}/{tab} (real [client] route segments).
-  const clientPrefix = clientParam ? `/${clientParam}` : "";
+  const clientPrefix = navSlug ? `/${navSlug}` : "";
   const clientHref = (tabHref: string) => (clientPrefix ? `${clientPrefix}${tabHref === "/" ? "" : tabHref}` : `${tabHref}${suffix}`);
   // The tab for nav highlighting, with the /{slug} prefix stripped so it still matches item.href ("/messaging").
   const activeTab = clientPrefix && pathname.startsWith(clientPrefix) ? (pathname.slice(clientPrefix.length) || "/") : pathname;

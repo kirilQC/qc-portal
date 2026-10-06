@@ -14,6 +14,8 @@
  * the off-boarding hand-off.
  */
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect -- each effect resets its view before a fetch when the
+   client or the open file changes; the loaded state is set from inside the async callback. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Markdown from "../../../components/Markdown";
@@ -140,7 +142,7 @@ export default function BrainApp() {
     } finally {
       setZipping(false);
     }
-  }, [clientSlug, data?.folder]);
+  }, [clientSlug, data]);
 
   if (!loaded) return <div className="content"><p className="brn-quiet">Opening the brain…</p></div>;
   if (!data) {
@@ -388,7 +390,7 @@ function openEntry(file: FileEntry, setOpenFile: (f: FileEntry) => void) {
 
 function titleCase(folder: string): string {
   return folder
-    .split(/[\/]/)
+    .split("/")
     .pop()!
     .split(/[-_\s]+/)
     .filter(Boolean)

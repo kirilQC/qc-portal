@@ -73,6 +73,13 @@ function dateParts(iso: string | null): { date: string; time: string } {
   };
 }
 
+/** A lead photo that falls back to initials when the URL is dead (LinkedIn photo links expire). */
+function Avatar({ src, name }: { src?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <>{initials(name)}</>;
+  return <img src={src} alt="" onError={() => setFailed(true)} />;
+}
+
 const initials = (name: string) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
 
@@ -201,7 +208,7 @@ function Database() {
             return (
               <button key={lead.id} className="db-row" onClick={() => setSelected(lead)}>
                 <span className="db-person">
-                  <i>{lead.photoUrl ? <img src={lead.photoUrl} alt="" /> : initials(lead.name)}</i>
+                  <i><Avatar src={lead.photoUrl} name={lead.name} /></i>
                   <span>
                     <strong>{lead.name}</strong>
                     <small>{[lead.role, lead.company].filter(Boolean).join(" · ") || "No title or company"}</small>
@@ -231,7 +238,7 @@ function Database() {
           <aside className="db-drawer" role="dialog" aria-label={`Details for ${selected.name}`}>
             <div className="db-drawer-head">
               <span className="db-drawer-avatar">
-                {selected.photoUrl ? <img src={selected.photoUrl} alt="" /> : initials(selected.name)}
+                <Avatar key={selected.id} src={selected.photoUrl} name={selected.name} />
               </span>
               <div>
                 <h2>{selected.name}</h2>

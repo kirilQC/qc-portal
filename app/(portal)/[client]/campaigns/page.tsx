@@ -73,21 +73,23 @@ function Campaigns() {
   /*
    * The five headline figures.
    *
-   * "Average" here is the mean of the per-campaign rates, unweighted — which is how Reply Radar
-   * computes the same three numbers. It is not the pooled total (all accepted ÷ all sent): those two
-   * differ, sometimes by several points, and a portal that quoted one while the internal tool quoted
-   * the other would make every conversation about which screen to trust.
+   * "Average" is pooled over the campaigns (all accepted ÷ all sent, and so on) — which is how QC
+   * Command computes the same three numbers, and how HeyReach reports a workspace. A mean of per-campaign
+   * rates let a two-lead campaign weigh as much as a 1,600-lead one, and a portal quoting a different
+   * figure from the internal tool makes every conversation about which screen to trust.
    */
-  const mean = (pick: (row: Campaign) => number) =>
-    campaigns.length ? Math.round((campaigns.reduce((sum, row) => sum + pick(row), 0) / campaigns.length) * 10) / 10 : 0;
+  const total = (pick: (row: Campaign) => number) => campaigns.reduce((sum, row) => sum + pick(row), 0);
+  const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
 
-  const reached = campaigns.reduce((sum, row) => sum + row.connectionsSent, 0);
+  const reached = total((row) => row.connectionsSent);
+  const accepted = total((row) => row.connectionsAccepted);
+  const messaged = total((row) => row.messagesStarted || row.connectionsAccepted);
   const headline = {
     launched: campaigns.length,
     reached,
-    acceptance: mean((row) => row.acceptanceRate),
-    reply: mean((row) => row.replyRate),
-    positive: mean((row) => row.positiveReplyRate),
+    acceptance: pct(accepted, reached),
+    reply: pct(total((row) => row.replies), messaged),
+    positive: pct(total((row) => row.positiveReplies), accepted),
   };
 
   return (
@@ -208,7 +210,7 @@ function CampaignRow({ row }: { row: Campaign }) {
           {/* Each figure wears the colour of the band it describes, so a number and its segment are
               the same thing rather than two things to correlate. */}
           <Rate label="Acceptance" value={`${row.acceptanceRate}%`} sub={`${row.connectionsAccepted.toLocaleString()} of ${row.connectionsSent.toLocaleString()}`} tone="accepted" />
-          <Rate label="Reply rate" value={`${row.replyRate}%`} sub={`${row.replies.toLocaleString()} replies`} tone="replied" />
+          <Rate label="Reply rate" value={`${row.replyRate}%`} sub={`${row.replies.toLocaleString()} ${row.replies === 1 ? "reply" : "replies"}`} tone="replied" />
           <Rate
             label="Positive"
             value={unscored ? "—" : `${row.positiveReplyRate}%`}

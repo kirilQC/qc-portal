@@ -98,7 +98,7 @@ async function build(session: Session, workspaceId: string, range: string) {
     scopedRows(
       session,
       "rr_campaign_stats",
-      { select: "campaign_id,name,status,launched_at,sender_ids,total_leads,leads_pending,connections_sent,connections_accepted,replies" },
+      { select: "campaign_id,name,status,launched_at,sender_ids,total_leads,leads_pending,connections_sent,connections_accepted,replies,messages_started" },
       workspaceId,
     ),
     scopedRows(session, "rr_daily_stats", { select: "day,sender_id,sender_name,connections_sent,connections_accepted", limit: "5000" }, workspaceId),
@@ -111,7 +111,7 @@ async function build(session: Session, workspaceId: string, range: string) {
     scopedRows(
       session,
       "rr_meetings",
-      { select: "id,invitee_name,invitee_title,company_name,meeting_at,created_at,campaign,status", order: "created_at.desc", limit: "50" },
+      { select: "id,invitee_name,invitee_title,company_name,meeting_at,created_at,campaign,status", order: "created_at.desc", limit: "500" },
       workspaceId,
     ),
   ]);
@@ -361,7 +361,8 @@ async function build(session: Session, workspaceId: string, range: string) {
       name: str(row.name),
       reached: num(row.connections_sent),
       accepted: num(row.connections_accepted),
-      replyRate: rate(num(row.replies), num(row.connections_accepted)),
+      // HeyReach's definition, as QC Command shows it: replies over leads messaged (accepted as fallback).
+      replyRate: rate(num(row.replies), num(row.messages_started) || num(row.connections_accepted)),
     }))
     // Fifty requests is Reply Radar's threshold for a rate meaning anything.
     .filter((row) => row.reached >= 50)
@@ -439,7 +440,7 @@ async function build(session: Session, workspaceId: string, range: string) {
         connectionsAccepted: accepted,
         replies: num(row.replies),
         acceptanceRate: rate(accepted, sent),
-        replyRate: rate(num(row.replies), accepted),
+        replyRate: rate(num(row.replies), num(row.messages_started) || accepted),
         // How much of the list has been worked, which is the one thing a running campaign is judged on.
         progress: leads > 0 ? Math.min(100, Math.round((sent / leads) * 100)) : 0,
       };

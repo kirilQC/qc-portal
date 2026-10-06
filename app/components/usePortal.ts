@@ -31,6 +31,8 @@ export type Campaign = {
   /** Leads still queued to be contacted — the true "not contacted yet". */
   pending: number;
   connectionsSent: number; connectionsAccepted: number; replies: number;
+  /** Leads HeyReach has messaged — the reply-rate denominator. */
+  messagesStarted: number;
   positiveReplies: number;
   /** How many replies have been through sentiment analysis. Zero means the positive rate is unknown. */
   scoredReplies: number;

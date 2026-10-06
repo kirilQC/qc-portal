@@ -20,7 +20,10 @@ function Meetings() {
   if (!client) return <div className="content"><p className="empty">Nothing to show yet.</p></div>;
 
   const now = Date.now();
-  const upcoming = meetings.filter((row) => row.meetingAt && Date.parse(row.meetingAt) > now);
+  // Rows arrive newest-first; upcoming reads soonest-first, so the next meeting is at the top.
+  const upcoming = meetings
+    .filter((row) => row.meetingAt && Date.parse(row.meetingAt) > now)
+    .sort((a, b) => Date.parse(a.meetingAt!) - Date.parse(b.meetingAt!));
   const past = meetings.filter((row) => !row.meetingAt || Date.parse(row.meetingAt) <= now);
 
   const table = (rows: typeof meetings, showPill: boolean) => (

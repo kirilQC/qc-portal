@@ -137,8 +137,18 @@ function Analytics() {
     const senders = data?.senders ?? [];
     const senderCap = data?.senderCap ?? 25;
 
-    const average = (key: "replyRate" | "acceptanceRate" | "positiveReplyRate") =>
-      campaigns.length ? sum(campaigns, (row) => row[key]) / campaigns.length : null;
+    // Pooled over the client's campaigns, exactly as QC Command computes them (and as HeyReach reports a
+    // workspace) — not a mean of per-campaign rates, where a two-lead campaign weighed the same as a
+    // 1,600-lead one and the two tools showed different figures for the same client.
+    const average = (key: "replyRate" | "acceptanceRate" | "positiveReplyRate") => {
+      if (!campaigns.length) return null;
+      const sent = sum(campaigns, (row) => row.connectionsSent);
+      const accepted = sum(campaigns, (row) => row.connectionsAccepted);
+      const messaged = sum(campaigns, (row) => row.messagesStarted || row.connectionsAccepted);
+      if (key === "acceptanceRate") return sent ? (accepted / sent) * 100 : null;
+      if (key === "replyRate") return messaged ? (sum(campaigns, (row) => row.replies) / messaged) * 100 : null;
+      return accepted ? (sum(campaigns, (row) => row.positiveReplies) / accepted) * 100 : null;
+    };
 
     const ranked = rankable(campaigns);
     const metric = LEADER_METRICS.find((option) => option.id === leaderMetric) ?? LEADER_METRICS[0];
@@ -323,7 +333,7 @@ function Analytics() {
             <button type="button" className="analytics-rank is-button no-index" key={campaign.campaignId} onClick={() => setOpen(campaign)}>
               <span>
                 <strong>{campaign.name}</strong>
-                <small>{campaign.connectionsSent.toLocaleString()} sent · {campaign.connectionsAccepted.toLocaleString()} accepted · {campaign.replies.toLocaleString()} replies</small>
+                <small>{campaign.connectionsSent.toLocaleString()} sent · {campaign.connectionsAccepted.toLocaleString()} accepted · {campaign.replies.toLocaleString()} {campaign.replies === 1 ? "reply" : "replies"}</small>
                 <i><em className="is-warning" style={{ width: `${Math.min(100, campaign.acceptanceRate * 2)}%` }} /></i>
               </span>
               <data>{campaign.acceptanceRate.toFixed(1)}%</data>

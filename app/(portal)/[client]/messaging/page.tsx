@@ -308,7 +308,7 @@ function BestMessaging({ docs }: { docs: Doc[] }) {
           <div className="best-msg-row" key={doc.path}>
             <div className="best-msg-rates">
               <div className="best-msg-rate"><strong className="acc">{acc}%</strong><small>Accepted</small><em>{accepted.toLocaleString()} of {sent.toLocaleString()}</em></div>
-              <div className="best-msg-rate"><strong>{rep}%</strong><small>Replied</small><em>{replies.toLocaleString()} replies</em></div>
+              <div className="best-msg-rate"><strong>{rep}%</strong><small>Replied</small><em>{replies.toLocaleString()} {replies === 1 ? "reply" : "replies"}</em></div>
             </div>
             <div className="best-msg-body">
               <h3>{doc.campaign!.name}</h3>
@@ -475,7 +475,7 @@ function Performance({ stats }: { stats: Stats }) {
         <Stat label="Acceptance" value={`${stats.acceptanceRate}%`} tone="accepted"
           sub={`${stats.connectionsAccepted.toLocaleString()} of ${stats.connectionsSent.toLocaleString()}`} />
         <Stat label="Reply rate" value={`${stats.replyRate}%`} tone="replied"
-          sub={`${stats.replies.toLocaleString()} replies`} />
+          sub={`${stats.replies.toLocaleString()} ${stats.replies === 1 ? "reply" : "replies"}`} />
         <Stat label="Positive" value={unscored ? "—" : `${stats.positiveReplyRate}%`}
           tone={unscored ? "muted" : "positive"}
           sub={unscored ? "not scored yet" : `${positive.toLocaleString()} positive`} />

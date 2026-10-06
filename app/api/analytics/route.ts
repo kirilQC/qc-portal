@@ -109,7 +109,7 @@ async function build(session: Session, workspaceId: string) {
         "rr_messages",
         conversationIds,
         {
-          select: "sent_at,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
+          select: "sent_at,conversation_id,sentiment:raw_data->reply_radar->>sentiment,campaign:raw_data->reply_radar->campaign->>name",
           direction: "eq.inbound",
           limit: "1000",
         },
@@ -117,7 +117,9 @@ async function build(session: Session, workspaceId: string) {
       ).catch(() => [] as Row[])
     : [];
 
-  const positiveByCampaign = new Map<string, number>();
+  // Positive replies are counted per person (distinct conversation), not per message — exactly as QC
+  // Command counts them — so someone who replied positively twice is one positive reply, not two.
+  const positiveLeadsByCampaign = new Map<string, Set<string>>();
   const weekAgo = Date.now() - 7 * 86_400_000;
   let replies7d = 0;
   for (const message of inbound) {
@@ -125,9 +127,12 @@ async function build(session: Session, workspaceId: string) {
     const key = str(message.campaign).trim().toLowerCase();
     if (!key) continue;
     if (str(message.sentiment).toLowerCase() === "positive") {
-      positiveByCampaign.set(key, (positiveByCampaign.get(key) ?? 0) + 1);
+      const leads = positiveLeadsByCampaign.get(key) ?? new Set<string>();
+      leads.add(str(message.conversation_id));
+      positiveLeadsByCampaign.set(key, leads);
     }
   }
+  const positiveByCampaign = new Map([...positiveLeadsByCampaign].map(([key, leads]) => [key, leads.size]));
 
   /*
    * The per-sender daily cap, taken from what HeyReach reports rather than assumed.
@@ -168,7 +173,8 @@ async function build(session: Session, workspaceId: string) {
       firstTouch: row.first_touch ? str(row.first_touch) : null,
       followUp: row.follow_up ? str(row.follow_up) : null,
       acceptanceRate: sent ? (accepted / sent) * 100 : 0,
-      replyRate: accepted ? (replies / accepted) * 100 : 0,
+      // HeyReach's definition, as QC Command shows it: replies over leads messaged (accepted as fallback).
+      replyRate: (num(row.messages_started) || accepted) ? (replies / (num(row.messages_started) || accepted)) * 100 : 0,
       positiveReplyRate: accepted ? (positiveReplies / accepted) * 100 : 0,
       daysLeft: pending > 0 && dailyCapacity > 0 ? Math.ceil(pending / dailyCapacity) : pending > 0 ? null : 0,
     };
