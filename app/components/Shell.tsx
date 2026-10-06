@@ -257,7 +257,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`shell ${collapsed ? "is-collapsed" : ""}`}>
-      {/* The dot grid and its ripples, behind everything. */}
+      {/* The starfield, behind everything. */}
       <AppBackground />
       {/* Hoisted into <head> and managed by React — never hand-edited (see the note above). */}
       <title>{pageTitle}</title>
