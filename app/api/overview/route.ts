@@ -209,6 +209,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
   const reached30 = sumDaily(windowStart, windowEnd, "connections_sent");
   const accepted30 = sumDaily(windowStart, windowEnd, "connections_accepted");
   const reachedPrev = sumDaily(previousStart, windowStart, "connections_sent");
+  const acceptedPrev = sumDaily(previousStart, windowStart, "connections_accepted");
 
   // Distinct people who replied in the window — one row per conversation (their most recent message in
   // it), NOT one row per message. `inbound` is every inbound message, so counting it raw double-counts
@@ -470,6 +471,17 @@ async function build(session: Session, workspaceId: string, range: string, custo
     if (id && name && !senderNameById.has(id)) senderNameById.set(id, name);
   }
 
+  // What each sender has sent today, from the per-sender daily rows. "Today" is the UTC calendar day the
+  // worker files rows under; a sender with no row for it simply is not shown as sending.
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const sentTodayBySender = new Map<string, { sent: number; cap: number }>();
+  for (const row of dailyRows) {
+    const id = str(row.sender_id);
+    if (!id || str(row.day).slice(0, 10) !== todayKey) continue;
+    const held = sentTodayBySender.get(id) ?? { sent: 0, cap: 0 };
+    sentTodayBySender.set(id, { sent: held.sent + num(row.connections_sent), cap: Math.max(held.cap, num(row.daily_limit)) });
+  }
+
   const activeCampaigns = campaignRows
     .filter((row) => (str(row.status) || "").toUpperCase() === "IN_PROGRESS")
     .map((row) => {
@@ -485,6 +497,11 @@ async function build(session: Session, workspaceId: string, range: string, custo
         // Names where the daily rows know them; never a raw id where a name belongs.
         senders: senderIds.map((id) => senderNameById.get(id)).filter((name): name is string => Boolean(name)),
         senderCount: senderIds.length,
+        // Senders on this campaign who have sent something today. A sender can work several campaigns,
+        // so this is the sender's day, not this campaign's share of it.
+        sendingToday: senderIds
+          .map((id) => ({ name: senderNameById.get(id) ?? "", ...(sentTodayBySender.get(id) ?? { sent: 0, cap: 0 }) }))
+          .filter((sender) => sender.name && sender.sent > 0),
         totalLeads: leads,
         leadsPending: pending,
         // Days of sending left: what is still queued over what this campaign's senders can send in a day,
@@ -588,7 +605,55 @@ async function build(session: Session, workspaceId: string, range: string, custo
     positiveAvg: smoothing ? trailing("positive", j + lead) : day.positive,
   }));
 
+  /**
+   * The reply calendar: every day of the current calendar month, whatever range the page is showing.
+   *
+   * Counted exactly like the chart above (a person once per day, positive by their latest reply that
+   * day; meetings on the day booked), so a day on the calendar and the same day on the chart agree.
+   * Days after today are sent as `future` so the page can draw them as empty slots rather than zeros.
+   * The streak runs back from today across month boundaries: consecutive days with at least one reply.
+   */
+  const calendar = (() => {
+    const todayKey = isoDay(now);
+    const year = new Date(now).getUTCFullYear(), month = new Date(now).getUTCMonth();
+    const length = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const days = Array.from({ length }, (_, i) => {
+      const date = isoDay(Date.UTC(year, month, i + 1));
+      return { date, replies: 0, positive: 0, meetings: 0, future: date > todayKey };
+    });
+    const index = new Map(days.map((day, i) => [day.date, i]));
+    const latest = new Map<string, Row>();
+    const replyDays = new Set<string>();
+    for (const row of inbound) {
+      const at = Date.parse(str(row.sent_at));
+      if (!Number.isFinite(at)) continue;
+      const key = isoDay(at);
+      replyDays.add(key);
+      if (!index.has(key)) continue;
+      const id = `${key}|${str(row.conversation_id)}`;
+      const held = latest.get(id);
+      if (!held || at > Date.parse(str(held.sent_at))) latest.set(id, row);
+    }
+    for (const [id, row] of latest) {
+      const day = days[index.get(id.slice(0, id.indexOf("|")))!];
+      day.replies += 1;
+      if (str(row.sentiment).toLowerCase() === "positive") day.positive += 1;
+    }
+    for (const row of meetings) {
+      const at = Date.parse(str(row.created_at) || str(row.meeting_at));
+      const i = Number.isFinite(at) ? index.get(isoDay(at)) : undefined;
+      if (i !== undefined) days[i].meetings += 1;
+    }
+    // Today with no reply yet does not break the streak; it just has not been earned yet.
+    let streak = 0;
+    let cursor = Date.parse(`${todayKey}T00:00:00Z`);
+    if (!replyDays.has(todayKey)) cursor -= DAY_MS;
+    while (replyDays.has(isoDay(cursor))) { streak += 1; cursor -= DAY_MS; }
+    return { month: isoDay(Date.UTC(year, month, 1)).slice(0, 7), today: todayKey, days, streak };
+  })();
+
   return {
+    calendar,
     client: {
       id: str(workspace.id),
       name: str(workspace.name),
@@ -619,6 +684,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
       replyOf: messagedAll,
       previousReached: 0,
       previousReplies: 0,
+      previousAccepted: 0,
     } : {
       days: windowDays,
       reached: reached30,
@@ -637,6 +703,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
       // The previous window, so the briefing can say whether this one was better.
       previousReached: reachedPrev,
       previousReplies: repliesPrev,
+      previousAccepted: acceptedPrev,
     },
     allTime: {
       ...allTime,

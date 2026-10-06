@@ -15,6 +15,7 @@ import "./overview.css";
 import ActivityNetwork, { type ActivityEvent } from "../components/ActivityNetwork";
 import ActivityChart, { type ActivityPoint } from "./ActivityChart";
 import DateRangePicker, { type DayRange } from "./DateRangePicker";
+import ReplyCalendar, { type CalendarData } from "./ReplyCalendar";
 
 /**
  * The client's overview: a month in a sentence, the trend behind it, and what has happened since.
@@ -39,7 +40,7 @@ type Payload = {
   clients?: Client[]; client?: Client; startedAt?: string | null;
   window?: {
     days: number; reached: number; accepted: number; replies: number; scored: number; positive: number;
-    positiveRate: number; acceptanceRate: number; replyRate: number; previousReached: number; previousReplies: number;
+    positiveRate: number; acceptanceRate: number; replyRate: number; previousReached: number; previousReplies: number; previousAccepted?: number;
     /** All time only: the reply rate's own numerator and denominator (replies over leads messaged). */
     replyPart?: number; replyOf?: number;
   };
@@ -58,11 +59,16 @@ type Payload = {
     campaignId: string; name: string; launchedAt: string | null; senders: string[]; senderCount: number;
     totalLeads: number; leadsPending: number; connectionsSent: number; connectionsAccepted: number;
     replies: number; acceptanceRate: number; replyRate: number; progress: number;
+    /** Senders on this campaign with sends logged today (a sender's whole day, across campaigns). */
+    sendingToday?: { name: string; sent: number; cap: number }[];
     /** Days of sending left at the senders' daily cap; null when it can't be worked out (no senders). */
     daysLeft?: number | null;
   }[];
   leadsTotal?: number; reachedTotal?: number; repliesTotal?: number;
   activity?: { smoothed: boolean; points: ActivityPoint[] };
+  /** Per-bucket series across the chosen window, for the stat grid's sparklines. */
+  sparklines?: { reached: number[]; accepted: number[]; replies: number[]; positiveRate: number[] };
+  calendar?: CalendarData;
   feed?: FeedEvent[];
   senders?: string[];
 };
@@ -151,6 +157,11 @@ function Overview() {
   if (range === "custom" && custom) { search.set("from", custom.from); search.set("to", custom.to); }
   if (clientSlug) search.set("client", clientSlug);
   const { data, error, reload } = useCachedJson<Payload>(`/api/overview?${search.toString()}`);
+  // Keep the page live while it is open: a quiet refresh every two minutes, only while the tab is visible.
+  useEffect(() => {
+    const timer = setInterval(() => { if (document.visibilityState === "visible") reload(); }, 120_000);
+    return () => clearInterval(timer);
+  }, [reload]);
 
   if (error && !data) return <div className="content"><p className="error-note">{error}</p></div>;
   if (!data) return <PageSkeleton tiles={8} />;
@@ -207,17 +218,35 @@ function Overview() {
   /** The tabs this page hands off to, with the one number that says whether it is worth opening. */
   // Eight figures on one flush grid — four counts up top, four rates/outcomes below. `href` makes a cell
   // link into its tab; `math` shows the tiny "n of m" under a rate.
-  const cells: { label: string; value: string; href?: string; math?: string }[] = [
-    { label: "Reached out to", value: n(data.reachedTotal ?? 0), href: "/campaigns" },
+  // What the badges and sparklines measure against. "All time" has no window to compare, so it has none.
+  const windowed = data.range !== "all";
+  const rangeWord = data.range === "week" ? "this week" : data.range === "month" ? "this month" : "in range";
+  const spark = data.sparklines;
+  /** A rate's change against the window before, in percentage points: "▲ 3.1 pts", or nothing to compare. */
+  const ptsChange = (now: number, part: number, of: number): Chip | undefined => {
+    if (!windowed || !w.reached || of <= 0) return undefined;
+    const before = Math.round((part / of) * 1000) / 10;
+    const diff = Math.round((now - before) * 10) / 10;
+    if (Math.abs(diff) < 0.1) return { text: "no change", tone: "flat" };
+    return { text: `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)} pts`, tone: diff > 0 ? "up" : "down", title: `${before}% the ${w.days} days before` };
+  };
+  const added = (value: number): Chip | undefined => (windowed && value > 0 ? { text: `+${n(value)} ${rangeWord}`, tone: "up" } : undefined);
+  const meetingSeries = (data.activity?.points ?? []).map((point) => point.meetings);
+  const cells: { label: string; value: string; href?: string; math?: string; spark?: number[]; color?: string; chip?: Chip }[] = [
+    { label: "Reached out to", value: n(data.reachedTotal ?? 0), href: "/campaigns", spark: windowed ? spark?.reached : undefined, color: "#8b93b8", chip: added(w.reached) },
     // The lead database: everyone who has engaged. Named for what it is, so it isn't read as the number
     // of prospects (that is "Reached out to") or compared with Replies as if they should match.
     { label: "Lead database", value: n(data.leadsTotal ?? 0), href: "/database", math: "People who engaged" },
-    { label: "Replies", value: n(data.repliesTotal ?? 0), href: "/inbox" },
+    { label: "Replies", value: n(data.repliesTotal ?? 0), href: "/inbox", spark: windowed ? spark?.replies : undefined, color: "#3fb0a6", chip: added(w.replies) },
     { label: "Campaigns", value: n(data.campaignsTotal ?? 0), href: "/campaigns" },
-    { label: "Acceptance rate", value: w.reached ? `${w.acceptanceRate}%` : "—", math: w.reached ? `${n(w.accepted)} of ${n(w.reached)}` : undefined },
-    { label: "Reply rate", value: w.reached ? `${w.replyRate}%` : "—", math: w.reached ? (w.replyOf != null ? `${n(w.replyPart ?? 0)} campaign replies of ${n(w.replyOf)} messaged` : `${n(w.replies)} of ${n(w.reached)}`) : undefined },
-    { label: "Campaigns running", value: n(data.campaignsRunning ?? 0), href: "/campaigns" },
-    { label: "Meetings booked", value: n(data.meetingsBooked ?? 0), href: "/meetings" },
+    { label: "Acceptance rate", value: w.reached ? `${w.acceptanceRate}%` : "—", math: w.reached ? `${n(w.accepted)} of ${n(w.reached)}` : undefined, spark: windowed ? spark?.accepted : undefined, color: "#7c6cf0", chip: ptsChange(w.acceptanceRate, w.previousAccepted ?? 0, w.previousReached) },
+    { label: "Reply rate", value: w.reached ? `${w.replyRate}%` : "—", math: w.reached ? (w.replyOf != null ? `${n(w.replyPart ?? 0)} campaign replies of ${n(w.replyOf)} messaged` : `${n(w.replies)} of ${n(w.reached)}`) : undefined, spark: windowed ? spark?.replies : undefined, color: "#3fb0a6", chip: ptsChange(w.replyRate, w.previousReplies, w.previousReached) },
+    { label: "Campaigns running", value: n(data.campaignsRunning ?? 0), href: "/campaigns", chip: (data.campaignsRunning ?? 0) > 0 ? { text: "live", tone: "live" } : undefined },
+    {
+      label: "Meetings booked", value: n(data.meetingsBooked ?? 0), href: "/meetings",
+      spark: windowed && meetingSeries.some(Boolean) ? meetingSeries : undefined, color: "#c9b8ff",
+      chip: (data.meetingsUpcoming ?? 0) > 0 ? { text: `${n(data.meetingsUpcoming ?? 0)} coming up`, tone: "meet" } : undefined,
+    },
   ];
 
   return (
@@ -259,6 +288,8 @@ function Overview() {
             return (
               <MeetingsCell
                 key={cell.label}
+                spark={cell.spark}
+                chip={cell.chip}
                 value={data.meetingsBooked ?? 0}
                 auto={data.meetingsBookedAuto ?? data.meetingsBooked ?? 0}
                 overridden={Boolean(data.meetingsOverridden)}
@@ -269,7 +300,8 @@ function Overview() {
           }
           const inner = (
             <>
-              <strong>{cell.value}</strong>
+              {cell.spark && <Sparkline values={cell.spark} color={cell.color ?? "var(--accent)"} />}
+              <span className="ov-cell-top"><strong>{cell.value}</strong>{cell.chip && <ChipBadge chip={cell.chip} />}</span>
               <span className="ov-cell-label">{cell.label}</span>
               {cell.math && <em>{cell.math}</em>}
             </>
@@ -314,8 +346,10 @@ function Overview() {
           <h2>Activity</h2>
           <span>{data.range === "all" ? "Since the engagement started" : data.range === "custom" ? data.rangeLabel : data.range === "month" ? "Last 30 days" : "Last 7 days"}</span>
         </div>
-        <ActivityChart points={data.activity?.points ?? []} smoothed={Boolean(data.activity?.smoothed)} />
+        <ActivityChart key={`${data.range}-${custom?.from ?? ""}-${custom?.to ?? ""}`} points={data.activity?.points ?? []} smoothed={Boolean(data.activity?.smoothed)} />
       </section>
+
+      {data.calendar && <ReplyCalendar data={data.calendar} />}
 
       <section className="panel ov-campaigns">
             <div className="panel-head">
@@ -341,13 +375,26 @@ function Overview() {
                       <div className="ov-arow" key={campaign.campaignId}>
                         <div className="ov-atop">
                           <strong>{campaign.name}</strong>
-                          <data>{campaign.acceptanceRate}%<small>acceptance</small></data>
+                          <span className="ov-aright">
+                            {(campaign.sendingToday ?? []).map((sender) => (
+                              <span key={sender.name} className="ov-sending" title={sender.cap ? `${n(sender.sent)} of ${n(sender.cap)} today, across every campaign this sender works` : undefined}>
+                                <i aria-hidden="true" />{sender.name.split(" ")[0]} sending · {n(sender.sent)} today
+                              </span>
+                            ))}
+                            <data>{campaign.acceptanceRate}%<small>acceptance</small></data>
+                          </span>
                         </div>
-                        <div className="cmp-funnel ov-cfunnel" role="img" aria-label={`${untouched} not contacted, ${n(campaign.connectionsSent)} reached, ${n(campaign.connectionsAccepted)} accepted, ${replied} replied`}>
+                        <div className="ov-cwrap">
+                        <div className="cmp-funnel ov-cfunnel ov-cgrow" role="img" aria-label={`${untouched} not contacted, ${n(campaign.connectionsSent)} reached, ${n(campaign.connectionsAccepted)} accepted, ${replied} replied`}>
                           {untouched > 0 && <span className="k-untouched" style={{ width: `${share(untouched)}%` }} title={`${n(untouched)} not contacted yet`} />}
                           {reachedOnly > 0 && <span className="k-reached" style={{ width: `${share(reachedOnly)}%` }} title={`${n(reachedOnly)} reached, not accepted`} />}
                           {acceptedOnly > 0 && <span className="k-accepted" style={{ width: `${share(acceptedOnly)}%` }} title={`${n(acceptedOnly)} accepted, no reply`} />}
                           {replied > 0 && <span className="k-replied" style={{ width: `${share(replied)}%` }} title={`${n(replied)} replied`} />}
+                        </div>
+                        {/* The work front: where the list stops being untouched. It glows while someone is sending today. */}
+                        {untouched > 0 && (
+                          <span className={`ov-front ${(campaign.sendingToday ?? []).length ? "is-live" : ""}`} style={{ left: `${share(untouched)}%` }} aria-hidden="true" />
+                        )}
                         </div>
                         <div className="ov-afoot">
                           <span>{n(campaign.connectionsSent)} of {n(campaign.totalLeads)} worked</span>
@@ -384,8 +431,9 @@ export default function Page() {
  * (a call booked over email, one the client set up off our intro). Clients see only the number — never
  * whether it was set by hand. "Use count" deletes the override and hands the tile back to the count.
  */
-function MeetingsCell({ value, auto, overridden, clientSlug, onSaved }: {
+function MeetingsCell({ value, auto, overridden, clientSlug, onSaved, spark, chip }: {
   value: number; auto: number; overridden: boolean; clientSlug: string | null; onSaved: () => void;
+  spark?: number[]; chip?: Chip;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -420,7 +468,8 @@ function MeetingsCell({ value, auto, overridden, clientSlug, onSaved }: {
   if (!editing) {
     return (
       <div className="ov-cell ov-cell-staff">
-        <strong>{n(value)}</strong>
+        {spark && <Sparkline values={spark} color="#c9b8ff" />}
+        <span className="ov-cell-top"><strong>{n(value)}</strong>{chip && <ChipBadge chip={chip} />}</span>
         <span className="ov-cell-label">Meetings booked</span>
         <em>
           {overridden ? `Set by QC · counted ${n(auto)}` : "Counted automatically"}
@@ -460,5 +509,41 @@ function MeetingsCell({ value, auto, overridden, clientSlug, onSaved }: {
       </span>
       {error && <em className="ov-cell-error">{error}</em>}
     </form>
+  );
+}
+
+type Chip = { text: string; tone: "up" | "down" | "flat" | "live" | "meet"; title?: string };
+
+function ChipBadge({ chip }: { chip: Chip }) {
+  return (
+    <span className={`ov-chip ov-chip-${chip.tone}`} title={chip.title}>
+      {chip.tone === "live" && <i aria-hidden="true" />}
+      {chip.text}
+    </span>
+  );
+}
+
+/**
+ * A stat cell's sparkline: the window's series, drawn in behind the figure, ending on a pulsing dot.
+ * Decorative — the figure and its badge carry the meaning — so it is hidden from screen readers.
+ */
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) return null;
+  const W = 220, H = 56, top = 8, bottom = 52;
+  const max = Math.max(...values), min = Math.min(...values, 0);
+  const span = max - min || 1;
+  const pts = values.map((v, i) => [4 + (i / (values.length - 1)) * (W - 10), bottom - ((v - min) / span) * (bottom - top)] as const);
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    const mx = (pts[i - 1][0] + pts[i][0]) / 2;
+    d += ` C${mx},${pts[i - 1][1]} ${mx},${pts[i][1]} ${pts[i][0]},${pts[i][1]}`;
+  }
+  const end = pts[pts.length - 1];
+  return (
+    <svg className="ov-spark" viewBox={`0 0 ${W} ${H}`} aria-hidden="true" style={{ color }}>
+      <path className="ov-spark-area" d={`${d} L${end[0]},${H} L${pts[0][0]},${H} Z`} />
+      <path className="ov-spark-line" d={d} pathLength={1} />
+      <circle className="ov-spark-end" cx={end[0]} cy={end[1]} r={3} />
+    </svg>
   );
 }

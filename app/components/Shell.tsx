@@ -10,6 +10,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClientSlug } from "./useClientSlug";
+import { useCachedJson } from "./cache";
 import SettingsPanel from "./SettingsPanel";
 import AppearanceControl from "./Appearance";
 
@@ -189,6 +190,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const pageTitle = inClient && brandClient ? `${brandClient.name} Dashboard` : "QC Growth";
   const faviconHref = inClient && brandClient?.logoUrl ? brandClient.logoUrl : "";
 
+  // The project tracker only earns a place in the menu once the client has at least one task on it.
+  // Same URL as the tracker page, so the two share one cached read; hidden until the answer is in.
+  const projectsQuery = new URLSearchParams();
+  if (clientParam) projectsQuery.set("client", clientParam);
+  const { data: projects } = useCachedJson<{ tasks?: unknown[] }>(inClient ? `/api/projects?${projectsQuery.toString()}` : null);
+  const hasProjects = (projects?.tasks?.length ?? 0) > 0;
+
   const clientPages: { href: string; label: string; icon: string }[] = [
     { href: "/", label: "Overview", icon: "overview" },
     { href: "/inbox", label: "Inbox", icon: "replies" },
@@ -199,7 +207,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     { href: "/messaging", label: "Messaging", icon: "messaging" },
     { href: "/brain", label: "Brain", icon: "brain" },
     { href: "/calls", label: "Weekly calls", icon: "calls" },
-    { href: "/projects", label: "Project tracker", icon: "projects" },
+    ...(hasProjects ? [{ href: "/projects", label: "Project tracker", icon: "projects" }] : []),
   ];
 
   /** The mark at the top left: the client's when there is one, QC's when there is not. */

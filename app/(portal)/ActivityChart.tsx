@@ -99,6 +99,8 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
   if (!points.length) return <p className="trend-empty">No activity to chart yet.</p>;
 
   const last = points.length - 1;
+  // The line ends on today while the day is still running: that point gets a live pulse.
+  const endsToday = points[last]?.date === new Date().toISOString().slice(0, 10);
   const x = (i: number) => (points.length === 1 ? ML + IW / 2 : ML + (i / last) * IW);
 
   // Top panel: connections sent.
@@ -151,8 +153,8 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
             <text x={ML - 10} y={yTop(t) + 4} textAnchor="end" className="act-axis">{t.toLocaleString("en-US")}</text>
           </g>
         ))}
-        <path d={area(sentLine, topBase)} fill="url(#act-sent)" />
-        <path d={sentLine} fill="none" stroke={COLORS.sent} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={area(sentLine, topBase)} className="act-fade" fill="url(#act-sent)" />
+        <path d={sentLine} pathLength={1} className="act-draw" fill="none" stroke={COLORS.sent} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
         {point && <>
           <line x1={x(hover!)} x2={x(hover!)} y1={TOP.mt} y2={topBase} className="act-guide" />
           <circle cx={x(hover!)} cy={yTop(point.sent)} r={4.5} fill={COLORS.sent} stroke="var(--panel, #111319)" strokeWidth={2} />
@@ -178,17 +180,23 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
         {points.map((p, i) => showLabel(i) ? (
           <text key={p.date} x={x(i)} y={BOTTOM.h - 12} textAnchor={i === 0 ? "start" : i === last ? "end" : "middle"} className="act-axis act-x">{label(p.date)}</text>
         ) : null)}
-        <path d={area(repliesLine, bottomBase)} fill="url(#act-replies)" />
-        <path d={area(positiveLine, bottomBase)} fill="url(#act-positive)" />
-        <path d={repliesLine} fill="none" stroke={COLORS.replies} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
-        <path d={positiveLine} fill="none" stroke={COLORS.positive} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={area(repliesLine, bottomBase)} className="act-fade" fill="url(#act-replies)" />
+        <path d={area(positiveLine, bottomBase)} className="act-fade" fill="url(#act-positive)" />
+        <path d={repliesLine} pathLength={1} className="act-draw act-draw-2" fill="none" stroke={COLORS.replies} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={positiveLine} pathLength={1} className="act-draw act-draw-3" fill="none" stroke={COLORS.positive} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
         {points.map((p, i) => p.meetings ? (
-          <g key={`m-${p.date}`} className="act-pin">
+          <g key={`m-${p.date}`} className="act-pin act-pin-drop" style={{ animationDelay: `${0.9 + (i / Math.max(1, last)) * 0.5}s` }}>
             <line x1={x(i)} x2={x(i)} y1={BOTTOM.mt - 2} y2={bottomBase} stroke={COLORS.meetings} strokeDasharray="2 3" opacity={0.55} />
             <circle cx={x(i)} cy={BOTTOM.mt - 9} r={7.5} fill="var(--panel, #111319)" stroke={COLORS.meetings} strokeWidth={2} />
             <text x={x(i)} y={BOTTOM.mt - 5.5} textAnchor="middle" className="act-pin-n" fill={COLORS.meetings}>{p.meetings}</text>
           </g>
         ) : null)}
+        {endsToday && (
+          <g className="act-now" aria-hidden="true">
+            <circle cx={x(last)} cy={yBottom(points[last][replyKey])} r={4} className="act-now-ring" stroke={COLORS.replies} />
+            <circle cx={x(last)} cy={yBottom(points[last][replyKey])} r={3.5} fill={COLORS.replies} />
+          </g>
+        )}
         {point && <>
           <line x1={x(hover!)} x2={x(hover!)} y1={BOTTOM.mt} y2={bottomBase} className="act-guide" />
           <circle cx={x(hover!)} cy={yBottom(point[replyKey])} r={4.5} fill={COLORS.replies} stroke="var(--panel, #111319)" strokeWidth={2} />
