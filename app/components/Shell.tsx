@@ -264,9 +264,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       {faviconHref ? <link rel="icon" href={faviconHref} /> : null}
       <aside className="sidebar">
         <div className="sidebar-head">
-          <Link href={inClient ? (clientPrefix || "/") : "/"} className="brand" title={brandClient?.name ?? "QC Growth"}>
-            {brand}
-          </Link>
+          {/* Collapsed, the rail shows only the expand button: no client or QC mark above the icons. */}
+          {!collapsed && (
+            <Link href={inClient ? (clientPrefix || "/") : "/"} className="brand" title={brandClient?.name ?? "QC Growth"}>
+              {brand}
+            </Link>
+          )}
           <button
             className="sidebar-icon sidebar-collapse"
             onClick={toggleCollapsed}

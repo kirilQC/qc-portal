@@ -57,7 +57,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ lead
     const raw = asRecord(row.raw_data);
     const radar = asRecord(raw.reply_radar);
     const ai = asRecord(radar.ai_ark);
-    const rollup = asRecord(radar.rollup);
     const company = asRecord(ai.company);
     const summary = asRecord(company.summary);
     const links = asRecord(company.link);
@@ -86,9 +85,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ lead
         )
       : [];
 
+    // Campaign, sender and sentiment come off this client's own messages, so the profile's lists and the
+    // Activity tab are read from the same rows (as QC Command's drawer reads them).
+    const messageRadar = (message: Rec) => asRecord(asRecord(message.raw_data).reply_radar);
+    const campaignOf = (message: Rec) => text(asRecord(messageRadar(message).campaign).name);
+    const senderOf = (message: Rec) => text(asRecord(messageRadar(message).sender).name) || text(messageRadar(message).sender);
+    const uniq = (values: string[]) => [...new Set(values.filter(Boolean))];
+
     const threads = conversations.map((conversation) => {
       const id = str(conversation.id);
+      const own = messages.filter((message) => str(message.conversation_id) === id);
+      const latestInbound = [...own].reverse().find((message) => str(message.direction) !== "outbound");
+      const sentiment = latestInbound ? text(messageRadar(latestInbound).sentiment).toLowerCase() : "";
       return {
+        campaign: own.map(campaignOf).find(Boolean) || null,
+        sender: own.map(senderOf).find(Boolean) || null,
+        sentiment: ["positive", "neutral", "negative"].includes(sentiment) ? sentiment : null,
         id,
         score: num(conversation.score),
         tier: str(conversation.tier),
@@ -98,7 +110,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ lead
           .filter((message) => str(message.conversation_id) === id)
           .map((message) => {
             const direction = str(message.direction) === "outbound" ? "outbound" : "inbound";
-            const sender = text(asRecord(asRecord(message.raw_data).reply_radar).sender);
+            const sender = senderOf(message);
             return {
               id: str(message.id),
               direction,
@@ -162,8 +174,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ lead
         icpReason: text(radar.icp_reason) || null,
         enrichmentStatus: text(radar.enrichment_status) || null,
         enriched: Object.keys(ai).length > 0,
-        campaignNames: list(rollup.campaign_names).map(text).filter(Boolean),
-        senderNames: list(rollup.sender_names).map(text).filter(Boolean),
+        campaignNames: uniq(messages.map(campaignOf)),
+        senderNames: uniq(messages.map(senderOf)),
+        phone: text(radar.phone) || null,
       },
       threads,
     });

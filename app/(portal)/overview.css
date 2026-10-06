@@ -599,3 +599,37 @@ a.ov-cell:hover { background: var(--panel-2); }
   .ov-spark-area { opacity: .09; }
 }
 .ov-wide { padding-top: 20px; }
+
+/* ═══ Header size, calendar hover, typed briefing ══════════════════════════════════════════════════ */
+.ov-hero-head .client-logo { width: 84px; height: 84px; border-radius: 22px; font-size: 32px; }
+.ov-hero-head .client-head { gap: 22px; }
+.ov-hero-head .client-head h1 { font-size: 46px; font-weight: 700; letter-spacing: -.03em; }
+.ov-hero-net.has-head { height: 520px; }
+.ov-hero-net.has-head .ov-hero-feed { top: 134px; }
+
+.ov-cal { overflow: visible; }
+.ov-cal-day { position: relative; cursor: default; }
+.ov-cal-tip {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; z-index: 20; transform: translate(-50%, 4px);
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 11px; border-radius: 9px; white-space: nowrap;
+  background: #1a1e2a; border: 1px solid var(--border); box-shadow: 0 12px 28px rgba(0, 0, 0, .45);
+  font-size: 12px; font-weight: 500; color: var(--text); text-align: left;
+  opacity: 0; pointer-events: none; transition: opacity .12s ease, transform .12s ease;
+}
+.ov-cal-tip b { font-size: 11px; font-weight: 600; color: var(--muted); }
+.ov-cal-tip .pos { color: var(--green); }
+.ov-cal-day:hover { outline: 2px solid var(--text); outline-offset: 1px; z-index: 5; }
+.ov-cal-day:hover .ov-cal-tip { opacity: 1; transform: translate(-50%, 0); }
+
+.typed-word { opacity: 0; filter: blur(3px); animation: typed-in .35s ease-out forwards; }
+@keyframes typed-in { to { opacity: 1; filter: none; } }
+.typed-caret {
+  display: inline-block; width: 2px; height: 1.05em; margin-left: 3px; vertical-align: -.15em; background: var(--green);
+  animation: typed-blink 1s step-end infinite, typed-gone .3s ease forwards;
+}
+@keyframes typed-blink { 50% { opacity: 0; } }
+@keyframes typed-gone { to { width: 0; margin-left: 0; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .typed-word { animation: none; opacity: 1; filter: none; }
+  .typed-caret { display: none; }
+}

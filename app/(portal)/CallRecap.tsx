@@ -65,35 +65,32 @@ export default function CallRecap({ clientSlug }: { clientSlug: string | null })
         {state.status === "none" && <p className="empty">No weekly call recorded yet.</p>}
         {state.status === "ready" && state.call && (() => {
           const call = state.call;
-          const actions = call.sections.find((section) => section.key === "actions")?.items ?? [];
-          const next = call.sections.find((section) => section.key === "next")?.items ?? [];
+          // What was discussed leads; action items stand in only for a recap that has no discussion section.
+          const discussed = call.sections.find((section) => section.key === "discussed")?.items ?? [];
+          const fallback = call.sections.find((section) => section.key === "actions")?.items ?? [];
+          const items = discussed.length ? discussed : fallback;
+          const label = discussed.length ? "What we discussed" : "Action items";
           const date = call.date ?? state.doc?.date ?? null;
           return (
             <>
               <div className="ov-recap-meta">
                 <span>{longDate(date)}</span>
                 {call.durationMinutes ? <span>{call.durationMinutes} min</span> : null}
-                {call.actionCount > 0 && <span className="ov-recap-count">{call.actionCount} action item{call.actionCount === 1 ? "" : "s"}</span>}
+                {discussed.length > 0 && <span className="ov-recap-count">{discussed.length} topic{discussed.length === 1 ? "" : "s"}</span>}
               </div>
               {call.intro && <p className="ov-recap-intro">{call.intro}</p>}
-              {actions.length > 0 && (
+              {items.length > 0 && (
                 <div className="ov-recap-list">
-                  <span className="ov-recap-label">Action items</span>
+                  <span className="ov-recap-label">{label}</span>
                   <ul>
-                    {actions.slice(0, 4).map((item, i) => (
+                    {items.slice(0, 5).map((item, i) => (
                       <li key={i}>
                         {item.owner && <b className="ov-recap-owner">{item.owner}</b>}
                         <span>{item.text}</span>
                       </li>
                     ))}
                   </ul>
-                  {actions.length > 4 && <Link href={callsHref} className="ov-recap-more">+{actions.length - 4} more</Link>}
-                </div>
-              )}
-              {actions.length === 0 && next.length > 0 && (
-                <div className="ov-recap-list">
-                  <span className="ov-recap-label">Next steps</span>
-                  <ul>{next.slice(0, 4).map((item, i) => <li key={i}><span>{item.text}</span></li>)}</ul>
+                  {items.length > 5 && <Link href={callsHref} className="ov-recap-more">+{items.length - 5} more</Link>}
                 </div>
               )}
             </>

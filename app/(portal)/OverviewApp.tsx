@@ -17,6 +17,7 @@ import ActivityChart, { type ActivityPoint } from "./ActivityChart";
 import DateRangePicker, { type DayRange } from "./DateRangePicker";
 import ReplyCalendar, { type CalendarData } from "./ReplyCalendar";
 import CallRecap from "./CallRecap";
+import TypedText from "./TypedText";
 
 /**
  * The client's overview: a month in a sentence, the trend behind it, and what has happened since.
@@ -228,8 +229,9 @@ function Overview() {
     if (!windowed || !w.reached || of <= 0) return undefined;
     const before = Math.round((part / of) * 1000) / 10;
     const diff = Math.round((now - before) * 10) / 10;
-    if (Math.abs(diff) < 0.1) return { text: "no change", tone: "flat" };
-    return { text: `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)} pts`, tone: diff > 0 ? "up" : "down", title: `${before}% the ${w.days} days before` };
+    // Good news only: a rate that fell or held still gets no badge at all, never a red one.
+    if (diff < 0.1) return undefined;
+    return { text: `▲ ${diff} pts`, tone: "up", title: `${before}% the ${w.days} days before` };
   };
   const added = (value: number): Chip | undefined => (windowed && value > 0 ? { text: `+${n(value)} ${rangeWord}`, tone: "up" } : undefined);
   const meetingSeries = (data.activity?.points ?? []).map((point) => point.meetings);
@@ -285,7 +287,7 @@ function Overview() {
         }
       >
         <span className="ov-brief-eyebrow">{data.rangeLabel ?? "This week"}</span>
-        <p>{briefing(data)}</p>
+        <p><TypedText key={`${data.range}-${custom?.from ?? ""}`}>{briefing(data)}</TypedText></p>
       </ActivityNetwork>
 
       {/* Eight figures, one flush grid — four across, two rows. Cells with an href link into their tab. */}

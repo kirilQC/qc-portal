@@ -6,7 +6,7 @@
 /**
  * The reply calendar: this month, one square per day, shaded by how many people replied.
  *
- * Deliberately just the picture — a heat map of replies, nothing to hover or switch. It answers "have we
+ * Deliberately just the picture — a heat map of replies; hovering a day shows its replies and how many were positive. It answers "have we
  * been hearing from people every day?" at a glance; the exact numbers live in the activity chart above.
  * The squares light up row by row on load, today pulses, and days still to come are dashed outlines
  * rather than zeros. Counts come from the server exactly as the chart counts them (a person once a day).
@@ -49,6 +49,13 @@ export default function ReplyCalendar({ data }: { data: CalendarData }) {
               style={{ animationDelay: `${Math.floor((i + lead) / 7) * 0.08 + ((i + lead) % 7) * 0.02}s` }}
             >
               {Number(day.date.slice(8))}
+              {!day.future && (
+                <span className="ov-cal-tip" role="tooltip">
+                  <b>{new Date(`${day.date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" })}</b>
+                  <span>{day.replies} {day.replies === 1 ? "reply" : "replies"}</span>
+                  <span className="pos">{day.positive} positive</span>
+                </span>
+              )}
             </span>
           ))}
         </div>
