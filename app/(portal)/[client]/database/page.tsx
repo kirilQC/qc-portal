@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
+import { SkeletonRows } from "../../../components/PageSkeleton";
 import "./database.css";
 
 /**
@@ -235,7 +236,7 @@ function Database() {
             );
           })
         )}
-        {loading && leads.length > 0 && <p className="loading">Loading…</p>}
+        {loading && leads.length > 0 && <SkeletonRows rows={3} />}
       </section>
 
       {hasMore && !loading && (
@@ -394,7 +395,7 @@ function Database() {
 
               {detailTab === "activity" && (
                 threads.length === 0 ? (
-                  <p className="empty">{detailLoading ? "Loading…" : "No conversations recorded."}</p>
+                  detailLoading ? <SkeletonRows rows={3} /> : <p className="empty">No conversations recorded.</p>
                 ) : (
                   threads.map((thread) => (
                     <div key={thread.id} className="db-thread">

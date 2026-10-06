@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
+import { PageSkeleton } from "../../../components/PageSkeleton";
 import "./analytics.css";
 
 /**
@@ -44,6 +45,16 @@ const sum = <T,>(rows: T[], of: (row: T) => number) => rows.reduce((total, row) 
 const RANKABLE_MINIMUM = 50;
 const rankable = (rows: Campaign[]) => rows.filter((row) => row.connectionsSent >= RANKABLE_MINIMUM);
 
+/** A rate pooled over campaigns (all accepted ÷ all sent, and so on), as QC Command computes its averages. */
+function pooledRate(rows: Campaign[], metric: "accepted" | "replies" | "positive"): number {
+  const sent = sum(rows, (row) => row.connectionsSent);
+  const accepted = sum(rows, (row) => row.connectionsAccepted);
+  const messaged = sum(rows, (row) => row.messagesStarted || row.connectionsAccepted);
+  if (metric === "accepted") return sent ? (accepted / sent) * 100 : 0;
+  if (metric === "replies") return messaged ? (sum(rows, (row) => row.replies) / messaged) * 100 : 0;
+  return accepted ? (sum(rows, (row) => row.positiveReplies) / accepted) * 100 : 0;
+}
+
 const launchDate = (value: string | null) => {
   if (!value) return "—";
   const date = new Date(value);
@@ -72,11 +83,18 @@ const syncedLabel = (at: Date) =>
     ? at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     : at.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
+/**
+ * The measures campaigns are ranked on: rates, never raw counts. Ranking "best" by connections accepted
+ * while ranking "underperforming" by acceptance rate put the busiest low-rate campaign in both lists.
+ * Both lists now use the same rate and split at the client's average for it, so a campaign is in one or
+ * the other, never both.
+ */
 const LEADER_METRICS = [
-  { id: "accepted", label: "Connections accepted", of: (row: Campaign) => row.connectionsAccepted },
-  { id: "replies", label: "Total replies", of: (row: Campaign) => row.replies },
-  { id: "positive", label: "Positive replies", of: (row: Campaign) => row.positiveReplies },
+  { id: "accepted", label: "Acceptance rate", noun: "acceptance rate", of: (row: Campaign) => row.acceptanceRate },
+  { id: "replies", label: "Reply rate", noun: "reply rate", of: (row: Campaign) => row.replyRate },
+  { id: "positive", label: "Positive reply rate", noun: "positive reply rate", of: (row: Campaign) => row.positiveReplyRate },
 ] as const;
+
 
 function Analytics() {
   const clientSlug = useClientSlug();
@@ -170,10 +188,11 @@ function Analytics() {
       // charts are read independently and neither flattens the other.
       stackMax: Math.max(...daily.map((_, index) => sum(senders, (sender) => sender.byDay[index] ?? 0)), 1),
       metric,
-      leaders: [...ranked].sort((a, b) => metric.of(b) - metric.of(a)).slice(0, 6),
-      // Worst acceptance first. Acceptance rather than replies because it is the earliest thing that
-      // can be wrong: nothing downstream of a request nobody accepted is worth diagnosing.
-      laggards: [...ranked].sort((a, b) => a.acceptanceRate - b.acceptanceRate).slice(0, 6),
+      // Split at the client's own average for the chosen rate (pooled over the rankable campaigns, the
+      // same way the headline averages are computed): at or above it is best, below it underperforming.
+      benchmark: pooledRate(ranked, metric.id),
+      leaders: [...ranked].filter((row) => metric.of(row) >= pooledRate(ranked, metric.id)).sort((a, b) => metric.of(b) - metric.of(a)).slice(0, 6),
+      laggards: [...ranked].filter((row) => metric.of(row) < pooledRate(ranked, metric.id)).sort((a, b) => metric.of(a) - metric.of(b)).slice(0, 6),
       leaderMax: Math.max(...ranked.map((row) => metric.of(row)), 1),
     };
   }, [data, leaderMetric]);
@@ -182,7 +201,7 @@ function Analytics() {
     return <div className="content"><p className="empty">Pick a client from the directory first.</p></div>;
   }
   if (error) return <div className="content"><p className="error-note">{error}</p></div>;
-  if (!data?.workspace) return <div className="content"><p className="loading">Loading…</p></div>;
+  if (!data?.workspace) return <PageSkeleton tiles={10} />;
 
   const client = data.workspace;
   const runtime = engagementRuntime(view.campaigns, now);
@@ -217,7 +236,17 @@ function Analytics() {
       </header>
 
       <section className="analytics-kpis">
-        <Kpi label="All-time replies" value={view.allTimeReplies.toLocaleString()} sub={`${(data.repliesSynced ?? 0).toLocaleString()} synced to the inbox`} />
+        {/* People who replied — the same 89 the overview and inbox show — split into the campaigns' own
+            reply count and replies that came in outside a tracked campaign, so the two figures add up.
+            (It used to show HeyReach's campaign count beside a count of *messages*, which added up to
+            nothing on any other screen.) */}
+        <Kpi
+          label="All-time replies"
+          value={(data.conversations ?? view.allTimeReplies).toLocaleString()}
+          sub={data.conversations != null
+            ? `${Math.min(view.allTimeReplies, data.conversations).toLocaleString()} from campaigns · ${Math.max(0, data.conversations - view.allTimeReplies).toLocaleString()} outside campaigns`
+            : "From campaigns"}
+        />
         <Kpi label="Average reply rate" value={rate(view.average("replyRate"))} />
         <Kpi label="Average acceptance rate" value={rate(view.average("acceptanceRate"))} />
         <Kpi label="Average positive reply rate" value={rate(view.average("positiveReplyRate"))} />
@@ -305,7 +334,7 @@ function Analytics() {
         </article>
 
         <article className="analytics-card analytics-ranking">
-          <CardTitle title="Best performing campaigns" subtitle={`Over ${RANKABLE_MINIMUM} requests sent`} />
+          <CardTitle title="Best performing campaigns" subtitle={`At or above your ${view.benchmark.toFixed(1)}% average ${view.metric.noun} · over ${RANKABLE_MINIMUM} requests sent`} />
           {/* Three buttons rather than a select, because the point is switching between them to compare. */}
           <div className="metric-toggle">
             {LEADER_METRICS.map((option) => (
@@ -322,23 +351,23 @@ function Analytics() {
                 <small>{campaign.acceptanceRate.toFixed(1)}% accepted · {campaign.replyRate.toFixed(1)}% replied</small>
                 <i><em style={{ width: `${(view.metric.of(campaign) / view.leaderMax) * 100}%` }} /></i>
               </span>
-              <data>{view.metric.of(campaign).toLocaleString()}</data>
+              <data>{view.metric.of(campaign).toFixed(1)}%</data>
             </button>
-          )) : <p className="empty-state">No campaign has sent enough to rank yet.</p>}
+          )) : <p className="empty-state">{rankable(view.campaigns).length ? "No campaign is above the average yet." : "No campaign has sent enough to rank yet."}</p>}
         </article>
 
         <article className="analytics-card analytics-ranking">
-          <CardTitle title="Underperforming campaigns" subtitle="Lowest acceptance rate first" />
+          <CardTitle title="Underperforming campaigns" subtitle={`Below your ${view.benchmark.toFixed(1)}% average ${view.metric.noun}, lowest first`} />
           {view.laggards.length ? view.laggards.map((campaign) => (
             <button type="button" className="analytics-rank is-button no-index" key={campaign.campaignId} onClick={() => setOpen(campaign)}>
               <span>
                 <strong>{campaign.name}</strong>
                 <small>{campaign.connectionsSent.toLocaleString()} sent · {campaign.connectionsAccepted.toLocaleString()} accepted · {campaign.replies.toLocaleString()} {campaign.replies === 1 ? "reply" : "replies"}</small>
-                <i><em className="is-warning" style={{ width: `${Math.min(100, campaign.acceptanceRate * 2)}%` }} /></i>
+                <i><em className="is-warning" style={{ width: `${(view.metric.of(campaign) / view.leaderMax) * 100}%` }} /></i>
               </span>
-              <data>{campaign.acceptanceRate.toFixed(1)}%</data>
+              <data>{view.metric.of(campaign).toFixed(1)}%</data>
             </button>
-          )) : <p className="empty-state">No campaign has sent enough to rank yet.</p>}
+          )) : <p className="empty-state">{rankable(view.campaigns).length ? "Every ranked campaign is at or above the average." : "No campaign has sent enough to rank yet."}</p>}
         </article>
       </section>
 

@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
+import { BoardSkeleton } from "../../../components/PageSkeleton";
 import { useCachedJson } from "../../../components/cache";
 import "./projects.css";
 
@@ -122,7 +123,7 @@ function Projects() {
   }, [tasks]);
 
   if (error && !data) return <div className="content"><p className="error-note">{error}</p></div>;
-  if (!data) return <div className="content"><p className="loading">Loading…</p></div>;
+  if (!data) return <BoardSkeleton />;
 
   return (
     <div className="content pt-wide">

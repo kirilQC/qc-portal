@@ -411,8 +411,10 @@ async function build(session: Session, workspaceId: string, range: string) {
         { key: "leads", label: "Leads in campaigns", value: allTime.leads, tone: "f0", rate: null as number | null, of: null as string | null },
         { key: "reached", label: "Reached out to", value: allTime.reached, tone: "f1", rate: rate(allTime.reached, allTime.leads), of: "of leads" },
         { key: "accepted", label: "Accepted", value: allTime.accepted, tone: "f2", rate: rate(allTime.accepted, allTime.reached), of: "of reached" },
-        { key: "replied", label: "Replied", value: allTime.replies, tone: "f3", rate: rate(allTime.replies, allTime.accepted), of: "of accepted" },
-        { key: "warm", label: "Replied positively", value: positiveAllTime, tone: "f4", rate: rate(positiveAllTime, allTime.replies), of: "of replies" },
+        // People who replied, the same figure as the Replies tile and the inbox — not the campaigns' own
+        // reply total, which leaves out replies that came in outside a tracked campaign.
+        { key: "replied", label: "Replied", value: repliesCountRaw ?? allTime.replies, tone: "f3", rate: rate(repliesCountRaw ?? allTime.replies, allTime.accepted), of: "of accepted" },
+        { key: "warm", label: "Replied positively", value: positiveAllTime, tone: "f4", rate: rate(positiveAllTime, repliesCountRaw ?? allTime.replies), of: "of replies" },
       ]
     : [
         { key: "reached", label: "Reached", value: reached30, tone: "f1", rate: null as number | null, of: null as string | null },

@@ -203,11 +203,13 @@ function Overview() {
   // link into its tab; `math` shows the tiny "n of m" under a rate.
   const cells: { label: string; value: string; href?: string; math?: string }[] = [
     { label: "Reached out to", value: n(data.reachedTotal ?? 0), href: "/campaigns" },
-    { label: "Total leads", value: n(data.leadsTotal ?? 0), href: "/database" },
+    // The lead database: everyone who has engaged. Named for what it is, so it isn't read as the number
+    // of prospects (that is "Reached out to") or compared with Replies as if they should match.
+    { label: "Lead database", value: n(data.leadsTotal ?? 0), href: "/database", math: "People who engaged" },
     { label: "Replies", value: n(data.repliesTotal ?? 0), href: "/inbox" },
     { label: "Campaigns", value: n(data.campaignsTotal ?? 0), href: "/campaigns" },
     { label: "Acceptance rate", value: w.reached ? `${w.acceptanceRate}%` : "—", math: w.reached ? `${n(w.accepted)} of ${n(w.reached)}` : undefined },
-    { label: "Reply rate", value: w.reached ? `${w.replyRate}%` : "—", math: w.reached ? (w.replyOf != null ? `${n(w.replyPart ?? 0)} of ${n(w.replyOf)} messaged` : `${n(w.replies)} of ${n(w.reached)}`) : undefined },
+    { label: "Reply rate", value: w.reached ? `${w.replyRate}%` : "—", math: w.reached ? (w.replyOf != null ? `${n(w.replyPart ?? 0)} campaign replies of ${n(w.replyOf)} messaged` : `${n(w.replies)} of ${n(w.reached)}`) : undefined },
     { label: "Campaigns running", value: n(data.campaignsRunning ?? 0), href: "/campaigns" },
     { label: "Meetings booked", value: n(data.meetingsBooked ?? 0), href: "/meetings" },
   ];

@@ -5,6 +5,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { SkeletonRows } from "../../../components/PageSkeleton";
 
 /**
  * Every client's configuration and heartbeats on one screen.
@@ -152,7 +153,7 @@ function Ops() {
           <span>Worst first · click a client for its configuration</span>
         </div>
         {!loaded ? (
-          <p className="loading">Loading…</p>
+          <SkeletonRows rows={6} />
         ) : sorted.length === 0 ? (
           <p className="empty">No clients.</p>
         ) : (

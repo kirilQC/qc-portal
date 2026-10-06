@@ -6,12 +6,13 @@
 
 import ClientHead from "../../../components/ClientHead";
 import { dateTime, usePortal } from "../../../components/usePortal";
+import { ListSkeleton } from "../../../components/PageSkeleton";
 
 /** Every meeting booked, upcoming first — for most clients this is the number that matters. */
 function Meetings() {
   const { data, error, loading } = usePortal();
 
-  if (loading) return <div className="content"><p className="loading">Loading…</p></div>;
+  if (loading) return <ListSkeleton rows={6} />;
   if (error) return <div className="content"><p className="error-note">{error}</p></div>;
   if (data?.view === "directory") return <div className="content"><p className="empty">Pick a client first.</p></div>;
 

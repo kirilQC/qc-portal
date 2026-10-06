@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
+import { SkeletonRows } from "../../../components/PageSkeleton";
 import "./calls.css";
 // Plain ESM, shared with the test runner; see shared/calls.mjs.
 import { parseCall } from "../../../../shared/calls.mjs";
@@ -148,7 +149,7 @@ function Calls() {
       {error && <p className="error-note">{error}</p>}
 
       {!loaded ? (
-        <p className="loading">Loading…</p>
+        <SkeletonRows rows={5} />
       ) : docs.length === 0 ? (
         !error ? <p className="empty">No weekly calls have been written into this client&rsquo;s brain folder yet.</p> : null
       ) : (
@@ -182,7 +183,7 @@ function Calls() {
           </aside>
 
           <section className="call-doc">
-            {reading ? <p className="loading">Loading…</p> : call ? <CallView call={call} /> : <p className="empty">Pick a call.</p>}
+            {reading ? <SkeletonRows rows={4} /> : call ? <CallView call={call} /> : <p className="empty">Pick a call.</p>}
           </section>
         </div>
       )}

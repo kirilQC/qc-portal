@@ -240,6 +240,21 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 650; }
 .sk-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-bottom: 16px; }
 .sk-tile { height: 96px; }
 .sk-panel { height: 260px; border-radius: 16px; }
+.sk-toolbar { height: 44px; border-radius: 11px; margin-bottom: 12px; }
+.sk-rows { display: grid; gap: 8px; }
+.sk-row { display: flex; align-items: center; gap: 14px; height: 64px; padding: 0 16px; border-radius: 11px; }
+.sk-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--panel-2); flex: none; }
+.sk-text { display: grid; gap: 7px; flex: 1; }
+.sk-text i, .sk-line { display: block; height: 9px; border-radius: 5px; background: var(--panel-2); }
+.sk-text i:last-child { height: 7px; opacity: .7; }
+.sk-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 12px; overflow: hidden; }
+.sk-col { min-height: 300px; padding: 44px 10px 10px; display: grid; align-content: start; gap: 8px; border-radius: 12px; }
+.sk-card { height: 74px; border-radius: 9px; background: var(--panel-2); }
+.sk-doc { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; }
+.sk-side { height: 360px; border-radius: 12px; }
+.sk-body { padding: 26px; display: grid; gap: 11px; align-content: start; min-height: 360px; border-radius: 12px; }
+.sk-gap { height: 10px; }
+@media (max-width: 720px) { .sk-doc { grid-template-columns: 1fr; } .sk-side { height: 90px; } }
 @keyframes sk-shimmer { 100% { transform: translateX(100%); } }
 @keyframes sk-fade { from { opacity: .35; } to { opacity: 1; } }
 @media (max-width: 720px) { .sk-tiles { grid-template-columns: repeat(2, 1fr); } }

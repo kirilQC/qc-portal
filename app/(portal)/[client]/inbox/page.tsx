@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
+import { SkeletonRows } from "../../../components/PageSkeleton";
 import { activeTimeZone } from "../../../components/Appearance";
 import "./inbox.css";
 
@@ -38,11 +39,10 @@ const SPLIT_KEY = "qc-portal:inbox-split";
 /** Which leads have been starred. Per browser, as Reply Radar keeps them in its layout preferences. */
 const STARS_KEY = "qc-portal:inbox-stars";
 
-type Sort = "recent" | "oldest" | "score-desc" | "name";
+type Sort = "recent" | "oldest" | "name";
 const SORTS: [Sort, string][] = [
   ["recent", "Newest reply"],
   ["oldest", "Oldest reply"],
-  ["score-desc", "Highest lead score"],
   ["name", "Name A–Z"],
 ];
 const TIERS = ["hot", "warm", "nurture"];
@@ -244,7 +244,6 @@ function Inbox() {
       .sort((a, b) => {
         if (filter === "follow-ups") return b.score - a.score;
         if (sort === "oldest") return Date.parse(a.latestReplyAt || a.lastMessageAt) - Date.parse(b.latestReplyAt || b.lastMessageAt);
-        if (sort === "score-desc") return (b.leadScore ?? -1) - (a.leadScore ?? -1);
         if (sort === "name") return a.name.localeCompare(b.name);
         return Date.parse(b.latestReplyAt || b.lastMessageAt) - Date.parse(a.latestReplyAt || a.lastMessageAt);
       });
@@ -440,10 +439,9 @@ function Inbox() {
             <span className="mid">LATEST REPLY</span>
             <span className="mid">SENDER</span>
             <span className="mid">REPLIES</span>
-            <span className="mid">LEAD SCORE</span>
           </div>
           {!loaded ? (
-            <p className="loading">Loading conversations…</p>
+            <SkeletonRows rows={8} />
           ) : filtered.length === 0 ? (
             <p className="empty">No conversations match.</p>
           ) : (
@@ -489,7 +487,6 @@ function Inbox() {
                     <div className="cell mid"><strong>{when.date}</strong><span>{when.time}</span></div>
                     <div className="cell mid"><strong>{lead.senderName}</strong></div>
                     <div className="cell mid"><strong>{lead.replies}</strong></div>
-                    <div className="cell mid"><strong>{lead.leadScore ?? "—"}</strong></div>
                   </div>
                 );
               })}

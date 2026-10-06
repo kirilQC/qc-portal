@@ -4,6 +4,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ListSkeleton } from "../../../components/PageSkeleton";
 import ClientHead from "../../../components/ClientHead";
 import Timeline from "./Timeline";
 import { usePortal, type Campaign } from "../../../components/usePortal";
@@ -63,7 +64,7 @@ function Campaigns() {
     }
   }, [campaigns, sort]);
 
-  if (loading) return <div className="content"><p className="loading">Loading…</p></div>;
+  if (loading) return <ListSkeleton rows={6} tiles={5} />;
   if (error) return <div className="content"><p className="error-note">{error}</p></div>;
   if (data?.view === "directory") return <div className="content"><p className="empty">Pick a client first.</p></div>;
 

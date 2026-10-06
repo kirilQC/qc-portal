@@ -8,6 +8,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import "./admin.css";
+import { SkeletonRows } from "../../components/PageSkeleton";
 
 /**
  * Who can sign in, and as what. Staff only — the middleware and the API both refuse anyone else.
@@ -207,7 +208,7 @@ function Admin() {
       )}
 
       {!loaded ? (
-        <p className="loading">Loading…</p>
+        <SkeletonRows rows={6} />
       ) : users.length === 0 ? (
         <p className="empty">No logins yet. Add one to get started.</p>
       ) : (

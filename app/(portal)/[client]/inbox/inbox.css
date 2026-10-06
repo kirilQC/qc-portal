@@ -138,7 +138,7 @@
  */
 .table-head, .lead-row {
   display: grid;
-  grid-template-columns: minmax(230px, 1.7fr) minmax(120px, 1.1fr) 130px minmax(110px, .9fr) 74px 92px;
+  grid-template-columns: minmax(230px, 1.7fr) minmax(120px, 1.1fr) 130px minmax(110px, .9fr) 74px;
   gap: 12px;
   align-items: center;
 }
@@ -311,7 +311,7 @@ body.light-mode .reason-box p { color: #403a70; }
   .inbox-wrap { padding: 20px 18px 50px; }
   /* The queue collapses to the two columns that identify a row; the rest is in the detail pane. */
   .table-head { display: none; }
-  .lead-row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
+  .lead-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
   /* The wide-table minimum would otherwise keep the collapsed two-column rows 860px wide. */
   .queue-scroll > * { min-width: 0; }
   .lead-row .cell:nth-child(2),

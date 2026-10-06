@@ -18,6 +18,7 @@
    client or the open file changes; the loaded state is set from inside the async callback. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DocSkeleton } from "../../../components/PageSkeleton";
 import Markdown from "../../../components/Markdown";
 import { useClientSlug } from "../../../components/useClientSlug";
 import { agoLabel, clientInitials, clientHue, fileKind, spanLabel } from "../../../../shared/brain-structure.mjs";
@@ -144,7 +145,7 @@ export default function BrainApp() {
     }
   }, [clientSlug, data]);
 
-  if (!loaded) return <div className="content"><p className="brn-quiet">Opening the brain…</p></div>;
+  if (!loaded) return <DocSkeleton />;
   if (!data) {
     return (
       <div className="content">

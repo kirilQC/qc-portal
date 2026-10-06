@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
+import { SkeletonRows } from "../../../components/PageSkeleton";
 // The funnel's colour tokens and its `.k-*` segment classes live with the campaigns page. Imported
 // rather than copied, so the same band is the same colour on both screens by construction.
 import "../campaigns/campaigns.css";
@@ -223,7 +224,7 @@ function Messaging() {
       {loaded && <BestMessaging docs={docs} />}
 
       {!loaded ? (
-        <p className="loading">Loading…</p>
+        <SkeletonRows rows={6} />
       ) : docs.length === 0 ? (
         !error ? <p className="empty">That folder is there, but no messaging documents have been written into it yet.</p> : null
       ) : (
