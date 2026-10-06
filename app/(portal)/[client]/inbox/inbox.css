@@ -354,3 +354,4 @@ body.is-dragging { cursor: col-resize; user-select: none; }
 .lead-star { flex: none; color: var(--border); font-size: 12px; cursor: pointer; line-height: 1; }
 .lead-star:hover { color: var(--amber); }
 .lead-star.is-starred { color: var(--amber); }
+.metric-loading { display: block; width: 64px; height: 26px; border-radius: 7px; border: 0; }

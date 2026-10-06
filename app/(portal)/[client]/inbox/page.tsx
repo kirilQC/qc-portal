@@ -341,11 +341,11 @@ function Inbox() {
       {error && <p className="error-note" style={{ margin: "20px 32px 0" }}>{error}</p>}
 
       <div className="inbox-metrics">
-        <Metric label={`Replies ${rangeWord}`} value={String(repliesValue)} tone="purple" />
-        <Metric label={`Number of leads needing reply ${rangeWord}`} value={String(needsReply)} tone="coral" />
-        <Metric label="Conversations" value={String(isAllReplies ? conversationTotal : filtered.length)} tone="amber" />
-        <Metric label="Positive replies" value={String(positive)} tone="green" />
-        <Metric label={`Positive reply rate ${rangeWord}`} value={`${positiveRate}%`} tone="green" />
+        <Metric loading={!loaded} label={`Replies ${rangeWord}`} value={String(repliesValue)} tone="purple" />
+        <Metric loading={!loaded} label={`Number of leads needing reply ${rangeWord}`} value={String(needsReply)} tone="coral" />
+        <Metric loading={!loaded} label="Conversations" value={String(isAllReplies ? conversationTotal : filtered.length)} tone="amber" />
+        <Metric loading={!loaded} label="Positive replies" value={String(positive)} tone="green" />
+        <Metric loading={!loaded} label={`Positive reply rate ${rangeWord}`} value={`${positiveRate}%`} tone="green" />
       </div>
 
       <div className="inbox-bar">
@@ -616,12 +616,13 @@ function Inbox() {
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: string; tone: string }) {
+/** A stat tile. While the inbox loads it shimmers rather than reading "0", which looks like a real figure. */
+function Metric({ label, value, tone, loading = false }: { label: string; value: string; tone: string; loading?: boolean }) {
   return (
     <div className="metric-card">
       <div className={`metric-icon ${tone}`} />
       <span>{label}</span>
-      <strong>{value}</strong>
+      {loading ? <strong className="metric-loading sk-sh" aria-label="Loading" /> : <strong>{value}</strong>}
     </div>
   );
 }
