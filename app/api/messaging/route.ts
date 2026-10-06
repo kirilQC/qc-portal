@@ -29,6 +29,9 @@ import { READABLE_FOLDERS, brainConfigured, findFolder, listDocs, readDoc, resol
 // Plain ESM so the test runner can import the same code the server runs; see shared/messaging.mjs.
 import { matchCampaign, parseSequence, splitFrontmatter } from "../../../shared/messaging.mjs";
 
+/** What a client is told when there is no messaging to show — an empty state, not an internal path. */
+const NOT_YET = "Your campaign messaging hasn't been added here yet. Your QC team will publish it as campaigns launch.";
+
 export const maxDuration = 60;
 
 /** Read no more than this many documents in one page load. */
@@ -95,7 +98,12 @@ export async function GET(request: Request) {
     const label = READABLE_FOLDERS.messaging.label;
 
     if (!clientFolder) {
-      return NextResponse.json({ ok: false, reason: "no_client_folder", error: `${clientName} has no QC Brain folder linked.` });
+      return NextResponse.json({
+        ok: false,
+        reason: "no_client_folder",
+        // A client gets a plain empty state; the folder-level detail is for QC, who can fix it.
+        error: scoped.role === "client" ? NOT_YET : `${clientName} has no QC Brain folder linked.`,
+      });
     }
 
     const subfolder = await findFolder(clientFolder, "messaging");
@@ -103,7 +111,9 @@ export async function GET(request: Request) {
       return NextResponse.json({
         ok: false,
         reason: "no_folder",
-        error: `No "${label}" folder was found in ${clientName}'s QC Brain folder (clients/${clientFolder}).`,
+        error: scoped.role === "client"
+          ? NOT_YET
+          : `No "${label}" folder was found in ${clientName}'s QC Brain folder (clients/${clientFolder}).`,
       });
     }
 

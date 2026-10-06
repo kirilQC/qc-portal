@@ -38,6 +38,9 @@ type Skeleton = {
   groups: { folder: string; files: { path: string; name: string }[] }[];
 };
 
+/** A client is told what is coming, not which repository path is empty — that detail is for QC. */
+const BRAIN_NOT_YET = "Your brain is still being set up. Your QC team will add your brief, ICP, personas and call notes here.";
+
 export async function GET(request: Request) {
   const session = await currentSession();
   if (!session) return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
@@ -54,12 +57,16 @@ export async function GET(request: Request) {
   try {
     const client = await resolveClientFolder(slug);
     if (!client?.folder) {
-      return NextResponse.json({ ok: false, reason: "no_client_folder", error: "This client has no QC Brain folder linked." });
+      return NextResponse.json({ ok: false, reason: "no_client_folder", error: session.role === "client" ? BRAIN_NOT_YET : "This client has no QC Brain folder linked." });
     }
 
     const files = await brainTree(client.folder);
     if (!files.length) {
-      return NextResponse.json({ ok: false, reason: "empty", error: `There is nothing under clients/${client.folder} in the brain yet.` });
+      return NextResponse.json({
+        ok: false,
+        reason: "empty",
+        error: session.role === "client" ? BRAIN_NOT_YET : `There is nothing under clients/${client.folder} in the brain yet.`,
+      });
     }
     const paths = files.map((file) => file.path);
     const skeleton = clientSkeleton(client.folder, paths) as Skeleton;

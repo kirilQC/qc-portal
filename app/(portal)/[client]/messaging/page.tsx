@@ -108,6 +108,8 @@ function Messaging() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [canAttribute, setCanAttribute] = useState(false);
   const [error, setError] = useState("");
+  /** "Nothing here yet" reasons render as an empty state, not as a red error. */
+  const [emptyReason, setEmptyReason] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [truncated, setTruncated] = useState(0);
   const [openPath, setOpenPath] = useState("");
@@ -116,6 +118,7 @@ function Messaging() {
   useEffect(() => {
     setLoaded(false);
     setError("");
+    setEmptyReason(false);
     setDocs([]);
     setOpenPath("");
     void (async () => {
@@ -125,6 +128,7 @@ function Messaging() {
         const response = await fetch(`/api/messaging?${query.toString()}`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!payload.ok) {
+          setEmptyReason(payload.reason === "no_folder" || payload.reason === "no_client_folder");
           setError(payload.error || "That did not load.");
           return;
         }
@@ -214,7 +218,7 @@ function Messaging() {
 
       {/* The specific reason, not a generic empty state — "not connected", "no such folder" and
           "folder is empty" have three different fixes. */}
-      {error && <p className="error-note">{error}</p>}
+      {error && <p className={emptyReason ? "empty" : "error-note"}>{error}</p>}
 
       {loaded && <BestMessaging docs={docs} />}
 

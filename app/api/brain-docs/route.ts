@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     const label = READABLE_FOLDERS[key].label;
 
     if (!clientFolder) {
-      return NextResponse.json({ ok: false, reason: "no_client_folder", error: `${str(row?.name) || "This client"} has no QC Brain folder linked.` });
+      return NextResponse.json({ ok: false, reason: "no_client_folder", error: session.role === "client" ? `Nothing has been added here yet.` : `${str(row?.name) || "This client"} has no QC Brain folder linked.` });
     }
 
     const subfolder = await findFolder(clientFolder, key);
@@ -61,7 +61,9 @@ export async function GET(request: Request) {
       return NextResponse.json({
         ok: false,
         reason: "no_folder",
-        error: `No "${label}" folder was found in ${str(row?.name) || "this client"}'s QC Brain folder (clients/${clientFolder}).`,
+        error: session.role === "client"
+          ? `Nothing has been added here yet.`
+          : `No "${label}" folder was found in ${str(row?.name) || "this client"}'s QC Brain folder (clients/${clientFolder}).`,
       });
     }
 
