@@ -158,6 +158,8 @@ export async function getClient(session: Session, workspaceId: string): Promise<
 export async function listClients(session: Session): Promise<ClientSummary[]> {
   const rows = await scopedRows(session, "rr_workspaces", {
     select: "id,name,slug,logo_url,accent_color,website_url",
+    // `misc` is QC Command's internal catch-all bucket, not a client; QC Command excludes it everywhere.
+    slug: "neq.misc",
     order: "name.asc",
   });
   return rows.map((row) => ({
