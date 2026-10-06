@@ -1,0 +1,66 @@
+/* Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
+   QC Portal — proprietary. Not licensed for redistribution or resale. */
+
+/* The Project tracker — QC Command's board, read-only. */
+.pt-wide { max-width: 1480px; }
+.pt-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.pt-head h1 { margin: 0; }
+.pt-sub { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+.pt-views { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); }
+.pt-views button {
+  height: 28px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.pt-views button.is-on { background: var(--panel-2); color: var(--text); }
+
+.pt-staff-note {
+  margin: 0 0 16px; padding: 10px 14px; border: 1px dashed var(--border); border-radius: 9px;
+  color: var(--muted); font-size: 12px; line-height: 1.5;
+}
+.pt-staff-note b { color: var(--text); }
+
+/* Kanban: one column per stage, scrolling sideways when they do not fit. */
+.pt-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: start; }
+.pt-col, .pt-person { border: 1px solid var(--border); border-radius: 11px; background: var(--panel); min-height: 140px; }
+.pt-col header, .pt-person header {
+  display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text);
+  border-bottom: 1px solid var(--border-soft);
+}
+.pt-person header { text-transform: none; letter-spacing: 0; font-size: 13px; }
+.pt-dot { width: 7px; height: 7px; border-radius: 50%; }
+.pt-count { margin-left: auto; color: var(--muted-2); font-weight: 600; }
+.pt-col-body, .pt-person-body { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+
+.pt-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+.pt-avatar {
+  width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--panel-2); color: var(--muted); font-size: 11px; font-weight: 700;
+}
+
+.pt-card { position: relative; padding: 11px 12px 11px 15px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); overflow: hidden; }
+.pt-card-stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.pt-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.pt-card h3 { margin: 0; font-size: 13.5px; font-weight: 650; line-height: 1.35; color: var(--text); }
+.pt-card-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; margin-top: 9px; font-size: 11.5px; color: var(--muted); }
+.pt-stage {
+  display: inline-block; padding: 2px 8px; border: 1px solid; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+}
+.pt-prio { font-size: 11px; font-weight: 600; white-space: nowrap; }
+
+.pt-table-wrap { border: 1px solid var(--border); border-radius: 11px; background: var(--panel); overflow-x: auto; }
+.pt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pt-table th {
+  text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted-2); white-space: nowrap;
+}
+.pt-table td { padding: 12px 14px; border-bottom: 1px solid var(--border-soft); color: var(--muted); white-space: nowrap; }
+.pt-table tr:last-child td { border-bottom: 0; }
+.pt-table .pt-title-cell { color: var(--text); font-weight: 600; white-space: normal; min-width: 240px; }
+
+@media (max-width: 700px) {
+  .pt-board { grid-auto-columns: 82%; }
+  .pt-people { grid-template-columns: 1fr; }
+}

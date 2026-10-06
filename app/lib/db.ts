@@ -54,6 +54,9 @@ const CLIENT_READABLE: Record<string, string> = {
   // A client reads its own meetings-booked override, since it is the figure on their screen; setting
   // one is staff work, gated in /api/admin/meetings-override.
   qc_portal_meeting_overrides: "workspace_id",
+  // QC Command's project board. The route reads only tasks staff marked "Show to client", and only the
+  // safe columns — never notes, blockers, links or who last edited.
+  rr_projects: "workspace_id",
 };
 
 /** Tables only a staff session may read. Never reachable from a client session, filtered or not. */

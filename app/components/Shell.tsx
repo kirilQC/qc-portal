@@ -41,6 +41,8 @@ const ICONS: Record<string, string> = {
   database: "M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
   meetings: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4",
   messaging: "M4 5h16v11H8l-4 4z",
+  // A board of three columns — the project tracker.
+  projects: "M4 4h4v16H4zM10 4h4v10h-4zM16 4h4v13h-4z",
   calls: "M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-2M8 3a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2M8 3v0M8 12h8M8 16h5",
   // The brain — a mind's outline, distinct from the sheet shapes the document tabs use.
   brain: "M9 3a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 1 5 3 3 0 0 0 4 2 3 3 0 0 0 3-2V4a1 1 0 0 0-1-1zM15 3a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-1 5 3 3 0 0 1-4 2 3 3 0 0 1-3-2",
@@ -197,6 +199,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     { href: "/messaging", label: "Messaging", icon: "messaging" },
     { href: "/brain", label: "Brain", icon: "brain" },
     { href: "/calls", label: "Weekly calls", icon: "calls" },
+    { href: "/projects", label: "Project tracker", icon: "projects" },
   ];
 
   /** The mark at the top left: the client's when there is one, QC's when there is not. */

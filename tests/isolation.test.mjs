@@ -28,6 +28,7 @@ const CLIENT_READABLE = {
   rr_sync_runs: "workspace_id",
   rr_webhook_events: "workspace_id",
   qc_portal_meeting_overrides: "workspace_id",
+  rr_projects: "workspace_id",
 };
 const STAFF_ONLY = new Set([
   "qc_portal_users",
@@ -178,6 +179,12 @@ test("the allowlists here still match the ones in db.ts", () => {
 
 test("a client reads only its own meetings override, whatever workspace it asks for", () => {
   const query = scopeFor(willow, "qc_portal_meeting_overrides", { select: "meetings_booked", workspace_id: "eq.ws-bluevia" });
+  assert.ok(query.includes("workspace_id=eq.ws-willow"));
+  assert.ok(!query.includes("ws-bluevia"));
+});
+
+test("a client reads only its own project tasks, whatever workspace it names", () => {
+  const query = scopeFor(willow, "rr_projects", { select: "id,title", client_visible: "eq.true", workspace_id: "eq.ws-bluevia" });
   assert.ok(query.includes("workspace_id=eq.ws-willow"));
   assert.ok(!query.includes("ws-bluevia"));
 });
