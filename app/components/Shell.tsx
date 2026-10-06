@@ -12,7 +12,7 @@ import { usePathname } from "next/navigation";
 import { useClientSlug } from "./useClientSlug";
 import { useCachedJson } from "./cache";
 import SettingsPanel from "./SettingsPanel";
-import AppearanceControl from "./Appearance";
+import { applyAppearance, readAppearance } from "./Appearance";
 
 /**
  * The frame every signed-in page sits in.
@@ -167,6 +167,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     const timer = setInterval(check, 120_000);
     return () => { live = false; clearInterval(timer); };
   }, [me?.user.role]);
+
+  // The look saved on this device (Settings › Appearance), applied once on load.
+  useEffect(() => applyAppearance(readAppearance()), []);
 
   // Close the settings menu on any navigation, so it never hangs over the next page.
   useEffect(() => setSettingsOpen(false), [pathname, clientParam]);
@@ -336,13 +339,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="main">
-        {/* Thin bar over every page, holding the one control that belongs to the whole app. */}
-        <header className="topbar">
-          <span />
-          <div className="top-actions">
-            <AppearanceControl />
-          </div>
-        </header>
         {/* The page scrolls inside this, so the sidebar and topbar never move. */}
         <div className="page-scroll">{children}</div>
       </main>

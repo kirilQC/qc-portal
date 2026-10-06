@@ -16,6 +16,7 @@ import ActivityNetwork, { type ActivityEvent } from "../components/ActivityNetwo
 import ActivityChart, { type ActivityPoint } from "./ActivityChart";
 import DateRangePicker, { type DayRange } from "./DateRangePicker";
 import ReplyCalendar, { type CalendarData } from "./ReplyCalendar";
+import CallRecap from "./CallRecap";
 
 /**
  * The client's overview: a month in a sentence, the trend behind it, and what has happened since.
@@ -251,32 +252,38 @@ function Overview() {
 
   return (
     <div className="content ov-wide">
-      <div className="client-head">
-        <span className="client-logo" style={client.logoUrl ? undefined : { background: client.accentColor || "var(--accent)" }}>
-          {client.logoUrl ? <img src={client.logoUrl} alt="" /> : (client.name[0] || "?").toUpperCase()}
-        </span>
-        <div>
-          <h1>{client.name}</h1>
-        </div>
-
-        {/* A week by default: these are weekly-call clients, and the question on opening this page is
-            "what happened since we last spoke". */}
-        <div className="ov-ranges">
-          {(data.ranges ?? []).map((option) => (
-            <button
-              key={option.key}
-              className={`ov-range ${data.range === option.key ? "is-on" : ""}`}
-              onClick={() => setRange(option.key)}
-            >
-              {option.label}
-            </button>
-          ))}
-          <DateRangePicker value={custom} active={data.range === "custom"} onApply={(next) => { setCustom(next); setRange("custom"); }} />
-        </div>
-      </div>
-
       {/* The live activity network is the hero — a wide animated banner with the week's summary over it. */}
-      <ActivityNetwork variant="hero" events={data.feed ?? []} senders={data.senders ?? []} clientSlug={clientSlug}>
+      <ActivityNetwork
+        variant="hero"
+        events={data.feed ?? []}
+        senders={data.senders ?? []}
+        clientSlug={clientSlug}
+        header={
+          <div className="client-head">
+          <span className="client-logo" style={client.logoUrl ? undefined : { background: client.accentColor || "var(--accent)" }}>
+            {client.logoUrl ? <img src={client.logoUrl} alt="" /> : (client.name[0] || "?").toUpperCase()}
+          </span>
+          <div>
+            <h1>{client.name}</h1>
+          </div>
+  
+          {/* A week by default: these are weekly-call clients, and the question on opening this page is
+              "what happened since we last spoke". */}
+          <div className="ov-ranges">
+            {(data.ranges ?? []).map((option) => (
+              <button
+                key={option.key}
+                className={`ov-range ${data.range === option.key ? "is-on" : ""}`}
+                onClick={() => setRange(option.key)}
+              >
+                {option.label}
+              </button>
+            ))}
+            <DateRangePicker value={custom} active={data.range === "custom"} onApply={(next) => { setCustom(next); setRange("custom"); }} />
+          </div>
+        </div>
+        }
+      >
         <span className="ov-brief-eyebrow">{data.rangeLabel ?? "This week"}</span>
         <p>{briefing(data)}</p>
       </ActivityNetwork>
@@ -349,7 +356,11 @@ function Overview() {
         <ActivityChart key={`${data.range}-${custom?.from ?? ""}-${custom?.to ?? ""}`} points={data.activity?.points ?? []} smoothed={Boolean(data.activity?.smoothed)} />
       </section>
 
-      {data.calendar && <ReplyCalendar data={data.calendar} />}
+      {/* The month's replies as a heat map, beside what was agreed on the last weekly call. */}
+      <div className="ov-split">
+        {data.calendar && <ReplyCalendar data={data.calendar} />}
+        <CallRecap clientSlug={clientSlug} />
+      </div>
 
       <section className="panel ov-campaigns">
             <div className="panel-head">

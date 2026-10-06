@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clearCache } from "./cache";
+import AppearanceSettings from "./Appearance";
 
 /**
  * Settings: your own details, your team, and how the portal looks.
@@ -215,6 +216,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
               )}
             </>
           )}
+          <AppearanceSettings />
           <section className="sheet-section">
             <h3>Session</h3>
             <button className="button danger" onClick={() => void signOut()}>Sign out</button>

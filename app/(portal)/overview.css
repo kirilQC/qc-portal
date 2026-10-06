@@ -511,19 +511,18 @@ a.ov-cell:hover { background: var(--panel-2); }
 .ov-spark-end { fill: currentColor; transform-box: fill-box; transform-origin: center; animation: ov-endpulse 1.8s ease-in-out 1.4s infinite; }
 @keyframes ov-endpulse { 50% { transform: scale(1.6); } }
 
-/* ═══ Reply calendar ═══════════════════════════════════════════════════════════════════════════════ */
-.ov-cal { margin-bottom: 18px; }
-.ov-cal .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.ov-cal-tabs { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 8px; }
-.ov-cal-tabs button { height: 26px; padding: 0 11px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; }
-.ov-cal-tabs button.is-on { background: var(--panel-2); color: var(--text); }
-.ov-cal-body { display: flex; flex-wrap: wrap; gap: 32px; padding: 18px 20px 20px; }
-.ov-cal-grid { display: grid; grid-template-columns: repeat(7, 40px); gap: 6px; }
+/* ═══ Reply calendar (left) and the last weekly call (right) ═══════════════════════════════════════ */
+.ov-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; align-items: stretch; }
+.ov-split > .panel { margin: 0; min-width: 0; }
+@media (max-width: 980px) { .ov-split { grid-template-columns: 1fr; } }
+.ov-cal .panel-head span { font-size: 12px; color: var(--muted); }
+.ov-cal-body { padding: 16px 20px 18px; }
+.ov-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .ov-cal-dow { font-size: 10.5px; font-weight: 600; color: var(--muted-2); text-align: center; padding-bottom: 2px; }
 .ov-cal-day {
-  position: relative; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 9px;
-  font: inherit; font-size: 11.5px; font-weight: 600; color: rgba(243, 244, 247, .75); cursor: pointer;
-  font-variant-numeric: tabular-nums; animation: ov-cal-in .45s cubic-bezier(.3, 1.5, .5, 1) both;
+  display: grid; place-items: center; height: 40px; border-radius: 9px;
+  font-size: 11.5px; font-weight: 600; color: rgba(243, 244, 247, .75); font-variant-numeric: tabular-nums;
+  animation: ov-cal-in .45s cubic-bezier(.3, 1.5, .5, 1) both;
 }
 @keyframes ov-cal-in { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: none; } }
 .ov-cal-day.l0, .ov-cal-key .l0 { background: var(--panel-2); }
@@ -533,35 +532,43 @@ a.ov-cell:hover { background: var(--panel-2); }
 .ov-cal-day.l3, .ov-cal-key .l3 { background: #2b9a7f; }
 .ov-cal-day.l4, .ov-cal-key .l4 { background: #55c7a2; }
 .ov-cal-day.l3, .ov-cal-day.l4 { color: #08120f; }
-.ov-cal-day.is-future { background: transparent; border: 1px dashed var(--border); color: var(--muted-2); cursor: default; }
-.ov-cal-day:not(.is-future):hover, .ov-cal-day.is-picked { outline: 2px solid var(--text); outline-offset: 1px; }
-.ov-cal-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.ov-cal-day.is-today { box-shadow: 0 0 0 0 rgba(85, 199, 162, .55); animation: ov-cal-in .45s cubic-bezier(.3, 1.5, .5, 1) both, ov-cal-today 2s ease-out 1s infinite; }
-@keyframes ov-cal-today { 0% { box-shadow: 0 0 0 0 rgba(85, 199, 162, .55); } 70%, 100% { box-shadow: 0 0 0 8px rgba(85, 199, 162, 0); } }
-.ov-cal-day.has-meeting::after { content: ""; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: #c9b8ff; box-shadow: 0 0 6px #c9b8ff; }
-.ov-cal-key { display: flex; align-items: center; gap: 5px; margin-top: 12px; font-size: 10.5px; color: var(--muted-2); }
+.ov-cal-day.is-future { background: transparent; border: 1px dashed var(--border); color: var(--muted-2); }
+.ov-cal-day.is-today { outline: 2px solid var(--text); outline-offset: 1px; animation: ov-cal-in .45s cubic-bezier(.3, 1.5, .5, 1) both, ov-cal-today 2s ease-out 1s infinite; }
+@keyframes ov-cal-today { 0% { box-shadow: 0 0 0 0 rgba(85, 199, 162, .55); } 70%, 100% { box-shadow: 0 0 0 9px rgba(85, 199, 162, 0); } }
+.ov-cal-key { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 12px; font-size: 10.5px; color: var(--muted-2); }
 .ov-cal-key i { width: 11px; height: 11px; border-radius: 3px; }
-.ov-cal-key-meet { display: inline-flex; align-items: center; gap: 5px; margin-left: 12px; }
-.ov-cal-key-meet b { width: 7px; height: 7px; border-radius: 50%; background: #c9b8ff; }
-.ov-cal-side { flex: 1 1 300px; max-width: 620px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
-.ov-cal-card { padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); display: flex; flex-direction: column; gap: 8px; }
-.ov-cal-card-date { font-size: 12px; color: var(--muted); }
-.ov-cal-card-figs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 22px; font-size: 13px; color: var(--muted); }
-.ov-cal-card-figs b { font-size: 24px; font-weight: 680; color: var(--text); letter-spacing: -.03em; }
-.ov-cal-card-figs .pos b { color: var(--green); }
-.ov-cal-card-figs .meet b { color: #c9b8ff; }
-.ov-cal-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.ov-cal-facts div { display: flex; flex-direction: column; gap: 4px; }
-.ov-cal-facts strong { display: flex; align-items: center; gap: 6px; font-size: 22px; font-weight: 680; letter-spacing: -.03em; }
-.ov-cal-facts span { font-size: 11.5px; color: var(--muted); }
-.ov-cal-flame { fill: var(--amber); animation: ov-flame 1.4s ease-in-out infinite; }
-@keyframes ov-flame { 0%, 100% { transform: scale(1) rotate(-3deg); } 50% { transform: scale(1.12) rotate(3deg); } }
-.ov-cal-total { font-size: 11.5px; color: var(--muted-2); }
-@media (max-width: 520px) {
-  .ov-cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-  .ov-cal-day { width: auto; aspect-ratio: 1; }
-  .ov-cal-grid-wrap { width: 100%; }
-  .ov-cal-facts { grid-template-columns: 1fr 1fr; }
+
+.ov-recap { display: flex; flex-direction: column; }
+.ov-recap-link { font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.ov-recap-link:hover { text-decoration: underline; }
+.ov-recap-body { padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.ov-recap-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12.5px; color: var(--muted); }
+.ov-recap-meta span:first-child { color: var(--text); font-weight: 600; }
+.ov-recap-count { padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 11px; font-weight: 650; }
+.ov-recap-intro { margin: 0; font-size: 13.5px; line-height: 1.6; color: #d5d9e2; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.ov-recap-label { display: block; margin-bottom: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2); }
+.ov-recap-list ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.ov-recap-list li { display: flex; align-items: baseline; gap: 9px; font-size: 13px; line-height: 1.5; color: #d5d9e2; }
+.ov-recap-owner { flex: none; padding: 1px 7px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--border); font-size: 11px; font-weight: 650; color: var(--text); white-space: nowrap; }
+.ov-recap-more { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--muted); text-decoration: none; }
+.ov-recap-more:hover { color: var(--text); }
+.ov-recap-skel { display: flex; flex-direction: column; gap: 10px; }
+.ov-recap-skel i { height: 12px; border-radius: 6px; background: var(--panel-2); animation: ov-blink 1.4s ease-in-out infinite; }
+.ov-recap-skel i:nth-child(1) { width: 40%; } .ov-recap-skel i:nth-child(2) { width: 95%; } .ov-recap-skel i:nth-child(3) { width: 88%; } .ov-recap-skel i:nth-child(4) { width: 70%; }
+
+/* ═══ The hero reaches the top: the client's name and range buttons sit inside the constellation ════ */
+.ov-hero-net.has-head { height: 500px; }
+.ov-hero-head { position: absolute; top: 0; left: 0; right: 0; z-index: 5; padding: 26px 28px 0; }
+.ov-hero-head .client-head { margin-bottom: 0; }
+.ov-hero-head .client-head h1 { text-shadow: 0 2px 18px rgba(0, 0, 0, .8); }
+.ov-hero-net.has-head .ov-hero-feed { top: 118px; bottom: 34px; }
+.ov-hero-net.has-head .ov-net-legend { top: auto; bottom: 12px; left: auto; right: 22px; }
+.ov-hero-head .ov-range:not(.is-on) { background: rgba(11, 12, 16, .55); backdrop-filter: blur(6px); }
+@media (max-width: 760px) {
+  .ov-hero-net.has-head { height: auto; }
+  .ov-hero-head { position: relative; padding: 18px 16px 0; }
+  .ov-hero-net.has-head .ov-hero-feed { top: auto; bottom: auto; }
+  .ov-hero-net.has-head .ov-net-legend { display: none; }
 }
 
 /* ═══ Active campaigns: bars grow in, the work front glows, senders show what they sent today ═════ */
@@ -586,8 +593,9 @@ a.ov-cell:hover { background: var(--panel-2); }
 @keyframes ov-front { 0%, 100% { opacity: .5; box-shadow: 0 0 6px rgba(139, 147, 184, .5); } 50% { opacity: 1; box-shadow: 0 0 16px rgba(169, 156, 255, .9); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .ov-cell strong, .ov-chip, .ov-spark-area, .ov-spark-line, .ov-spark-end, .ov-cal-day, .ov-cal-flame,
+  .ov-cell strong, .ov-chip, .ov-spark-area, .ov-spark-line, .ov-spark-end, .ov-cal-day,
   .ov-cgrow > span, .ov-front.is-live, .ov-chip-live i, .ov-sending i { animation: none !important; }
   .ov-spark-line { stroke-dashoffset: 0; }
   .ov-spark-area { opacity: .09; }
 }
+.ov-wide { padding-top: 20px; }

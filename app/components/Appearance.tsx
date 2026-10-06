@@ -5,7 +5,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- the stored appearance is read on mount and
    applied; localStorage is an external system and there is nothing to derive it from. */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * The appearance popover, matching Reply Radar's: mode, zoom, font, time zone, background and accent.
@@ -95,34 +95,18 @@ export function activeTimeZone(): string {
   return readAppearance().timeZone;
 }
 
-export default function AppearanceControl() {
-  const [open, setOpen] = useState(false);
+/**
+ * The appearance controls, as a section of the Settings sheet.
+ *
+ * They used to live behind an icon in a top bar of their own, which spent a whole strip of every page on
+ * one button. Changes preview as you go and are kept on this device once saved; the saved look is applied
+ * on load by the shell (see `applyAppearance(readAppearance())` there).
+ */
+export default function AppearanceSettings() {
   const [draft, setDraft] = useState<Appearance>(DEFAULT_APPEARANCE);
   const [saved, setSaved] = useState(false);
-  const wrap = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const current = readAppearance();
-    setDraft(current);
-    applyAppearance(current);
-  }, []);
-
-  // Clicking away closes it, which is what a popover is expected to do.
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: MouseEvent) => {
-      if (wrap.current && !wrap.current.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
+  useEffect(() => setDraft(readAppearance()), []);
 
   /** Preview as you go — a colour picker you cannot see the effect of is a guess. */
   const preview = useCallback((next: Appearance) => {
@@ -132,93 +116,68 @@ export default function AppearanceControl() {
   }, []);
 
   return (
-    <div className="appearance-wrap" ref={wrap}>
-      <button
-        className={`icon-button ${open ? "is-open" : ""}`}
-        onClick={() => setOpen((was) => !was)}
-        title="Appearance"
-        aria-label="Appearance"
-        aria-expanded={open}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 3v18a9 9 0 0 0 0-18" fill="currentColor" stroke="none" />
-        </svg>
-      </button>
+    <section className="sheet-section appearance-section" aria-label="Appearance">
+      <h3>Appearance</h3>
+      <p className="sheet-note">Saved to this device.</p>
 
-      {open && (
-        <div className="appearance-panel" role="dialog" aria-label="Appearance">
-          <header>
-            <div>
-              <h3>Appearance</h3>
-              <small>Saved to this device.</small>
-            </div>
-            <span className="appearance-dot" aria-hidden="true" />
-          </header>
+      <label className="appearance-field">
+        <span>Mode</span>
+        <select value={draft.mode} onChange={(event) => preview({ ...draft, mode: event.target.value as "dark" | "light" })}>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </label>
 
-          <label className="appearance-field">
-            <span>Mode</span>
-            <select value={draft.mode} onChange={(event) => preview({ ...draft, mode: event.target.value as "dark" | "light" })}>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </label>
+      <div className="appearance-field">
+        <span className="appearance-zoom-label">
+          Zoom <b>{draft.zoom}%</b>
+        </span>
+        <input
+          type="range"
+          min={80}
+          max={140}
+          step={5}
+          value={draft.zoom}
+          onChange={(event) => preview({ ...draft, zoom: Number(event.target.value) })}
+        />
+      </div>
 
-          <div className="appearance-field">
-            <span className="appearance-zoom-label">
-              Zoom <b>{draft.zoom}%</b>
-            </span>
-            <input
-              type="range"
-              min={80}
-              max={140}
-              step={5}
-              value={draft.zoom}
-              onChange={(event) => preview({ ...draft, zoom: Number(event.target.value) })}
-            />
-          </div>
+      <label className="appearance-field">
+        <span>Font</span>
+        <select value={draft.font} onChange={(event) => preview({ ...draft, font: event.target.value })}>
+          {FONTS.map(([label, value]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </label>
 
-          <label className="appearance-field">
-            <span>Font</span>
-            <select value={draft.font} onChange={(event) => preview({ ...draft, font: event.target.value })}>
-              {FONTS.map(([label, value]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </label>
+      <label className="appearance-field">
+        <span>Dashboard time zone</span>
+        <select value={draft.timeZone} onChange={(event) => preview({ ...draft, timeZone: event.target.value })}>
+          {ZONES.map(([label, value]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+        <small>Used for reply dates and conversation timestamps.</small>
+      </label>
 
-          <label className="appearance-field">
-            <span>Dashboard time zone</span>
-            <select value={draft.timeZone} onChange={(event) => preview({ ...draft, timeZone: event.target.value })}>
-              {ZONES.map(([label, value]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <small>Used for reply dates and conversation timestamps.</small>
-          </label>
+      <div className="appearance-colors">
+        <label className="appearance-field">
+          <span>Background</span>
+          <input type="color" value={draft.background} onChange={(event) => preview({ ...draft, background: event.target.value })} />
+        </label>
+        <label className="appearance-field">
+          <span>Accent</span>
+          <input type="color" value={draft.accent} onChange={(event) => preview({ ...draft, accent: event.target.value })} />
+        </label>
+      </div>
 
-          <div className="appearance-colors">
-            <label className="appearance-field">
-              <span>Background</span>
-              <input type="color" value={draft.background} onChange={(event) => preview({ ...draft, background: event.target.value })} />
-            </label>
-            <label className="appearance-field">
-              <span>Accent</span>
-              <input type="color" value={draft.accent} onChange={(event) => preview({ ...draft, accent: event.target.value })} />
-            </label>
-          </div>
-
-          <div className="appearance-actions">
-            <button className="button ghost small" onClick={() => preview(DEFAULT_APPEARANCE)}>Reset</button>
-            <button
-              className="button primary"
-              onClick={() => { applyAppearance(draft); setSaved(true); window.setTimeout(() => setOpen(false), 450); }}
-            >
-              {saved ? "Saved ✓" : "Save appearance"}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+      <div className="appearance-actions">
+        <button type="button" className="button ghost small" onClick={() => preview(DEFAULT_APPEARANCE)}>Reset</button>
+        <button type="button" className="button primary" onClick={() => { applyAppearance(draft); setSaved(true); }}>
+          {saved ? "Saved ✓" : "Save appearance"}
+        </button>
+      </div>
+    </section>
   );
 }

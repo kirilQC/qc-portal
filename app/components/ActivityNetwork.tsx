@@ -75,6 +75,7 @@ export default function ActivityNetwork({
   senders,
   clientSlug,
   variant = "full",
+  header,
   children,
 }: {
   events: ActivityEvent[];
@@ -83,6 +84,8 @@ export default function ActivityNetwork({
   /** "full" = scene + rail (default). "hero" = the animated scene alone, with `children` overlaid. "feed" = the rail alone. */
   variant?: "full" | "hero" | "feed";
   children?: React.ReactNode;
+  /** Hero only: content laid over the top of the field (the client's name and the range buttons). */
+  header?: React.ReactNode;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // The rail follows the field: a pulse landing is what advances the shown event, so the two never drift.
@@ -307,8 +310,9 @@ export default function ActivityNetwork({
   // in the same frame.
   if (variant === "hero") {
     return (
-      <section className="ov-hero-net">
+      <section className={`ov-hero-net ${header ? "has-head" : ""}`}>
         {scene}
+        {header && <div className="ov-hero-head">{header}</div>}
         <aside className="ov-hero-feed">
           <span className="ov-net-live ov-hero-feed-live" aria-hidden="true"><i />live</span>
           {rail}
