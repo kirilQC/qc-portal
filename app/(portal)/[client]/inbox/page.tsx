@@ -10,6 +10,8 @@ import { useClientSlug } from "../../../components/useClientSlug";
 import { SkeletonRows } from "../../../components/PageSkeleton";
 import { activeTimeZone } from "../../../components/Appearance";
 import "./inbox.css";
+// Loaded second: QC Command's inbox, measured and reproduced (see the file's header).
+import "./inbox-command.css";
 
 /**
  * The inbox, reproduced from Reply Radar: five metrics, the reply queue, and the conversation pane.
@@ -67,7 +69,7 @@ function dateParts(iso: string | null, timeZone: string): { date: string; time: 
   try {
     return {
       date: value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone }),
-      time: value.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone }),
+      time: value.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone, timeZoneName: "short" }),
     };
   } catch {
     // An unknown zone should not blank the column.
@@ -88,6 +90,17 @@ function Inbox() {
   const clientSlug = useClientSlug();
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  // The client's name and logo for the header — the same small /api/me read the sidebar makes.
+  const [client, setClient] = useState<{ name: string; logoUrl: string | null; accentColor: string | null } | null>(null);
+  useEffect(() => {
+    let live = true;
+    const query = clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : "";
+    void fetch(`/api/me${query}`, { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload) => { if (live && payload?.client) setClient(payload.client); })
+      .catch(() => { /* the header is a nicety; the inbox works without it */ });
+    return () => { live = false; };
+  }, [clientSlug]);
   const [conversationTotal, setConversationTotal] = useState(0);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -327,6 +340,11 @@ function Inbox() {
   const positive = filtered.filter((lead) => lead.sentiment === "positive").length;
   const scored = filtered.filter((lead) => lead.sentiment).length;
   const positiveRate = scored ? ((positive / scored) * 100).toFixed(1) : "0.0";
+  // When the newest conversation was last refreshed from HeyReach, as QC Command prints above its queue.
+  const newestRefresh = leads.reduce((latest, lead) => (lead.lastRefreshedAt && lead.lastRefreshedAt > latest ? lead.lastRefreshedAt : latest), "");
+  const lastSynced = newestRefresh
+    ? new Date(newestRefresh).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone })
+    : "";
   const rangeWord = filter === "today" ? "today" : filter === "week" ? "this week" : filter === "follow-ups" ? "needing follow-up" : "all time";
 
   const options = (pick: (lead: Lead) => string | null) =>
@@ -339,6 +357,16 @@ function Inbox() {
   return (
     <div className="inbox-wrap">
       {error && <p className="error-note" style={{ margin: "20px 32px 0" }}>{error}</p>}
+
+      {/* The client's logo and name above the figures, as QC Command's inbox opens. */}
+      {client && (
+        <div className="inbox-client">
+          <span className="inbox-client-logo" style={client.logoUrl ? undefined : { background: client.accentColor || "var(--accent)" }}>
+            {client.logoUrl ? <img src={client.logoUrl} alt="" /> : client.name.slice(0, 1).toUpperCase()}
+          </span>
+          <h1>{client.name}</h1>
+        </div>
+      )}
 
       <div className="inbox-metrics">
         <Metric loading={!loaded} label={`Replies ${rangeWord}`} value={String(repliesValue)} tone="purple" />
@@ -432,6 +460,7 @@ function Inbox() {
           stylesheet's narrow-screen rule, so on a phone the queue was squeezed to a strip of avatars. */}
       <div className="inbox-grid" ref={grid} style={{ "--left": `${split}fr`, "--right": `${100 - split}fr` } as React.CSSProperties}>
         <div className="queue-card">
+          {lastSynced && <div className="queue-synced">Last synced {lastSynced}</div>}
           <div className="queue-scroll">
           <div className="table-head">
             <span>LEAD</span>
@@ -463,7 +492,7 @@ function Inbox() {
                       </div>
                       <div className="lead-words">
                         <strong className="lead-name">
-                          <span>{lead.name}</span>
+                          <span className="lead-name-text">{lead.name}</span>
                           {lead.messages.at(-1)?.direction === "outbound" && (
                             <span className="responded-check" title="Already replied">✓</span>
                           )}
@@ -483,10 +512,10 @@ function Inbox() {
                         <span>{[lead.role, lead.company].filter(Boolean).join(" @ ") || "No title or company"}</span>
                       </div>
                     </div>
-                    <div className="cell mid"><strong>{lead.campaignName || "No campaign"}</strong></div>
-                    <div className="cell mid"><strong>{when.date}</strong><span>{when.time}</span></div>
-                    <div className="cell mid"><strong>{lead.senderName}</strong></div>
-                    <div className="cell mid"><strong>{lead.replies}</strong></div>
+                    <div className="cell mid inbox-meta-cell campaign-cell"><strong>{lead.campaignName || "No campaign"}</strong></div>
+                    <div className="cell mid inbox-meta-cell date-cell"><strong>{when.date}</strong><span>{when.time}</span></div>
+                    <div className="cell mid inbox-meta-cell sender-cell"><strong>{lead.senderName}</strong></div>
+                    <div className="cell mid turn-cell"><strong>{lead.replies}</strong></div>
                   </div>
                 );
               })}
@@ -573,6 +602,7 @@ function Inbox() {
                           </span>
                         )}
                         <small className="message-author">{message.authorName}</small>
+                        {isLatestInbound && <span className="latest-label">LATEST REPLY</span>}
                         <p>{message.body}</p>
                         <time>{dateParts(message.sentAt, timeZone).date} · {dateParts(message.sentAt, timeZone).time}</time>
                       </div>

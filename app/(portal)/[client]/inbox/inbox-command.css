@@ -1,0 +1,164 @@
+/* Built by Kiril Ivlev · https://www.linkedin.com/in/kiril-ivlev/
+   QC Portal — proprietary. Not licensed for redistribution or resale. */
+
+/*
+ * The inbox, made to match QC Command's inbox exactly.
+ *
+ * Every size, weight, colour and spacing here was read off QC Command's rendered inbox (its computed
+ * styles, not its source, which spreads one inbox across six layered stylesheets) and written down once.
+ * Loaded after inbox.css and scoped to .inbox-wrap so it wins without !important. QC Command's teal is its
+ * accent, so every tint below is derived from --accent: with the same accent the two are identical, and a
+ * portal accent of another colour carries through consistently.
+ */
+
+/* ── Client header ───────────────────────────────────────────────────────────────────────────── */
+.inbox-wrap .inbox-client { display: flex; align-items: center; margin: 0 0 22px; }
+.inbox-wrap .inbox-client-logo {
+  display: grid; place-items: center; width: 54px; height: 54px; margin-right: 16px; border-radius: 14px; overflow: hidden;
+  color: #fff; font-size: 22px; font-weight: 750; flex: none;
+}
+.inbox-wrap .inbox-client-logo img { width: 100%; height: 100%; object-fit: cover; }
+.inbox-wrap .inbox-client h1 { margin: 0; font-size: 42px; font-weight: 670; line-height: 1.05; letter-spacing: -2.1px; color: var(--text); }
+
+/* ── Figures ─────────────────────────────────────────────────────────────────────────────────── */
+.inbox-wrap .inbox-metrics { gap: 11px; margin-bottom: 13px; }
+.inbox-wrap .metric-card {
+  position: relative; min-height: 92px; padding: 14px 15px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel); font-size: 13px;
+}
+.inbox-wrap .metric-card > span { display: block; margin: 0 0 7px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.inbox-wrap .metric-card > strong { display: inline-block; font-size: 25px; font-weight: 650; line-height: 1.5; letter-spacing: -1.125px; color: var(--text); }
+
+/* ── Queue header ────────────────────────────────────────────────────────────────────────────── */
+.inbox-wrap .inbox-bar { margin-bottom: 14px; }
+.inbox-wrap .inbox-title { font-size: 19px; font-weight: 400; letter-spacing: -.475px; gap: 10px; }
+.inbox-wrap .inbox-title b {
+  font-size: 14px; font-weight: 600; padding: 3px 9px; border-radius: 9px; letter-spacing: -.475px;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+}
+
+/* ── The queue table ─────────────────────────────────────────────────────────────────────────── */
+.inbox-wrap .queue-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+.inbox-wrap .queue-synced {
+  padding: 9px 15px; border-bottom: 1px solid var(--border-soft); text-align: right;
+  font-size: 11px; color: var(--muted-2); font-variant-numeric: tabular-nums;
+}
+.inbox-wrap .table-head,
+.inbox-wrap .lead-row {
+  display: grid; gap: 10px; align-items: center;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, .85fr) minmax(0, .75fr) minmax(0, .42fr);
+}
+.inbox-wrap .table-head {
+  height: 34px; padding: 0 15px; border-bottom: 1px solid var(--border-soft);
+  font-size: 8px; font-weight: 400; letter-spacing: .88px; color: var(--muted-2);
+}
+.inbox-wrap .table-head .mid { text-align: center; }
+.inbox-wrap .lead-row {
+  min-height: 66px; padding: 12px 15px; border-bottom: 1px solid var(--border-soft); border-left: 2px solid transparent;
+  background: transparent; box-shadow: none; font-size: 13px; cursor: pointer;
+}
+.inbox-wrap .lead-row:hover { background: color-mix(in srgb, var(--text) 3%, transparent); }
+/* Sentiment is a faint wash and a 2px edge, not a fill: the queue reads as one table. */
+.inbox-wrap .lead-row.row-sentiment-positive { background: color-mix(in srgb, var(--green) 4%, transparent); border-left-color: color-mix(in srgb, var(--green) 30%, transparent); box-shadow: none; }
+.inbox-wrap .lead-row.row-sentiment-neutral { background: color-mix(in srgb, var(--amber) 4%, transparent); border-left-color: color-mix(in srgb, var(--amber) 30%, transparent); box-shadow: none; }
+.inbox-wrap .lead-row.row-sentiment-negative { background: color-mix(in srgb, var(--coral) 4%, transparent); border-left-color: color-mix(in srgb, var(--coral) 30%, transparent); box-shadow: none; }
+.inbox-wrap .lead-row.row-sentiment-positive:hover,
+.inbox-wrap .lead-row.row-sentiment-neutral:hover,
+.inbox-wrap .lead-row.row-sentiment-negative:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.inbox-wrap .lead-row.row-selected,
+.inbox-wrap .lead-row.row-selected.row-sentiment-positive,
+.inbox-wrap .lead-row.row-selected.row-sentiment-neutral,
+.inbox-wrap .lead-row.row-selected.row-sentiment-negative {
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  border-left-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.inbox-wrap .lead-main { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.inbox-wrap .lead-avatar {
+  display: grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 6px; overflow: hidden;
+  background: #3c365e; color: #e9e9fa; font-size: 9px; font-weight: 750;
+}
+.inbox-wrap .lead-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.inbox-wrap .lead-words { min-width: 0; }
+.inbox-wrap .lead-name { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 620; color: var(--text); min-width: 0; }
+/* The lead's name and the line under it, as QC Command sets them: small, quiet, one line each. */
+.inbox-wrap .lead-main span { display: block; margin-top: 4px; font-size: 9px; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-wrap .lead-main .lead-name-text { margin-top: 4px; font-weight: 620; min-width: 0; }
+.inbox-wrap .lead-main .responded-check { display: inline; margin-top: 0; color: var(--green); font-size: 11px; overflow: visible; }
+.inbox-wrap .lead-main .lead-star { display: inline; margin-top: 0; font-size: 11px; overflow: visible; }
+
+.inbox-wrap .inbox-meta-cell,
+.inbox-wrap .turn-cell { text-align: center; min-width: 0; }
+.inbox-wrap .campaign-cell strong,
+.inbox-wrap .sender-cell strong { display: block; font-size: 9px; font-weight: 760; line-height: 1.4; color: var(--text); }
+.inbox-wrap .date-cell strong { display: block; font-size: 9px; font-weight: 750; color: var(--text); font-variant-numeric: tabular-nums; }
+.inbox-wrap .date-cell span { display: block; margin-top: 4px; font-size: 9px; color: var(--muted-2); white-space: nowrap; }
+.inbox-wrap .turn-cell strong { font-size: 13px; font-weight: 560; color: #c9cdd7; }
+
+/* ── The conversation pane ───────────────────────────────────────────────────────────────────── */
+.inbox-wrap .detail-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+.inbox-wrap .detail-top { padding: 17px 17px 13px; }
+.inbox-wrap .large-avatar {
+  display: grid; place-items: center; width: 72px; height: 72px; flex: none; border-radius: 13px; overflow: hidden;
+  background: #3c365e; color: #e9e9fa; font-size: 15px; font-weight: 750;
+}
+.inbox-wrap .large-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.inbox-wrap .detail-words h3 { margin: 0; font-size: 19px; font-weight: 400; letter-spacing: -.38px; line-height: 1.5; color: var(--text); }
+.inbox-wrap .detail-words p { margin: 0 0 5px; font-size: 11px; color: var(--muted); line-height: 1.45; }
+.inbox-wrap .detail-words .linkedin { display: inline-block; margin-top: 10px; font-size: 9px; color: var(--accent); }
+.inbox-wrap .company-logo { width: 68px; height: 68px; padding: 4px; border-radius: 9px; background: #fff; object-fit: contain; flex: none; }
+.inbox-wrap .detail-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 15px 0 0; }
+.inbox-wrap .tag-outline { padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 9px; color: var(--muted); background: transparent; }
+.inbox-wrap .sentiment-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px;
+  font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+}
+.inbox-wrap .sentiment-badge.sentiment-positive { color: var(--green); background: color-mix(in srgb, var(--green) 18%, transparent); border: 1px solid color-mix(in srgb, var(--green) 35%, transparent); }
+.inbox-wrap .sentiment-badge.sentiment-neutral { color: var(--amber); background: color-mix(in srgb, var(--amber) 18%, transparent); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent); }
+.inbox-wrap .sentiment-badge.sentiment-negative { color: var(--coral); background: color-mix(in srgb, var(--coral) 18%, transparent); border: 1px solid color-mix(in srgb, var(--coral) 35%, transparent); }
+.inbox-wrap .enrichment-summary { margin: 10px 0 0; font-size: 9px; color: var(--muted); }
+
+.inbox-wrap .thread { padding: 15px 17px 8px; }
+.inbox-wrap .bubble { position: relative; max-width: none; margin: 0 0 9px; padding: 9px 10px; border-radius: 7px; font-size: 10px; line-height: 1.45; color: var(--text); }
+.inbox-wrap .bubble p { margin: 0; white-space: pre-wrap; font-size: 10px; }
+.inbox-wrap .bubble .message-author { display: block; margin: 0 0 5px; font-size: 10px; font-weight: 760; letter-spacing: 0; text-transform: none; opacity: 1; color: color-mix(in srgb, var(--accent) 70%, #fff); }
+.inbox-wrap .bubble time { display: block; margin-top: 6px; font-size: 8px; color: var(--muted-2); }
+.inbox-wrap .bubble.outbound {
+  margin-left: 53px; background: color-mix(in srgb, var(--accent) 12%, var(--panel-2)); color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.inbox-wrap .bubble.outbound time { color: var(--muted-2); }
+.inbox-wrap .bubble.inbound {
+  margin-left: 30px; background: var(--panel-2); color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+}
+.inbox-wrap .bubble.inbound .message-author { color: var(--text); }
+.inbox-wrap .bubble.latest-inbound { box-shadow: 0 6px 18px rgba(0, 0, 0, .18); }
+.inbox-wrap .bubble.latest-inbound::after { content: none; display: none; }
+.inbox-wrap .latest-label { position: absolute; top: 10px; right: 10px; font-size: 8px; letter-spacing: .88px; color: var(--muted-2); }
+
+.inbox-wrap .composer {
+  margin: 4px 12px 12px; border: 1px solid var(--border); border-top: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 10px; background: var(--panel-2); overflow: hidden;
+}
+.inbox-wrap .composer-top { padding: 9px 10px; border-bottom: 0; }
+.inbox-wrap .composer-top span { font-size: 8px; font-weight: 750; letter-spacing: .88px; color: var(--accent); }
+.inbox-wrap .composer-input { min-height: 92px; padding: 0 10px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; line-height: 1.5; }
+.inbox-wrap .composer-send {
+  display: block; width: calc(100% - 20px); height: 38px; margin: 6px 10px 10px; padding: 0 9px; border: 0; border-radius: 8px;
+  background: var(--accent); color: #0b0c10; font-size: 13px; font-weight: 650;
+}
+.inbox-wrap .composer-send.is-armed { background: #d9822b; color: #fff; }
+
+/* Light mode keeps the same structure on the light palette. */
+body.light-mode .inbox-wrap .bubble.outbound { background: color-mix(in srgb, var(--accent) 10%, #fff); }
+body.light-mode .inbox-wrap .bubble.inbound { background: #f3f4f8; }
+body.light-mode .inbox-wrap .lead-avatar, body.light-mode .inbox-wrap .large-avatar { background: #e4e2f5; color: #3c365e; }
+
+@media (max-width: 900px) {
+  .inbox-wrap .table-head { display: none; }
+  .inbox-wrap .lead-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .inbox-wrap .lead-row .inbox-meta-cell { display: none; }
+  .inbox-wrap .inbox-client h1 { font-size: 30px; letter-spacing: -1.2px; }
+}
