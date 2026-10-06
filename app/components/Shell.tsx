@@ -203,6 +203,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Messaging likewise: only once the client's QC Brain holds at least one campaign messaging doc.
   const { data: messaging } = useCachedJson<{ ok?: boolean; docs?: unknown[] }>(inClient ? `/api/messaging?${projectsQuery.toString()}` : null);
   const hasMessaging = Boolean(messaging?.ok) && (messaging?.docs?.length ?? 0) > 0;
+  // Weekly calls the same way: only once the client's QC Brain has at least one call recap.
+  const callsQuery = new URLSearchParams({ folder: "calls" });
+  if (clientParam) callsQuery.set("client", clientParam);
+  const { data: calls } = useCachedJson<{ ok?: boolean; docs?: unknown[] }>(inClient ? `/api/brain-docs?${callsQuery.toString()}` : null);
+  const hasCalls = Boolean(calls?.ok) && (calls?.docs?.length ?? 0) > 0;
 
   const clientPages: { href: string; label: string; icon: string }[] = [
     { href: "/", label: "Overview", icon: "overview" },
@@ -213,7 +218,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     { href: "/meetings", label: "Meetings", icon: "meetings" },
     ...(hasMessaging ? [{ href: "/messaging", label: "Messaging", icon: "messaging" }] : []),
     { href: "/brain", label: "Brain", icon: "brain" },
-    { href: "/calls", label: "Weekly calls", icon: "calls" },
+    ...(hasCalls ? [{ href: "/calls", label: "Weekly calls", icon: "calls" }] : []),
     ...(hasProjects ? [{ href: "/projects", label: "Project tracker", icon: "projects" }] : []),
   ];
 
