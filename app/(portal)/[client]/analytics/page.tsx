@@ -29,7 +29,7 @@ type Campaign = {
   firstTouch: string | null; followUp: string | null;
   acceptanceRate: number; replyRate: number; positiveReplyRate: number; daysLeft: number | null;
 };
-type DailyPoint = { day: string; label: string; connectionsSent: number; connectionsAccepted: number; replies: number };
+type DailyPoint = { day: string; label: string; connectionsSent: number; connectionsAccepted: number; replies: number; synced?: boolean };
 type SenderSeries = { id: string; name: string; dailyLimit: number | null; connectionsSent: number; connectionsAccepted: number; byDay: number[] };
 type Payload = {
   ok: boolean; status: string; role?: "staff" | "client"; error?: string;
@@ -266,9 +266,9 @@ function Analytics() {
           <CardTitle title="Connection requests sent" subtitle={`Every sender, day by day · ${view.windowSent.toLocaleString()} in the last ${view.daily.length || 14} days`} />
           <div className="analytics-bars">
             {view.daily.map((point) => (
-              <div key={point.day}>
-                <strong>{point.connectionsSent}</strong>
-                <i style={{ height: `${Math.max(4, (point.connectionsSent / view.sentMax) * 100)}%` }} />
+              <div key={point.day} className={point.synced === false ? "is-unsynced" : undefined} title={point.synced === false ? "Not synced from HeyReach yet" : undefined}>
+                <strong>{point.synced === false ? "—" : point.connectionsSent}</strong>
+                <i style={{ height: point.synced === false ? "4%" : `${Math.max(4, (point.connectionsSent / view.sentMax) * 100)}%` }} />
                 <small>{point.label}</small>
               </div>
             ))}

@@ -221,6 +221,8 @@ async function build(session: Session, workspaceId: string) {
       connectionsSent: row ? num(row.connections_sent) : 0,
       connectionsAccepted: row ? num(row.connections_accepted) : 0,
       replies: row ? num(row.replies) : 0,
+      // No stored row means QC Command has not synced this day from HeyReach, not that nothing was sent.
+      synced: Boolean(row),
     };
   });
 

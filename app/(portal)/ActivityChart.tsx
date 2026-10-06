@@ -24,7 +24,8 @@ import { useEffect, useRef, useState } from "react";
  */
 
 export type ActivityPoint = {
-  date: string; sent: number; replies: number; positive: number; meetings: number;
+  /** `sent` is null for a day QC Command has not synced from HeyReach yet: unknown, not zero. */
+  date: string; sent: number | null; replies: number; positive: number; meetings: number;
   repliesAvg: number; positiveAvg: number;
 };
 
@@ -104,11 +105,15 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
   const x = (i: number) => (points.length === 1 ? ML + IW / 2 : ML + (i / last) * IW);
 
   // Top panel: connections sent.
-  const sentTicks = ticks(Math.max(...points.map((p) => p.sent)));
+  const sentTicks = ticks(Math.max(0, ...points.map((p) => p.sent ?? 0)));
   const sentTop = sentTicks[sentTicks.length - 1];
   const topBase = TOP.h - TOP.mb;
   const yTop = (v: number) => TOP.mt + (1 - v / sentTop) * (topBase - TOP.mt);
-  const sentLine = monotonePath(points.map((p, i) => [x(i), yTop(p.sent)]));
+  // Only the synced days: the line ends where the data ends rather than dropping to a false zero.
+  const syncedIdx = points.map((p, i) => (p.sent == null ? -1 : i)).filter((i) => i >= 0);
+  const sentLine = monotonePath(syncedIdx.map((i) => [x(i), yTop(points[i].sent ?? 0)]));
+  const sentLast = syncedIdx.length ? syncedIdx[syncedIdx.length - 1] : 0;
+  const sentFirst = syncedIdx.length ? syncedIdx[0] : 0;
 
   // Bottom panel: replies and positive replies (averaged for a month or all time), meetings as pins.
   const replyKey = smoothed ? "repliesAvg" : "replies";
@@ -141,7 +146,7 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
     <div className="act-wrap" ref={wrapRef} onPointerLeave={() => setHover(null)}>
       <div className="act-panel-label">Connections sent</div>
       <svg viewBox={`0 0 ${W} ${TOP.h}`} className="act-svg" onPointerMove={onMove} onPointerDown={onMove} role="img"
-        aria-label={`Connections sent: ${points.reduce((t, p) => t + p.sent, 0)} over ${points.length} days`}>
+        aria-label={`Connections sent: ${points.reduce((t, p) => t + (p.sent ?? 0), 0)} over ${syncedIdx.length} synced days`}>
         <defs>
           <linearGradient id="act-sent" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={COLORS.sent} stopOpacity="0.22" />
@@ -153,11 +158,11 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
             <text x={ML - 10} y={yTop(t) + 4} textAnchor="end" className="act-axis">{t.toLocaleString("en-US")}</text>
           </g>
         ))}
-        <path d={area(sentLine, topBase)} className="act-fade" fill="url(#act-sent)" />
+        {syncedIdx.length > 0 && <path d={`${sentLine} L${x(sentLast)},${topBase} L${x(sentFirst)},${topBase} Z`} className="act-fade" fill="url(#act-sent)" />}
         <path d={sentLine} pathLength={1} className="act-draw" fill="none" stroke={COLORS.sent} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
         {point && <>
           <line x1={x(hover!)} x2={x(hover!)} y1={TOP.mt} y2={topBase} className="act-guide" />
-          <circle cx={x(hover!)} cy={yTop(point.sent)} r={4.5} fill={COLORS.sent} stroke="var(--panel, #111319)" strokeWidth={2} />
+          {point.sent != null && <circle cx={x(hover!)} cy={yTop(point.sent)} r={4.5} fill={COLORS.sent} stroke="var(--panel, #111319)" strokeWidth={2} />}
         </>}
       </svg>
 
@@ -207,7 +212,7 @@ export default function ActivityChart({ points, smoothed }: { points: ActivityPo
       {point && (
         <div className={`act-tip ${tipLeft > 58 ? "is-left" : ""}`} style={{ left: `${tipLeft}%` }}>
           <b>{fmt(point.date, { month: "short", day: "numeric", year: "numeric" })}{hover === last ? " (today, so far)" : ""}</b>
-          <div className="act-tip-row"><i style={{ background: COLORS.sent }} /><span>Connections sent</span><data value={point.sent}>{point.sent}</data></div>
+          <div className="act-tip-row"><i style={{ background: COLORS.sent }} /><span>Connections sent</span>{point.sent == null ? <em>not synced yet</em> : <data value={point.sent}>{point.sent}</data>}</div>
           <div className="act-tip-row"><i style={{ background: COLORS.replies }} /><span>Replies</span>{smoothed && <em>avg {one(point.repliesAvg)}</em>}<data value={point.replies}>{point.replies}</data></div>
           <div className="act-tip-row"><i style={{ background: COLORS.positive }} /><span>Positive replies</span>{smoothed && <em>avg {one(point.positiveAvg)}</em>}<data value={point.positive}>{point.positive}</data></div>
           <div className="act-tip-row"><i style={{ background: COLORS.meetings }} /><span>Booked meetings</span><data value={point.meetings}>{point.meetings}</data></div>

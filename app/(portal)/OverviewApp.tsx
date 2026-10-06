@@ -71,6 +71,7 @@ type Payload = {
   /** Per-bucket series across the chosen window, for the stat grid's sparklines. */
   sparklines?: { reached: number[]; accepted: number[]; replies: number[]; positiveRate: number[] };
   calendar?: CalendarData;
+  sync?: { through: string | null; at: string | null; stale: boolean };
   feed?: FeedEvent[];
   senders?: string[];
 };
@@ -289,6 +290,18 @@ function Overview() {
         <span className="ov-brief-eyebrow">{data.rangeLabel ?? "This week"}</span>
         <p><TypedText key={`${data.range}-${custom?.from ?? ""}`}>{briefing(data)}</TypedText></p>
       </ActivityNetwork>
+
+      {/* Said out loud when HeyReach's figures are behind: a frozen sync must never read as a quiet week. */}
+      {(() => {
+        const through = data.sync?.through;
+        if (!through || !data.sync?.stale) return null;
+        const label = new Date(`${through}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", day: "numeric" });
+        return (
+          <p className="ov-stale" role="status">
+            HeyReach activity was last synced through <b>{label}</b>. Connections and acceptances after that are not in these numbers yet.
+          </p>
+        );
+      })()}
 
       {/* Eight figures, one flush grid — four across, two rows. Cells with an href link into their tab. */}
       <section className="ov-stats">

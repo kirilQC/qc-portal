@@ -295,3 +295,5 @@
   .client-hero-logo { width: 56px; height: 56px; font-size: 24px; }
   .client-hero-sync { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; }
 }
+.analytics-bars > div.is-unsynced i { background: transparent; border: 1px dashed var(--border); }
+.analytics-bars > div.is-unsynced strong { color: var(--muted-2); }

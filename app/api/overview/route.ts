@@ -126,7 +126,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
       { select: "campaign_id,name,status,launched_at,sender_ids,total_leads,leads_pending,connections_sent,connections_accepted,replies,messages_started" },
       workspaceId,
     ),
-    scopedRows(session, "rr_daily_stats", { select: "day,sender_id,sender_name,daily_limit,connections_sent,connections_accepted", limit: "5000" }, workspaceId),
+    scopedRows(session, "rr_daily_stats", { select: "day,sender_id,sender_name,daily_limit,connections_sent,connections_accepted,refreshed_at", limit: "5000" }, workspaceId),
     scopedRows(
       session,
       "rr_conversations",
@@ -575,6 +575,14 @@ async function build(session: Session, workspaceId: string, range: string, custo
     const i = dayIndex.get(str(row.day).slice(0, 10));
     if (i !== undefined) daily[i].sent += num(row.connections_sent);
   }
+  // HeyReach reports every day in the range, zeros included, so a day with no stored row is a day QC
+  // Command has not synced — not a day nothing was sent. Those are sent as null, never as 0, so the chart
+  // stops where the data stops instead of diving to zero (which is how Bluvia's 50 on Oct 5 read as 0).
+  const syncedThrough = totals.reduce((latest, row) => {
+    const day = str(row.day).slice(0, 10);
+    return day > latest ? day : latest;
+  }, "");
+  const syncedAt = totals.reduce((latest, row) => (str(row.refreshed_at) > latest ? str(row.refreshed_at) : latest), "");
   const latestThatDay = new Map<string, Row>();
   for (const row of inbound) {
     const at = Date.parse(str(row.sent_at));
@@ -601,6 +609,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
   };
   const activityPoints = daily.slice(lead).map((day, j) => ({
     ...day,
+    sent: syncedThrough && day.date > syncedThrough ? null : day.sent,
     repliesAvg: smoothing ? trailing("replies", j + lead) : day.replies,
     positiveAvg: smoothing ? trailing("positive", j + lead) : day.positive,
   }));
@@ -723,6 +732,9 @@ async function build(session: Session, workspaceId: string, range: string, custo
     senders: [...new Set(dailyRows.map((row) => str(row.sender_name)).filter(Boolean))].slice(0, 8),
     bestCampaigns,
     activity: { smoothed: smoothing, points: activityPoints },
+    /** The last day HeyReach's daily figures were synced for, and when — so the page can say when it is behind. */
+    // Behind when the newest synced day is older than yesterday (today's row can lag a few hours).
+    sync: { through: syncedThrough || null, at: syncedAt || null, stale: Boolean(syncedThrough) && syncedThrough < isoDay(now - DAY_MS) },
     /** For the tiles that link into the other tabs. */
     leadsTotal: leadsCount,
     /** Every connection request sent across all campaigns — people actually reached out to. */

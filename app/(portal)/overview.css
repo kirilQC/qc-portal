@@ -633,3 +633,5 @@ a.ov-cell:hover { background: var(--panel-2); }
   .typed-word { animation: none; opacity: 1; filter: none; }
   .typed-caret { display: none; }
 }
+.ov-stale { margin: 0 0 18px; padding: 11px 15px; border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--border)); border-radius: 10px; background: color-mix(in srgb, var(--amber) 8%, var(--panel)); color: var(--text); font-size: 13px; }
+.ov-stale b { color: var(--amber); }

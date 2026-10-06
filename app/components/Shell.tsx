@@ -200,6 +200,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   if (clientParam) projectsQuery.set("client", clientParam);
   const { data: projects } = useCachedJson<{ tasks?: unknown[] }>(inClient ? `/api/projects?${projectsQuery.toString()}` : null);
   const hasProjects = (projects?.tasks?.length ?? 0) > 0;
+  // Messaging likewise: only once the client's QC Brain holds at least one campaign messaging doc.
+  const { data: messaging } = useCachedJson<{ ok?: boolean; docs?: unknown[] }>(inClient ? `/api/messaging?${projectsQuery.toString()}` : null);
+  const hasMessaging = Boolean(messaging?.ok) && (messaging?.docs?.length ?? 0) > 0;
 
   const clientPages: { href: string; label: string; icon: string }[] = [
     { href: "/", label: "Overview", icon: "overview" },
@@ -208,7 +211,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     { href: "/campaigns", label: "Campaigns", icon: "campaigns" },
     { href: "/analytics", label: "Analytics", icon: "analytics" },
     { href: "/meetings", label: "Meetings", icon: "meetings" },
-    { href: "/messaging", label: "Messaging", icon: "messaging" },
+    ...(hasMessaging ? [{ href: "/messaging", label: "Messaging", icon: "messaging" }] : []),
     { href: "/brain", label: "Brain", icon: "brain" },
     { href: "/calls", label: "Weekly calls", icon: "calls" },
     ...(hasProjects ? [{ href: "/projects", label: "Project tracker", icon: "projects" }] : []),
