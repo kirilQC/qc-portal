@@ -190,3 +190,22 @@ test("a reply_radar-only select with no workspace in play keeps nothing cross-cl
   assert.deepEqual(row.reply_radar.attributions, []);
   assert.equal(row.reply_radar.rollup.campaign_names, "");
 });
+
+test("a lead-level campaign or sender from another client is removed", () => {
+  const raw = {
+    reply_radar: {
+      campaign: { name: "Cotool Q3 outbound" },
+      sender: { name: "Cotool Sender" },
+      attributions: [
+        { workspaceId: ARCJET, campaignName: "Arcjet launch", senderName: "Arcjet Sender", conversationId: "c1" },
+        { workspaceId: COTOOL, campaignName: "Cotool Q3 outbound", senderName: "Cotool Sender", conversationId: "c2" },
+      ],
+    },
+  };
+  const arcjet = scopeRawData(raw, ARCJET);
+  assert.equal(arcjet.reply_radar.campaign, undefined, "Arcjet must not see Cotool's latest campaign");
+  assert.equal(arcjet.reply_radar.sender, undefined, "Arcjet must not see Cotool's sender");
+  const cotool = scopeRawData(raw, COTOOL);
+  assert.equal(cotool.reply_radar.campaign.name, "Cotool Q3 outbound", "the owner keeps its own");
+  assert.equal(cotool.reply_radar.sender.name, "Cotool Sender");
+});

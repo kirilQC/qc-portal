@@ -165,10 +165,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
             // the slowest read on the page (and timed out under load). The photo is per-person enrichment
             // with nothing client-specific in it; the sender comes from the message below instead of the
             // lead's cross-client rollup.
-            // The two campaign fields the inbox reads, only to leave out the same no-campaign people it does.
-            select:
-              "id,name,role,company,linkedin_profile_url,photo:raw_data->reply_radar->ai_ark->>profilePhotoSource," +
-              "rollup_campaigns:raw_data->reply_radar->rollup->campaign_names,lead_campaign:raw_data->reply_radar->campaign->>name",
+            select: "id,name,role,company,linkedin_profile_url,photo:raw_data->reply_radar->ai_ark->>profilePhotoSource",
             id: `in.(${leadIds.join(",")})`,
             limit: String(leadIds.length),
           },
@@ -332,14 +329,15 @@ async function build(session: Session, workspaceId: string, range: string, custo
     return (stop > 90 ? cut.slice(0, stop + 1) : cut.trimEnd() + "…");
   };
 
+  const campaignConversations = new Set(inbound.filter((row) => str(row.campaign).trim()).map((row) => str(row.conversation_id)));
   for (const conversation of conversations) {
     const message = newestReply.get(str(conversation.id));
     if (!message) continue;
     const lead = leadById.get(str(conversation.lead_id));
     if (!lead) continue;
-    // Someone outside every campaign is hidden from the inbox, so they are not news here either.
-    const rollupCampaigns = Array.isArray(lead.rollup_campaigns) ? lead.rollup_campaigns.map(str).join("") : str(lead.rollup_campaigns);
-    if (!rollupCampaigns.trim() && !str(lead.lead_campaign).trim()) continue;
+    // Someone outside every campaign is hidden from the inbox, so they are not news here either. Read off
+    // this client's own messages in the conversation (scoped by conversation), never the lead's rollup.
+    if (!campaignConversations.has(str(conversation.id))) continue;
     const name = str(lead.name) || "Someone";
     const where = [str(lead.role), str(lead.company)].filter(Boolean).join(" @ ");
     const campaign = str(message.campaign);

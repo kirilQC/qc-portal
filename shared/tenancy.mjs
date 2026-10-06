@@ -93,6 +93,13 @@ export function scopeRawData(raw, workspaceId) {
   // Written by the same importer alongside the rollup, and just as cross-client.
   delete scopedRadar.client_names;
   delete scopedRadar.client_count;
+  /*
+   * The lead-level "latest" campaign and sender. They record whichever client's conversation touched the
+   * person last, so for somebody contacted for two clients they can name the other one. They survive only
+   * when this workspace's own attributions name the same campaign / sender; otherwise they go.
+   */
+  if (isObject(scopedRadar.campaign) && !rollup.campaigns.includes(text(scopedRadar.campaign.name))) delete scopedRadar.campaign;
+  if (isObject(scopedRadar.sender) && !rollup.senders.includes(text(scopedRadar.sender.name))) delete scopedRadar.sender;
 
   return stripTopLevel({ ...raw, reply_radar: scopedRadar }, rollup);
 }

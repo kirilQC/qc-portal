@@ -145,6 +145,22 @@ export async function scopedRows(
     if (!session.workspaceId) throw new Error("A client session without a workspace may not read anything.");
   }
 
+  /*
+   * A lead's raw_data carries cross-client attributions and rollups, and the scrub in shared/tenancy.mjs
+   * only recognises the two keys it is given: `raw_data` and `reply_radar`. A renamed path such as
+   * `x:raw_data->reply_radar->rollup` would come back unscrubbed. So on rr_leads a JSON path is allowed
+   * only as the whole (scrubbed) `reply_radar` object, per-person enrichment under `ai_ark`, or the
+   * person's own email fields.
+   */
+  if (table === "rr_leads" && params.select?.includes("raw_data->")) {
+    const unsafe = params.select.split(",").map((part) => part.trim()).filter((part) =>
+      part.includes("raw_data->") &&
+      part !== "reply_radar:raw_data->reply_radar" &&
+      !/^[a-z_]+:raw_data->reply_radar->ai_ark(->|$)/i.test(part) &&
+      !/^[a-z_]+:raw_data->>(email_address|custom_email|enriched_email)$/i.test(part));
+    if (unsafe.length) throw new Error(`Unscrubbed raw_data path on rr_leads: ${unsafe.join(", ")}`);
+  }
+
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     // Tenancy is never taken from the caller, only ever from the session.

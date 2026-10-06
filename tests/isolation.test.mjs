@@ -27,6 +27,7 @@ const CLIENT_READABLE = {
   rr_deals: "workspace_id",
   rr_sync_runs: "workspace_id",
   rr_webhook_events: "workspace_id",
+  qc_portal_messaging_links: "workspace_id",
   qc_portal_meeting_overrides: "workspace_id",
   rr_projects: "workspace_id",
   qc_portal_tags: "workspace_id",
@@ -196,5 +197,38 @@ test("a client reads only its own tags and tag assignments", () => {
     const query = scopeFor(willow, table, { select: "*", workspace_id: "eq.ws-bluevia" });
     assert.ok(query.includes("workspace_id=eq.ws-willow"), table);
     assert.ok(!query.includes("ws-bluevia"), table);
+  }
+});
+
+test("the allowlist in db.ts has nothing this file does not know about", () => {
+  // The other direction of the drift check: a table added to db.ts without a test here fails loudly.
+  const source = readFileSync(new URL("../app/lib/db.ts", import.meta.url), "utf8");
+  const block = source.slice(source.indexOf("CLIENT_READABLE"), source.indexOf("};", source.indexOf("CLIENT_READABLE")));
+  for (const [, table] of block.matchAll(/^\s+([a-z_]+): "/gm)) {
+    assert.ok(table in CLIENT_READABLE, `${table} is client-readable in db.ts but not mirrored here`);
+  }
+});
+
+test("rr_leads refuses renamed raw_data paths that would skip the cross-client scrub", () => {
+  const source = readFileSync(new URL("../app/lib/db.ts", import.meta.url), "utf8");
+  assert.ok(source.includes("Unscrubbed raw_data path on rr_leads"), "the rr_leads select guard is gone");
+});
+
+test("every rr_leads select in the API passes the raw_data rule", () => {
+  // The same rule db.ts enforces at run time, applied to the source so a violation fails here first.
+  const allowed = (part) =>
+    !part.includes("raw_data->") ||
+    part === "reply_radar:raw_data->reply_radar" ||
+    /^[a-z_]+:raw_data->reply_radar->ai_ark(->|$)/i.test(part) ||
+    /^[a-z_]+:raw_data->>(email_address|custom_email|enriched_email)$/i.test(part);
+  const files = ["overview", "inbox", "leads", "analytics"].map((name) => `../app/api/${name}/route.ts`);
+  for (const file of files) {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    for (const match of source.matchAll(/"rr_leads",\s*\{([\s\S]*?)\}/g)) {
+      const select = [...match[1].matchAll(/"([^"]*)"/g)].map((m) => m[1]).join("");
+      for (const part of select.split(",").map((piece) => piece.trim())) {
+        assert.ok(allowed(part), `${file}: ${part} reads raw_data around the scrub`);
+      }
+    }
   }
 });

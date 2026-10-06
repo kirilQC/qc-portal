@@ -23,7 +23,8 @@
  */
 
 import { clientsIn } from "../../shared/brain-structure.mjs";
-import { brainFolderFor } from "../../shared/brain-link.mjs";
+import { brainFolderFor, linkWorkspaces } from "../../shared/brain-link.mjs";
+import { adminRows } from "./db";
 
 const API = "https://api.github.com";
 const REPO = "jsbiv18/qc-growth-os";
@@ -235,7 +236,20 @@ export async function resolveActualFolder(input: { slug: string; name: string; b
   if (input.brainFolder) return input.brainFolder;
   try {
     const folders = await brainClientFolders();
-    const { folder } = brainFolderFor(input, folders) as { folder: string };
+    const { folder, how } = brainFolderFor(input, folders) as { folder: string; how: string };
+    /*
+     * A loose match ("one name contains the other") is a guess, and a wrong guess here would hand one
+     * client another client's folder. So it stands only if no other workspace claims that folder more
+     * deliberately — by a chosen folder, its slug or its exact name. Otherwise this client gets no folder.
+     */
+    if (folder && how === "loose") {
+      const workspaces = await adminRows("rr_workspaces", { select: "slug,name,brain_folder" });
+      const links = linkWorkspaces(
+        workspaces.map((row) => ({ slug: String(row.slug ?? ""), name: String(row.name ?? ""), brainFolder: String(row.brain_folder ?? "") })),
+        folders,
+      ) as Map<string, { workspace: { slug: string } }>;
+      if (links.get(folder)?.workspace.slug !== input.slug) return "";
+    }
     return folder || input.slug;
   } catch {
     return input.slug;
