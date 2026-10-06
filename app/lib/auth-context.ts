@@ -16,7 +16,7 @@
  */
 import { cookies } from "next/headers";
 import { SESSION_COOKIE, readSession, type Session } from "./session";
-import { scopedRows, str } from "./db";
+import { adminWrite, scopedRows, str } from "./db";
 import { getUser } from "./users";
 
 /**
@@ -30,6 +30,7 @@ import { getUser } from "./users";
  * deactivation therefore takes effect within LIVE_TTL_MS. Fails closed if the lookup itself fails.
  */
 const LIVE_TTL_MS = 30_000;
+const ACTIVE_EVERY_MS = 10 * 60_000;
 const liveCache = new Map<string, { at: number; ok: boolean }>();
 
 async function stillLive(session: Session): Promise<boolean> {
@@ -43,6 +44,12 @@ async function stillLive(session: Session): Promise<boolean> {
       user && user.isActive && user.role === session.role &&
       (session.role === "staff" || user.workspaceId === session.workspaceId),
     );
+    // "Last active", kept true. Sessions last for weeks, so the timestamp written at password sign-in
+    // goes stale while somebody uses the portal every day. Refreshed here at most every ACTIVE_EVERY_MS,
+    // riding the lookup this check already makes; a failed write never affects the request.
+    if (ok && user && (!user.lastLoginAt || Date.now() - Date.parse(user.lastLoginAt) > ACTIVE_EVERY_MS)) {
+      await adminWrite("qc_portal_users", "PATCH", { last_login_at: new Date().toISOString() }, { id: `eq.${user.id}` }).catch(() => {});
+    }
   } catch {
     return false;
   }

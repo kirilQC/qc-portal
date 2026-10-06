@@ -34,7 +34,23 @@ type User = {
   isActive: boolean;
   lastLoginAt: string | null;
   workspaceName?: string;
+  workspaceLogo?: string | null;
+  workspaceAccent?: string | null;
 };
+
+/** "Just now", "12m ago", "3h ago", "Yesterday", "Oct 3" — how recently somebody used the portal. */
+function lastActive(iso: string | null, now: number): string | null {
+  if (!iso) return null;
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return null;
+  const minutes = Math.round((now - at) / 60_000);
+  if (minutes < 2) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  if (hours < 48) return "Yesterday";
+  return new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", ...(now - at > 300 * 86_400_000 ? { year: "numeric" } : {}) });
+}
 type ClientRow = { id: string; name: string; slug: string };
 
 /**
@@ -71,6 +87,10 @@ function Admin() {
   const [inviting, setInviting] = useState(false);
   /** Which row's ⋯ menu is open. Only one at a time. */
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [show, setShow] = useState<"all" | "staff" | "client">("all");
+  /** The clock "last active" is measured against, stamped when the list loads (not read during render). */
+  const [now, setNow] = useState(0);
 
   const [form, setForm] = useState({ email: "", name: "", role: "client", workspaceId: "", password: "" });
 
@@ -85,6 +105,7 @@ function Admin() {
       setUsers(payload.users ?? []);
       setClients(payload.clients ?? []);
       setMeId(payload.meId ?? "");
+      setNow(Date.now());
     } catch {
       setError("That did not load.");
     } finally {
@@ -172,9 +193,15 @@ function Admin() {
     await load();
   }
 
-  const staff = users.filter((user) => user.role === "staff");
-  const clientUsers = users.filter((user) => user.role !== "staff");
+  const needle = query.trim().toLowerCase();
+  const matches = (user: User) => !needle || [user.name, user.email, user.workspaceName].some((v) => (v || "").toLowerCase().includes(needle));
+  const byRecent = (a: User, b: User) => (b.lastLoginAt ?? "").localeCompare(a.lastLoginAt ?? "") || (a.name || a.email).localeCompare(b.name || b.email);
+  const allStaff = users.filter((user) => user.role === "staff");
+  const allClients = users.filter((user) => user.role !== "staff");
+  const staff = allStaff.filter(matches).sort(byRecent);
+  const clientUsers = allClients.filter(matches).sort((a, b) => (a.workspaceName || "").localeCompare(b.workspaceName || "") || byRecent(a, b));
   const neverIn = users.filter((user) => !user.lastLoginAt).length;
+  const activeWeek = users.filter((user) => user.lastLoginAt && now - Date.parse(user.lastLoginAt) < 7 * 86_400_000).length;
 
   return (
     <div className="content">
@@ -213,16 +240,29 @@ function Admin() {
         <p className="empty">No logins yet. Add one to get started.</p>
       ) : (
         <>
-          <div className="adm-stats">
-            <div><b>{staff.length}</b><span>QC staff</span></div>
-            <div><b>{clientUsers.length}</b><span>client{clientUsers.length === 1 ? "" : "s"}</span></div>
-            {neverIn > 0 && <div className="adm-stat-flag"><b>{neverIn}</b><span>never signed in</span></div>}
+          <div className="adm-bar">
+            <div className="adm-stats">
+              <div><b>{allStaff.length}</b><span>QC staff</span></div>
+              <div><b>{allClients.length}</b><span>client logins</span></div>
+              <div><b>{activeWeek}</b><span>active this week</span></div>
+              {neverIn > 0 && <div className="adm-stat-flag"><b>{neverIn}</b><span>never signed in</span></div>}
+            </div>
+            <div className="adm-tools">
+              <div className="adm-filter" role="group" aria-label="Show">
+                {([["all", "All"], ["staff", "QC staff"], ["client", "Clients"]] as const).map(([key, label]) => (
+                  <button key={key} type="button" className={show === key ? "on" : ""} onClick={() => setShow(key)}>{label}</button>
+                ))}
+              </div>
+              <input className="adm-search" type="search" placeholder="Search name, email or client" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search logins" />
+            </div>
           </div>
 
-          {staff.length > 0 && (
+          {staff.length === 0 && clientUsers.length === 0 && <p className="empty">Nobody matches “{query}”.</p>}
+
+          {show !== "client" && staff.length > 0 && (
             <Group label="QC staff · sees every client" count={staff.length}>
               {staff.map((user) => (
-                <Row key={user.id} user={user} isMe={user.id === meId}
+                <Row key={user.id} user={user} isMe={user.id === meId} now={now}
                   onReset={() => setResetting({ user, password: "" })}
                   onToggle={() => void toggle(user)} onRemove={() => void remove(user)}
                   menuOpen={menuFor === user.id} onMenu={() => setMenuFor(menuFor === user.id ? null : user.id)} />
@@ -230,10 +270,10 @@ function Admin() {
             </Group>
           )}
 
-          {clientUsers.length > 0 && (
+          {show !== "staff" && clientUsers.length > 0 && (
             <Group label="Client logins · one company each" count={clientUsers.length}>
               {clientUsers.map((user) => (
-                <Row key={user.id} user={user} isMe={user.id === meId}
+                <Row key={user.id} user={user} isMe={user.id === meId} now={now}
                   onReset={() => setResetting({ user, password: "" })}
                   onToggle={() => void toggle(user)} onRemove={() => void remove(user)}
                   menuOpen={menuFor === user.id} onMenu={() => setMenuFor(menuFor === user.id ? null : user.id)} />
@@ -329,8 +369,8 @@ function Group({ label, count, children }: { label: string; count: number; child
   );
 }
 
-function Row({ user, isMe, onReset, onToggle, onRemove, menuOpen, onMenu }: {
-  user: User; isMe: boolean;
+function Row({ user, isMe, now, onReset, onToggle, onRemove, menuOpen, onMenu }: {
+  user: User; isMe: boolean; now: number;
   onReset: () => void; onToggle: () => void; onRemove: () => void;
   menuOpen: boolean; onMenu: () => void;
 }) {
@@ -342,9 +382,9 @@ function Row({ user, isMe, onReset, onToggle, onRemove, menuOpen, onMenu }: {
     return () => document.removeEventListener("mousedown", close);
   }, [menuOpen, onMenu]);
 
-  const last = user.lastLoginAt
-    ? new Date(user.lastLoginAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    : null;
+  const last = lastActive(user.lastLoginAt, now);
+  const exact = user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "";
+  const recent = Boolean(user.lastLoginAt && now - Date.parse(user.lastLoginAt) < 15 * 60_000);
 
   return (
     <div className={`adm-row ${user.isActive ? "" : "is-off"}`}>
@@ -356,13 +396,21 @@ function Row({ user, isMe, onReset, onToggle, onRemove, menuOpen, onMenu }: {
         </span>
       </div>
 
-      <span className={`adm-sees pill ${user.role === "staff" ? "staff" : "client"}`}>
-        {user.role === "staff" ? "Every client" : (user.workspaceName || "Unknown client")}
-      </span>
+      {user.role === "staff" ? (
+        <span className="adm-sees pill staff">Every client</span>
+      ) : (
+        // The client's own logo stands for the company this login can see; the name is its label.
+        <span className="adm-client" title={user.workspaceName || "Unknown client"}>
+          <span className="adm-client-logo" style={user.workspaceLogo ? undefined : { background: user.workspaceAccent || "var(--accent)" }}>
+            {user.workspaceLogo ? <img src={user.workspaceLogo} alt="" /> : (user.workspaceName || "?").slice(0, 1).toUpperCase()}
+          </span>
+          <span className="adm-client-name">{user.workspaceName || "Unknown client"}</span>
+        </span>
+      )}
 
       {/* "Never" is the one status worth noticing — a fresh invite or a password that never landed. */}
       {last ? (
-        <span className="adm-last">{last}</span>
+        <span className={`adm-last ${recent ? "is-live" : ""}`} title={`Last active ${exact}`}>{recent && <i aria-hidden="true" />}{last}</span>
       ) : (
         <span className="adm-last is-never">Never signed in</span>
       )}
@@ -372,6 +420,8 @@ function Row({ user, isMe, onReset, onToggle, onRemove, menuOpen, onMenu }: {
         <button className="button ghost small" onClick={onReset}>Reset</button>
         {/* A login cannot switch itself off or delete itself; those two live in the menu, and vanish on
             your own row. Reset stays — you can always change your own password. */}
+        {/* Your own row keeps the column's width with an empty slot, so Reset lines up with every other row. */}
+        {isMe && <span className="adm-menu-slot" aria-hidden="true" />}
         {!isMe && (
           <div className="adm-menu-wrap" ref={menuRef}>
             <button className="adm-menu-btn" aria-label="More" onClick={onMenu}>⋯</button>

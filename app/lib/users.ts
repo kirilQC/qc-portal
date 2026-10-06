@@ -84,8 +84,10 @@ export async function authenticate(email: unknown, password: unknown): Promise<S
   // Belt and braces over the database constraint: never mint an unscoped client session.
   if (user.role === "client" && !user.workspaceId) return null;
 
-  // Best-effort — a failed timestamp write must never cost somebody their login.
-  void adminWrite("qc_portal_users", "PATCH", { last_login_at: new Date().toISOString() }, { id: `eq.${user.id}` }).catch(
+  // Awaited, not fire-and-forget: on a serverless function an un-awaited write is often cut off when the
+  // response returns, which is how people who had signed in still read "Never signed in". A failed write
+  // is still swallowed — it must never cost somebody their login.
+  await adminWrite("qc_portal_users", "PATCH", { last_login_at: new Date().toISOString() }, { id: `eq.${user.id}` }).catch(
     () => {},
   );
 
@@ -103,13 +105,20 @@ export async function getUser(id: string): Promise<PortalUser | null> {
 export async function listUsers(): Promise<PortalUser[]> {
   const [rows, workspaces] = await Promise.all([
     adminRows("qc_portal_users", { select: COLUMNS, order: "created_at.desc" }),
-    adminRows("rr_workspaces", { select: "id,name,slug" }),
+    adminRows("rr_workspaces", { select: "id,name,slug,logo_url,accent_color" }),
   ]);
-  const byId = new Map(workspaces.map((row) => [str(row.id), { name: str(row.name), slug: str(row.slug) }]));
+  const byId = new Map(workspaces.map((row) => [str(row.id), {
+    name: str(row.name), slug: str(row.slug),
+    logoUrl: row.logo_url ? str(row.logo_url) : null, accentColor: row.accent_color ? str(row.accent_color) : null,
+  }]));
   return rows.map((row) => {
     const user = toUser(row);
     const workspace = user.workspaceId ? byId.get(user.workspaceId) : undefined;
-    return { ...user, workspaceName: workspace?.name ?? "", workspaceSlug: workspace?.slug ?? "" };
+    return {
+      ...user,
+      workspaceName: workspace?.name ?? "", workspaceSlug: workspace?.slug ?? "",
+      workspaceLogo: workspace?.logoUrl ?? null, workspaceAccent: workspace?.accentColor ?? null,
+    };
   });
 }
 

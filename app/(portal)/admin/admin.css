@@ -133,3 +133,45 @@
   .adm-last { grid-column: 2; text-align: right; }
   .adm-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
+
+/* ═══ Redesign: one bar of counts and tools, calmer rows, client logos, "last active" ════════════════ */
+.adm-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
+.adm-bar .adm-stats { margin-bottom: 0; gap: 30px; }
+.adm-stats b { font-size: 26px; }
+.adm-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adm-filter { display: flex; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.adm-filter button { height: 30px; padding: 0 13px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.adm-filter button.on { background: var(--panel-2); color: var(--text); }
+.adm-search { height: 36px; width: 260px; max-width: 100%; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; outline: 0; }
+.adm-search:focus { border-color: var(--accent); }
+
+.adm-group { border-radius: 14px; }
+.adm-group-head { padding: 12px 18px; font-size: 10.5px; background: transparent; }
+.adm-row { grid-template-columns: minmax(0, 1fr) 210px 150px 112px; padding: 13px 18px; gap: 18px; }
+.adm-row:hover { background: color-mix(in srgb, var(--panel-2) 70%, transparent); }
+.adm-av { width: 38px; height: 38px; font-size: 12px; }
+.adm-who-t b { font-size: 14px; }
+.adm-who-t small { font-size: 12px; margin-top: 2px; }
+
+.adm-client { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.adm-client-logo {
+  display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; overflow: hidden;
+  background: #fff; color: #fff; font-weight: 750; font-size: 13px; box-shadow: 0 0 0 1px var(--border);
+}
+.adm-client-logo img { width: 100%; height: 100%; object-fit: cover; }
+.adm-client-name { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.adm-last { font-size: 12.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 7px; }
+.adm-last.is-live { color: var(--green, #55c7a2); font-weight: 600; }
+.adm-last.is-live i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent); }
+.adm-last.is-never { font-size: 12px; }
+.adm-menu-slot { width: 30px; flex: none; }
+.adm-actions { gap: 8px; }
+
+@media (max-width: 900px) {
+  .adm-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .adm-client, .adm-sees { grid-column: 1; }
+  .adm-last { grid-column: 2; justify-self: end; }
+  .adm-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .adm-search { width: 100%; }
+}
