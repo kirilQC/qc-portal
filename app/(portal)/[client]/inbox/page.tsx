@@ -426,7 +426,10 @@ function Inbox() {
   // true uncapped total from the server; for a narrower range it is the conversations in view. It is NOT
   // the sum of reply messages, which double-counted anyone who replied more than once (that read 627
   // against the overview's 688, and both were wrong).
-  const isAllReplies = filter === "all";
+  // The server's uncapped total stands only while nothing narrows the queue; once a search or a filter is
+  // on, every tile counts what is in view, so "Replies" never reads 90 beside "Positive replies" 1.
+  const narrowed = Boolean(search.trim() || campaignFilter || senderFilter || sentimentFilter || tierFilter || tagFilter || starredOnly);
+  const isAllReplies = filter === "all" && !narrowed;
   const repliesValue = isAllReplies ? conversationTotal : filtered.length;
   const needsReply = filtered.filter((lead) => lead.messages.at(-1)?.direction === "inbound").length;
   const positive = filtered.filter((lead) => lead.sentiment === "positive").length;
