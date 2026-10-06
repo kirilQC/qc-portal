@@ -3,45 +3,52 @@
 
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 /**
- * The overview's activity chart, rebuilt on HeyReach's own dashboard graph: one shared axis, smooth lines
- * with a soft fill, a dashed guide on hover and a card listing every figure for that point.
+ * The overview's activity chart: two panels on one daily timeline.
  *
- * ── What it fixes in the chart it replaces ──────────────────────────────────────────────────────
- * The old chart counted reply *messages* (a week read 40 when 30 people replied), ended on the current
- * half-finished week drawn as a collapse, put two y-axes on one plot so a 25 sat beside the "200"
- * gridline, and used a Catmull-Rom curve that bulged past the real points. Points here are days (or
- * weeks for all time) with replies counted as people, there is one axis, and the curve is monotone:
- * it never rises above or dips below the values it passes through.
+ * ── Why two panels ──────────────────────────────────────────────────────────────────────────────
+ * A client sends ~50 connection requests a day and gets a handful of replies, so on one shared axis
+ * the replies flattened into the floor. Connections sent gets its own short panel on top; replies and
+ * positive replies get the taller panel underneath with an axis that fits them. Both share the dates,
+ * and hovering either shows the whole day.
+ *
+ * ── Why the replies are averaged ────────────────────────────────────────────────────────────────
+ * Day to day, replies jump 0 → 9 → 0 and the raw line reads as noise. For a month or all time the
+ * lines are a 7-day trailing average (computed on the server with the week before the window, so the
+ * first days are not part-week averages). The tooltip always shows the real day next to the average.
+ * Meetings are pins on the day they were booked: averaging them would print "0.3 meetings".
+ *
+ * The curve is monotone cubic: smooth like HeyReach's, but it never rises above or dips below a point.
  */
 
-export type ActivityPoint = { date: string; sent: number; replies: number; positive: number; meetings: number };
-type Key = "sent" | "replies" | "positive" | "meetings";
+export type ActivityPoint = {
+  date: string; sent: number; replies: number; positive: number; meetings: number;
+  repliesAvg: number; positiveAvg: number;
+};
 
-const SERIES: { key: Key; label: string; color: string; fill: number }[] = [
-  { key: "sent", label: "Connections sent", color: "#f59e0b", fill: 0.22 },
-  { key: "replies", label: "Replies", color: "#5b8cff", fill: 0.1 },
-  { key: "positive", label: "Positive replies", color: "#2fbf7f", fill: 0.1 },
-  { key: "meetings", label: "Booked meetings", color: "#c05bd9", fill: 0.08 },
-];
+const COLORS = { sent: "#f59e0b", replies: "#5b8cff", positive: "#2fbf7f", meetings: "#c05bd9" } as const;
+const W = 1000, ML = 44, MR = 18;
+const IW = W - ML - MR;
+const TOP = { h: 116, mt: 10, mb: 8 };
+const BOTTOM = { h: 236, mt: 24, mb: 36 };
 
-const W = 1000, H = 290, ML = 44, MR = 18, MT = 14, MB = 40;
-const IW = W - ML - MR, IH = H - MT - MB;
-
-/** A tidy axis maximum: the next 1/2/2.5/5 × 10ⁿ at or above the data, so the gridlines read cleanly. */
-function niceMax(value: number): number {
-  if (value <= 4) return 4;
-  const exp = Math.pow(10, Math.floor(Math.log10(value)));
-  for (const step of [1, 2, 2.5, 5, 10]) if (step * exp >= value) return step * exp;
-  return 10 * exp;
+/** Whole-number ticks with a 1/2/5 × 10ⁿ step and at most five gaps, so the axis never reads "3, 5, 8". */
+function ticks(max: number): number[] {
+  const target = Math.max(1, max);
+  for (const base of [1, 10, 100, 1000, 10000]) {
+    for (const mult of [1, 2, 2.5, 5]) {
+      const step = base * mult;
+      if (!Number.isInteger(step)) continue;
+      const count = Math.ceil(target / step);
+      if (count <= 5) return Array.from({ length: count + 1 }, (_, i) => i * step);
+    }
+  }
+  return [0, target];
 }
 
-/**
- * Monotone cubic interpolation (Fritsch–Carlson), as a bezier path. Smooth like HeyReach's lines, but a
- * flat stretch stays flat and a curve never overshoots a point — no invented peaks, no dips below zero.
- */
+/** Monotone cubic (Fritsch–Carlson) as a bezier path: smooth, but never overshoots a point. */
 function monotonePath(points: [number, number][]): string {
   const n = points.length;
   if (n === 0) return "";
@@ -67,86 +74,129 @@ function monotonePath(points: [number, number][]): string {
   return d;
 }
 
-const asDate = (iso: string) => new Date(`${iso}T12:00:00Z`);
-const fmt = (iso: string, options: Intl.DateTimeFormatOptions) => asDate(iso).toLocaleDateString("en-US", { timeZone: "UTC", ...options });
+const fmt = (iso: string, options: Intl.DateTimeFormatOptions) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", ...options });
+const one = (v: number) => (Math.round(v * 10) / 10).toLocaleString("en-US");
 
-export default function ActivityChart({ points, granularity }: { points: ActivityPoint[]; granularity: "day" | "week" }) {
+export default function ActivityChart({ points, smoothed }: { points: ActivityPoint[]; smoothed: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
 
   if (!points.length) return <p className="trend-empty">No activity to chart yet.</p>;
 
-  const max = niceMax(Math.max(1, ...points.flatMap((p) => SERIES.map((s) => p[s.key]))));
-  const x = (i: number) => (points.length === 1 ? ML + IW / 2 : ML + (i / (points.length - 1)) * IW);
-  const y = (v: number) => MT + (1 - v / max) * IH;
-  const base = MT + IH;
-  const line = (key: Key) => monotonePath(points.map((p, i) => [x(i), y(p[key])]));
-  const area = (key: Key) => `${line(key)} L${x(points.length - 1)},${base} L${x(0)},${base} Z`;
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => t * max);
-
-  // Weekday names for a week of days, short dates otherwise, thinned so labels never collide.
-  const label = (iso: string) => (granularity === "day" && points.length <= 7 ? fmt(iso, { weekday: "long" }) : fmt(iso, { month: "short", day: "numeric" }));
-  const every = Math.max(1, Math.ceil(points.length / (granularity === "day" && points.length <= 7 ? 7 : 8)));
   const last = points.length - 1;
-  const title = (i: number) => {
-    const iso = points[i].date;
-    if (granularity === "week") return `Week of ${fmt(iso, { month: "short", day: "numeric", year: "numeric" })}${i === last ? " (so far)" : ""}`;
-    return `${fmt(iso, { month: "short", day: "numeric", year: "numeric" })}${i === last ? " (today, so far)" : ""}`;
-  };
+  const x = (i: number) => (points.length === 1 ? ML + IW / 2 : ML + (i / last) * IW);
 
+  // Top panel: connections sent.
+  const sentTicks = ticks(Math.max(...points.map((p) => p.sent)));
+  const sentTop = sentTicks[sentTicks.length - 1];
+  const topBase = TOP.h - TOP.mb;
+  const yTop = (v: number) => TOP.mt + (1 - v / sentTop) * (topBase - TOP.mt);
+  const sentLine = monotonePath(points.map((p, i) => [x(i), yTop(p.sent)]));
+
+  // Bottom panel: replies and positive replies (averaged for a month or all time), meetings as pins.
+  const replyKey = smoothed ? "repliesAvg" : "replies";
+  const positiveKey = smoothed ? "positiveAvg" : "positive";
+  const replyTicks = ticks(Math.max(...points.map((p) => Math.max(p[replyKey], p[positiveKey]))));
+  const replyTop = replyTicks[replyTicks.length - 1];
+  const bottomBase = BOTTOM.h - BOTTOM.mb;
+  const yBottom = (v: number) => BOTTOM.mt + (1 - v / replyTop) * (bottomBase - BOTTOM.mt);
+  const repliesLine = monotonePath(points.map((p, i) => [x(i), yBottom(p[replyKey])]));
+  const positiveLine = monotonePath(points.map((p, i) => [x(i), yBottom(p[positiveKey])]));
+  const area = (line: string, base: number) => `${line} L${x(last)},${base} L${x(0)},${base} Z`;
+
+  // Dates along the bottom: weekday names for a week, short dates otherwise, never colliding.
+  const weekView = points.length <= 7;
+  const every = weekView ? 1 : Math.max(1, Math.ceil(points.length / 7));
+  const showLabel = (i: number) => i === last || (i % every === 0 && last - i >= every * 0.6);
+  const label = (iso: string) => (weekView ? fmt(iso, { weekday: "long" }) : fmt(iso, { month: "short", day: "numeric" }));
+
+  // Measured from the panel the pointer is on, so either panel drives the same hover.
   const onMove = (event: React.PointerEvent<SVGSVGElement>) => {
-    const box = svgRef.current?.getBoundingClientRect();
-    if (!box) return;
+    const box = event.currentTarget.getBoundingClientRect();
     const sx = ((event.clientX - box.left) / box.width) * W;
-    const i = Math.round(((sx - ML) / IW) * (points.length - 1));
-    setHover(Math.max(0, Math.min(last, i)));
+    setHover(Math.max(0, Math.min(last, Math.round(((sx - ML) / IW) * last))));
   };
 
   const tipLeft = hover === null ? 0 : (x(hover) / W) * 100;
+  const point = hover === null ? null : points[hover];
+
   return (
     <div className="act-wrap" onPointerLeave={() => setHover(null)}>
-      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="act-svg" onPointerMove={onMove} onPointerDown={onMove} role="img"
-        aria-label={`Activity: ${SERIES.map((s) => `${s.label} ${points.reduce((t, p) => t + p[s.key], 0)}`).join(", ")}`}>
+      <div className="act-panel-label">Connections sent</div>
+      <svg viewBox={`0 0 ${W} ${TOP.h}`} className="act-svg" onPointerMove={onMove} onPointerDown={onMove} role="img"
+        aria-label={`Connections sent: ${points.reduce((t, p) => t + p.sent, 0)} over ${points.length} days`}>
         <defs>
-          {SERIES.map((s) => (
-            <linearGradient key={s.key} id={`act-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={s.color} stopOpacity={s.fill} />
-              <stop offset="100%" stopColor={s.color} stopOpacity="0" />
+          <linearGradient id="act-sent" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={COLORS.sent} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={COLORS.sent} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {sentTicks.map((t) => (
+          <g key={t}>
+            <line x1={ML} x2={W - MR} y1={yTop(t)} y2={yTop(t)} className="act-grid" />
+            <text x={ML - 12} y={yTop(t) + 4} textAnchor="end" className="act-axis">{t.toLocaleString("en-US")}</text>
+          </g>
+        ))}
+        <path d={area(sentLine, topBase)} fill="url(#act-sent)" />
+        <path d={sentLine} fill="none" stroke={COLORS.sent} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+        {point && <>
+          <line x1={x(hover!)} x2={x(hover!)} y1={TOP.mt} y2={topBase} className="act-guide" />
+          <circle cx={x(hover!)} cy={yTop(point.sent)} r={4.5} fill={COLORS.sent} stroke="var(--panel, #111319)" strokeWidth={2} />
+        </>}
+      </svg>
+
+      <div className="act-panel-label">Replies and meetings{smoothed ? " · 7-day average" : ""}</div>
+      <svg viewBox={`0 0 ${W} ${BOTTOM.h}`} className="act-svg" onPointerMove={onMove} onPointerDown={onMove} role="img"
+        aria-label={`Replies: ${points.reduce((t, p) => t + p.replies, 0)}, positive replies: ${points.reduce((t, p) => t + p.positive, 0)}, meetings booked: ${points.reduce((t, p) => t + p.meetings, 0)}`}>
+        <defs>
+          {(["replies", "positive"] as const).map((key) => (
+            <linearGradient key={key} id={`act-${key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={COLORS[key]} stopOpacity="0.16" />
+              <stop offset="100%" stopColor={COLORS[key]} stopOpacity="0" />
             </linearGradient>
           ))}
         </defs>
-        {ticks.map((t) => (
+        {replyTicks.map((t) => (
           <g key={t}>
-            <line x1={ML} x2={W - MR} y1={y(t)} y2={y(t)} className="act-grid" />
-            <text x={ML - 12} y={y(t) + 4} textAnchor="end" className="act-axis">{Math.round(t).toLocaleString("en-US")}</text>
+            <line x1={ML} x2={W - MR} y1={yBottom(t)} y2={yBottom(t)} className="act-grid" />
+            <text x={ML - 12} y={yBottom(t) + 4} textAnchor="end" className="act-axis">{t.toLocaleString("en-US")}</text>
           </g>
         ))}
-        {points.map((p, i) => (i % every === 0 || i === last) && (last - i >= every / 2 || i === last) ? (
-          <text key={p.date} x={x(i)} y={H - 12} textAnchor={i === 0 ? "start" : i === last ? "end" : "middle"} className="act-axis act-x">{label(p.date)}</text>
+        {points.map((p, i) => showLabel(i) ? (
+          <text key={p.date} x={x(i)} y={BOTTOM.h - 12} textAnchor={i === 0 ? "start" : i === last ? "end" : "middle"} className="act-axis act-x">{label(p.date)}</text>
         ) : null)}
-        {SERIES.map((s) => <path key={`a-${s.key}`} d={area(s.key)} fill={`url(#act-${s.key})`} />)}
-        {SERIES.map((s) => <path key={`l-${s.key}`} d={line(s.key)} fill="none" stroke={s.color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />)}
-        {hover !== null && (
-          <>
-            <line x1={x(hover)} x2={x(hover)} y1={MT} y2={base} className="act-guide" />
-            {SERIES.map((s) => <circle key={s.key} cx={x(hover)} cy={y(points[hover][s.key])} r={4.5} fill={s.color} stroke="var(--panel, #111319)" strokeWidth={2} />)}
-          </>
-        )}
+        <path d={area(repliesLine, bottomBase)} fill="url(#act-replies)" />
+        <path d={area(positiveLine, bottomBase)} fill="url(#act-positive)" />
+        <path d={repliesLine} fill="none" stroke={COLORS.replies} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={positiveLine} fill="none" stroke={COLORS.positive} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((p, i) => p.meetings ? (
+          <g key={`m-${p.date}`} className="act-pin">
+            <line x1={x(i)} x2={x(i)} y1={BOTTOM.mt - 2} y2={bottomBase} stroke={COLORS.meetings} strokeDasharray="2 3" opacity={0.55} />
+            <circle cx={x(i)} cy={BOTTOM.mt - 9} r={7.5} fill="var(--panel, #111319)" stroke={COLORS.meetings} strokeWidth={2} />
+            <text x={x(i)} y={BOTTOM.mt - 5.5} textAnchor="middle" className="act-pin-n" fill={COLORS.meetings}>{p.meetings}</text>
+          </g>
+        ) : null)}
+        {point && <>
+          <line x1={x(hover!)} x2={x(hover!)} y1={BOTTOM.mt} y2={bottomBase} className="act-guide" />
+          <circle cx={x(hover!)} cy={yBottom(point[replyKey])} r={4.5} fill={COLORS.replies} stroke="var(--panel, #111319)" strokeWidth={2} />
+          <circle cx={x(hover!)} cy={yBottom(point[positiveKey])} r={4.5} fill={COLORS.positive} stroke="var(--panel, #111319)" strokeWidth={2} />
+        </>}
       </svg>
-      {hover !== null && (
-        <div className={`act-tip ${tipLeft > 60 ? "is-left" : ""}`} style={{ left: `${tipLeft}%` }}>
-          <b>{title(hover)}</b>
-          {SERIES.map((s) => (
-            <div className="act-tip-row" key={s.key}>
-              <i style={{ background: s.color }} />
-              <span>{s.label}</span>
-              <data value={points[hover][s.key]}>{points[hover][s.key].toLocaleString("en-US")}</data>
-            </div>
-          ))}
+
+      {point && (
+        <div className={`act-tip ${tipLeft > 58 ? "is-left" : ""}`} style={{ left: `${tipLeft}%` }}>
+          <b>{fmt(point.date, { month: "short", day: "numeric", year: "numeric" })}{hover === last ? " (today, so far)" : ""}</b>
+          <div className="act-tip-row"><i style={{ background: COLORS.sent }} /><span>Connections sent</span><data value={point.sent}>{point.sent}</data></div>
+          <div className="act-tip-row"><i style={{ background: COLORS.replies }} /><span>Replies</span>{smoothed && <em>avg {one(point.repliesAvg)}</em>}<data value={point.replies}>{point.replies}</data></div>
+          <div className="act-tip-row"><i style={{ background: COLORS.positive }} /><span>Positive replies</span>{smoothed && <em>avg {one(point.positiveAvg)}</em>}<data value={point.positive}>{point.positive}</data></div>
+          <div className="act-tip-row"><i style={{ background: COLORS.meetings }} /><span>Booked meetings</span><data value={point.meetings}>{point.meetings}</data></div>
         </div>
       )}
+
       <div className="act-legend">
-        {SERIES.map((s) => <span key={s.key}><i style={{ background: s.color }} />{s.label}</span>)}
+        <span><i style={{ background: COLORS.sent }} />Connections sent</span>
+        <span><i style={{ background: COLORS.replies }} />Replies</span>
+        <span><i style={{ background: COLORS.positive }} />Positive replies</span>
+        <span><i className="act-legend-pin" style={{ borderColor: COLORS.meetings }} />Booked meeting</span>
       </div>
     </div>
   );

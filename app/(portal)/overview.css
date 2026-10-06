@@ -453,3 +453,9 @@ a.ov-cell:hover { background: var(--panel-2); }
 .act-legend span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .act-legend i { width: 8px; height: 8px; border-radius: 50%; }
 @media (max-width: 700px) { .act-wrap { padding: 6px 10px 12px; } .act-tip { min-width: 180px; } }
+/* Two panels: a label over each, meetings as pins, the average beside the real day in the tooltip. */
+.act-panel-label { padding: 6px 0 0 44px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-2); }
+.act-panel-label + .act-svg { margin-top: 2px; }
+.act-pin-n { font-size: 9.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.act-tip-row em { font-style: normal; font-size: 11.5px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+.act-legend .act-legend-pin { width: 9px; height: 9px; border-radius: 50%; border: 2px solid; background: var(--panel); }

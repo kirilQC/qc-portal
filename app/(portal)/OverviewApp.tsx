@@ -59,7 +59,7 @@ type Payload = {
     replies: number; acceptanceRate: number; replyRate: number; progress: number;
   }[];
   leadsTotal?: number; reachedTotal?: number; repliesTotal?: number;
-  activity?: { granularity: "day" | "week"; points: ActivityPoint[] };
+  activity?: { smoothed: boolean; points: ActivityPoint[] };
   feed?: FeedEvent[];
   senders?: string[];
 };
@@ -303,9 +303,9 @@ function Overview() {
       <section className="panel ov-trend">
         <div className="panel-head">
           <h2>Activity</h2>
-          <span>{data.range === "all" ? "By week, since the engagement started" : data.range === "month" ? "Last 30 days" : "Last 7 days"}</span>
+          <span>{data.range === "all" ? "Since the engagement started" : data.range === "month" ? "Last 30 days" : "Last 7 days"}</span>
         </div>
-        <ActivityChart points={data.activity?.points ?? []} granularity={data.activity?.granularity ?? "day"} />
+        <ActivityChart points={data.activity?.points ?? []} smoothed={Boolean(data.activity?.smoothed)} />
       </section>
 
       <section className="panel ov-campaigns">

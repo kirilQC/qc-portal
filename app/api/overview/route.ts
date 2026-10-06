@@ -482,62 +482,71 @@ async function build(session: Session, workspaceId: string, range: string) {
   /** Leads HeyReach messaged, lifetime — the reply-rate denominator QC Command uses (accepted as fallback). */
   const messagedAll = campaignRows.reduce((total, row) => total + (num(row.messages_started) || num(row.connections_accepted)), 0);
 
-  // Monday-anchored weeks, for the all-time activity chart.
-  const weekStart = (ms: number) => { const d = new Date(ms); const day = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - day); d.setUTCHours(0, 0, 0, 0); return d.getTime(); };
 
   /*
-   * The activity chart, laid out the way HeyReach's dashboard graph is: one point per day for a week or a
-   * month (today included, so the line ends where the data ends rather than in a fake cliff), one point per
-   * Monday-anchored week for all time, starting at the first week anything happened.
+   * The activity chart: two panels on one daily timeline, connections sent above and replies below.
    *
-   * Replies and positive replies are PEOPLE, not messages: a conversation counts once per point, and is
-   * positive when its latest reply in that point was judged positive (QC Command's definition). Counting
-   * messages made a week read 40 when 30 people replied. Meetings count on the day they were booked.
+   * One point per day — for a week, a month, or since the first day anything happened (all time). Today
+   * is included and labelled "so far" by the page, so the line ends where the data ends.
+   *
+   * Replies and positive replies are PEOPLE, not messages: a conversation counts once per day, positive
+   * when its latest reply that day was judged positive (QC Command's definition). For a month or all
+   * time the page draws them as a 7-day trailing average (`repliesAvg`, `positiveAvg`) because a client
+   * with a few replies a day jumps 0 → 9 → 0 and the raw line reads as noise. The average is taken over
+   * the six days *before* the window too, so the first days on the chart are not averages of a part-week.
+   * The raw daily figures still travel with each point for the tooltip. Meetings count on the day booked.
    */
-  const granularity: "day" | "week" = windowDays === null ? "week" : "day";
+  const SMOOTH_DAYS = 7;
+  const smoothing = windowDays !== 7;
   const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-  const bucketKey = (ms: number) => (granularity === "day" ? isoDay(ms) : isoDay(weekStart(ms)));
-  let bucketKeys: string[] = [];
-  if (granularity === "day") {
-    const today = Date.parse(`${isoDay(now)}T00:00:00Z`);
-    bucketKeys = Array.from({ length: windowDays ?? 7 }, (_, i) => isoDay(today - ((windowDays ?? 7) - 1 - i) * DAY_MS));
-  } else {
+  const today = Date.parse(`${isoDay(now)}T00:00:00Z`);
+  let span = windowDays ?? 0;
+  if (windowDays === null) {
     const activity = [
-      ...totals.filter((row) => num(row.connections_sent) > 0).map((row) => Date.parse(`${str(row.day).slice(0, 10)}T12:00:00Z`)),
+      ...totals.filter((row) => num(row.connections_sent) > 0).map((row) => Date.parse(`${str(row.day).slice(0, 10)}T00:00:00Z`)),
       ...inbound.map((row) => Date.parse(str(row.sent_at))),
       ...meetings.map((row) => Date.parse(str(row.created_at) || str(row.meeting_at))),
     ].filter(Number.isFinite);
-    const first = activity.length ? weekStart(Math.min(...activity)) : weekStart(now);
-    const last = weekStart(now);
-    const span = Math.min(104, Math.round((last - first) / (7 * DAY_MS)) + 1);
-    bucketKeys = Array.from({ length: span }, (_, i) => isoDay(last - (span - 1 - i) * 7 * DAY_MS));
+    const first = activity.length ? Date.parse(`${isoDay(Math.min(...activity))}T00:00:00Z`) : today;
+    span = Math.min(400, Math.round((today - first) / DAY_MS) + 1);
   }
-  const bucketIndex = new Map(bucketKeys.map((key, i) => [key, i]));
-  const activitySeries = bucketKeys.map((date) => ({ date, sent: 0, replies: 0, positive: 0, meetings: 0 }));
+  const lead = smoothing ? SMOOTH_DAYS - 1 : 0;
+  const dayKeys = Array.from({ length: span + lead }, (_, i) => isoDay(today - (span + lead - 1 - i) * DAY_MS));
+  const dayIndex = new Map(dayKeys.map((key, i) => [key, i]));
+  const daily = dayKeys.map((date) => ({ date, sent: 0, replies: 0, positive: 0, meetings: 0 }));
   for (const row of totals) {
-    const i = bucketIndex.get(bucketKey(Date.parse(`${str(row.day).slice(0, 10)}T12:00:00Z`)));
-    if (i !== undefined) activitySeries[i].sent += num(row.connections_sent);
+    const i = dayIndex.get(str(row.day).slice(0, 10));
+    if (i !== undefined) daily[i].sent += num(row.connections_sent);
   }
-  const latestInBucket = new Map<string, Row>();
+  const latestThatDay = new Map<string, Row>();
   for (const row of inbound) {
     const at = Date.parse(str(row.sent_at));
     if (!Number.isFinite(at)) continue;
-    const key = bucketKey(at);
-    if (!bucketIndex.has(key)) continue;
+    const key = isoDay(at);
+    if (!dayIndex.has(key)) continue;
     const id = `${key}|${str(row.conversation_id)}`;
-    const held = latestInBucket.get(id);
-    if (!held || at > Date.parse(str(held.sent_at))) latestInBucket.set(id, row);
+    const held = latestThatDay.get(id);
+    if (!held || at > Date.parse(str(held.sent_at))) latestThatDay.set(id, row);
   }
-  for (const [id, row] of latestInBucket) {
-    const i = bucketIndex.get(id.slice(0, id.indexOf("|")))!;
-    activitySeries[i].replies += 1;
-    if (str(row.sentiment).toLowerCase() === "positive") activitySeries[i].positive += 1;
+  for (const [id, row] of latestThatDay) {
+    const i = dayIndex.get(id.slice(0, id.indexOf("|")))!;
+    daily[i].replies += 1;
+    if (str(row.sentiment).toLowerCase() === "positive") daily[i].positive += 1;
   }
   for (const row of meetings) {
     const at = Date.parse(str(row.created_at) || str(row.meeting_at));
-    const i = Number.isFinite(at) ? bucketIndex.get(bucketKey(at)) : undefined;
-    if (i !== undefined) activitySeries[i].meetings += 1;
+    const i = Number.isFinite(at) ? dayIndex.get(isoDay(at)) : undefined;
+    if (i !== undefined) daily[i].meetings += 1;
   }
+  const trailing = (key: "replies" | "positive", i: number) => {
+    const window = daily.slice(Math.max(0, i - SMOOTH_DAYS + 1), i + 1);
+    return Math.round((window.reduce((total, day) => total + day[key], 0) / window.length) * 10) / 10;
+  };
+  const activityPoints = daily.slice(lead).map((day, j) => ({
+    ...day,
+    repliesAvg: smoothing ? trailing("replies", j + lead) : day.replies,
+    positiveAvg: smoothing ? trailing("positive", j + lead) : day.positive,
+  }));
 
   return {
     client: {
@@ -606,7 +615,7 @@ async function build(session: Session, workspaceId: string, range: string) {
     // The people behind the outreach, for the network's anchor nodes. Names, never ids.
     senders: [...new Set(dailyRows.map((row) => str(row.sender_name)).filter(Boolean))].slice(0, 8),
     bestCampaigns,
-    activity: { granularity, points: activitySeries },
+    activity: { smoothed: smoothing, points: activityPoints },
     /** For the tiles that link into the other tabs. */
     leadsTotal: leadsCount,
     /** Every connection request sent across all campaigns — people actually reached out to. */
