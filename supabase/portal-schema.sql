@@ -131,3 +131,35 @@ create table if not exists qc_portal_meeting_overrides (
 );
 
 alter table qc_portal_meeting_overrides enable row level security;
+
+-- ── Inbox tags (per client) ─────────────────────────────────────────────────────────────────────
+--
+-- A client's own labels for conversations in the portal inbox ("Follow up in Q1", "Not a fit"). Each
+-- client has its own list, managed by the client and by QC staff viewing that client; QC Command's
+-- internal tags (rr_inbox_tag_assignments) are a separate, staff-only vocabulary and never shown here.
+-- Assignments are at conversation grain, the id the inbox selects on.
+--
+-- RLS on with no policies like every table here: the service key bypasses it and the app layer is the
+-- wall. Every write is scoped to the session's workspace in /api/inbox/tags, which also checks that the
+-- conversation and the tag both belong to that workspace before linking them.
+create table if not exists qc_portal_tags (
+  id            uuid primary key default gen_random_uuid(),
+  workspace_id  uuid not null,
+  name          text not null check (char_length(name) between 1 and 40),
+  color         text not null,
+  created_at    timestamptz not null default now(),
+  unique (workspace_id, name)
+);
+
+create table if not exists qc_portal_tag_assignments (
+  workspace_id     uuid not null,
+  conversation_id  uuid not null,
+  tag_id           uuid not null references qc_portal_tags(id) on delete cascade,
+  created_at       timestamptz not null default now(),
+  primary key (conversation_id, tag_id)
+);
+
+create index if not exists qc_portal_tag_assignments_workspace on qc_portal_tag_assignments (workspace_id);
+
+alter table qc_portal_tags enable row level security;
+alter table qc_portal_tag_assignments enable row level security;

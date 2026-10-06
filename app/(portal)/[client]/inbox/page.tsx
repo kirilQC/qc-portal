@@ -9,6 +9,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useClientSlug } from "../../../components/useClientSlug";
 import { SkeletonRows } from "../../../components/PageSkeleton";
 import { activeTimeZone } from "../../../components/Appearance";
+import LeadProfileDrawer from "../../../components/LeadProfileDrawer";
+import DateRangePicker, { rangeLabel, type DayRange } from "../../DateRangePicker";
 import "./inbox.css";
 // Loaded second: QC Command's inbox, measured and reproduced (see the file's header).
 import "./inbox-command.css";
@@ -34,7 +36,9 @@ type Lead = {
   lastRefreshedAt: string | null; replies: number; messages: Message[];
 };
 
-type Filter = "today" | "week" | "all" | "follow-ups";
+type Filter = "today" | "week" | "all" | "custom";
+/** A client's own label for a conversation. Each client keeps its own list; QC Command's are separate. */
+type Tag = { id: string; name: string; color: string };
 
 /** Where the pane divider was left. */
 const SPLIT_KEY = "qc-portal:inbox-split";
@@ -53,7 +57,6 @@ const FILTERS: [string, Filter][] = [
   ["Today", "today"],
   ["This week", "week"],
   ["All replies", "all"],
-  ["Follow-ups", "follow-ups"],
 ];
 
 /**
@@ -126,6 +129,91 @@ function Inbox() {
   const [starredOnly, setStarredOnly] = useState(false);
   const [stars, setStars] = useState<string[]>([]);
   const [submenu, setSubmenu] = useState<string | null>(null);
+  const [customRange, setCustomRange] = useState<DayRange | null>(null);
+  const filterBox = useRef<HTMLDivElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  // Tags: the client's list, and which conversations carry which.
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [tagColors, setTagColors] = useState<string[]>([]);
+  const [assignments, setAssignments] = useState<Record<string, string[]>>({});
+  const [tagFilter, setTagFilter] = useState("");
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
+  const [newTag, setNewTag] = useState("");
+  const [newTagColor, setNewTagColor] = useState("");
+  const [tagError, setTagError] = useState("");
+  const tagBox = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/inbox/tags${clientSlug ? `?client=${encodeURIComponent(clientSlug)}` : ""}`)
+      .then((response) => response.json())
+      .then((payload) => {
+        if (!live || !payload?.ok) return;
+        setTags(payload.tags ?? []);
+        setTagColors(payload.colors ?? []);
+        setAssignments(payload.assignments ?? {});
+      })
+      .catch(() => { /* tags are an extra; the inbox works without them */ });
+    return () => { live = false; };
+  }, [clientSlug]);
+
+  const tagAction = async (body: Record<string, unknown>) => {
+    setTagError("");
+    const response = await fetch("/api/inbox/tags", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ client: clientSlug, ...body }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.ok) {
+      setTagError(payload?.error || "That did not save. Try again.");
+      return null;
+    }
+    return payload;
+  };
+  const toggleTag = async (conversationId: string, tagId: string) => {
+    const had = (assignments[conversationId] ?? []).includes(tagId);
+    const apply = (on: boolean) => setAssignments((was) => {
+      const list = (was[conversationId] ?? []).filter((id) => id !== tagId);
+      return { ...was, [conversationId]: on ? [...list, tagId] : list };
+    });
+    apply(!had); // optimistic; put it back if the server refuses
+    if (!(await tagAction({ action: had ? "unassign" : "assign", conversationId, tagId }))) apply(had);
+  };
+  const createTag = async (conversationId: string) => {
+    const name = newTag.trim();
+    if (!name) return;
+    const payload = await tagAction({ action: "create", name, color: newTagColor || tagColors[tags.length % Math.max(1, tagColors.length)] });
+    if (!payload?.tag) return;
+    setTags((was) => [...was, payload.tag].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewTag("");
+    await toggleTag(conversationId, payload.tag.id);
+  };
+  const deleteTag = async (tagId: string) => {
+    if (!(await tagAction({ action: "delete", id: tagId }))) return;
+    setTags((was) => was.filter((tag) => tag.id !== tagId));
+    setAssignments((was) => Object.fromEntries(Object.entries(was).map(([id, list]) => [id, list.filter((t) => t !== tagId)])));
+    if (tagFilter === tagId) setTagFilter("");
+  };
+  const tagById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
+
+  // The Filters menu and the tag popover close on a click anywhere else, or Escape.
+  useEffect(() => {
+    if (!filtersOpen && !tagMenuOpen) return;
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (filtersOpen && filterBox.current && !filterBox.current.contains(target)) { setFiltersOpen(false); setSubmenu(null); }
+      if (tagMenuOpen && tagBox.current && !tagBox.current.contains(target)) setTagMenuOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setFiltersOpen(false); setSubmenu(null); setTagMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("pointerdown", onDown); window.removeEventListener("keydown", onKey); };
+  }, [filtersOpen, tagMenuOpen]);
 
   // The reply composer. `armed` is the confirm step — a first press arms it, a second actually sends, so
   // a message never leaves on a single stray click. Editing the text disarms it.
@@ -247,20 +335,24 @@ function Inbox() {
         if (sentimentFilter && lead.sentiment !== sentimentFilter) return false;
         if (tierFilter && lead.tier !== tierFilter) return false;
         if (starredOnly && !stars.includes(lead.leadId)) return false;
+        if (tagFilter && !(assignments[lead.id] ?? []).includes(tagFilter)) return false;
 
         const when = Date.parse(lead.latestReplyAt || lead.lastMessageAt);
         if (filter === "today") return when >= todayStart;
         if (filter === "week") return when >= weekStart;
-        if (filter === "follow-ups") return lead.score > 0;
+        if (filter === "custom" && customRange) {
+          // The reply's calendar day in the reader's zone, compared as YYYY-MM-DD.
+          const day = Number.isFinite(when) ? new Date(when).toLocaleDateString("en-CA", { timeZone }) : "";
+          return day >= customRange.from && day <= customRange.to;
+        }
         return true;
       })
       .sort((a, b) => {
-        if (filter === "follow-ups") return b.score - a.score;
         if (sort === "oldest") return Date.parse(a.latestReplyAt || a.lastMessageAt) - Date.parse(b.latestReplyAt || b.lastMessageAt);
         if (sort === "name") return a.name.localeCompare(b.name);
         return Date.parse(b.latestReplyAt || b.lastMessageAt) - Date.parse(a.latestReplyAt || a.lastMessageAt);
       });
-  }, [leads, search, filter, campaignFilter, senderFilter, sentimentFilter, tierFilter, starredOnly, stars, sort]);
+  }, [leads, search, filter, campaignFilter, senderFilter, sentimentFilter, tierFilter, starredOnly, stars, sort, tagFilter, assignments, customRange, timeZone]);
 
   const current = filtered.find((lead) => lead.id === selectedId) ?? filtered[0] ?? null;
 
@@ -345,7 +437,7 @@ function Inbox() {
   const lastSynced = newestRefresh
     ? new Date(newestRefresh).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone })
     : "";
-  const rangeWord = filter === "today" ? "today" : filter === "week" ? "this week" : filter === "follow-ups" ? "needing follow-up" : "all time";
+  const rangeWord = filter === "today" ? "today" : filter === "week" ? "this week" : filter === "custom" && customRange ? rangeLabel(customRange) : "all time";
 
   const options = (pick: (lead: Lead) => string | null) =>
     [...new Set(leads.map(pick).filter((value): value is string => Boolean(value)))].sort();
@@ -405,9 +497,14 @@ function Inbox() {
               </button>
             ))}
           </div>
-          <div className="filter-wrap">
-            <button className="filter-button" onClick={() => setFiltersOpen((open) => !open)}>
-              Filters{campaignFilter || senderFilter || sentimentFilter ? " ●" : ""}
+          <DateRangePicker
+            value={customRange}
+            active={filter === "custom"}
+            onApply={(range) => { setCustomRange(range); setFilter("custom"); setSelectedId(""); }}
+          />
+          <div className="filter-wrap" ref={filterBox}>
+            <button className="filter-button" onClick={() => { setFiltersOpen((open) => !open); setSubmenu(null); }}>
+              Filters{campaignFilter || senderFilter || sentimentFilter || tierFilter || tagFilter || starredOnly ? " ●" : ""}
             </button>
             {filtersOpen && (
               <div className="filter-dropdown" onMouseLeave={() => setSubmenu(null)}>
@@ -423,6 +520,7 @@ function Inbox() {
                 <FilterRow label="Sender" value={senderFilter} onOpen={() => setSubmenu("sender")} />
                 <FilterRow label="Sentiment" value={sentimentFilter} onOpen={() => setSubmenu("sentiment")} />
                 <FilterRow label="Tier" value={tierFilter} onOpen={() => setSubmenu("tier")} />
+                <FilterRow label="Tag" value={tagById.get(tagFilter)?.name ?? ""} onOpen={() => setSubmenu("tag")} />
                 <FilterRow label="Sort" value={sort === "recent" ? "" : (SORTS.find(([key]) => key === sort)?.[1] ?? "")} onOpen={() => setSubmenu("sort")} />
 
                 <div className="uf-divider" />
@@ -430,7 +528,7 @@ function Inbox() {
                   className="uf-item uf-clear"
                   onClick={() => {
                     setCampaignFilter(""); setSenderFilter(""); setSentimentFilter("");
-                    setTierFilter(""); setStarredOnly(false); setSort("recent");
+                    setTierFilter(""); setTagFilter(""); setStarredOnly(false); setSort("recent");
                     setSubmenu(null); setFiltersOpen(false);
                   }}
                 >
@@ -441,6 +539,17 @@ function Inbox() {
                 {submenu === "sender" && <Submenu current={senderFilter} values={options((l) => l.senderName)} onPick={setSenderFilter} allLabel="All senders" />}
                 {submenu === "sentiment" && <Submenu current={sentimentFilter} values={["positive", "neutral", "negative"]} onPick={setSentimentFilter} allLabel="Any sentiment" />}
                 {submenu === "tier" && <Submenu current={tierFilter} values={TIERS} onPick={setTierFilter} allLabel="Any tier" />}
+                {submenu === "tag" && (
+                  <div className="uf-sub">
+                    <button className={`uf-sub-item ${!tagFilter ? "uf-active" : ""}`} onClick={() => setTagFilter("")}>Any tag</button>
+                    {tags.length === 0 && <p className="uf-sub-note">No tags yet. Add one from a conversation.</p>}
+                    {tags.map((tag) => (
+                      <button key={tag.id} className={`uf-sub-item ${tagFilter === tag.id ? "uf-active" : ""}`} onClick={() => setTagFilter(tag.id)}>
+                        <i className="tag-dot" style={{ background: tag.color }} />{tag.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {submenu === "sort" && (
                   <div className="uf-sub">
                     {SORTS.map(([key, label]) => (
@@ -510,6 +619,13 @@ function Inbox() {
                           </span>
                         </strong>
                         <span>{[lead.role, lead.company].filter(Boolean).join(" @ ") || "No title or company"}</span>
+                        {(assignments[lead.id] ?? []).length > 0 && (
+                          <span className="row-tags">
+                            {(assignments[lead.id] ?? []).map((id) => tagById.get(id)).filter((tag): tag is Tag => Boolean(tag)).map((tag) => (
+                              <TagChip key={tag.id} tag={tag} />
+                            ))}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="cell mid inbox-meta-cell campaign-cell"><strong>{lead.campaignName || "No campaign"}</strong></div>
@@ -558,11 +674,14 @@ function Inbox() {
                       )}
                     </h3>
                     <p>{[current.role, current.company].filter(Boolean).join(" at ")}</p>
-                    {current.profileUrl && (
-                      <a className="linkedin" href={current.profileUrl} target="_blank" rel="noreferrer">
-                        in&nbsp; LinkedIn profile ↗
-                      </a>
-                    )}
+                    <div className="detail-links">
+                      <button type="button" className="view-profile" onClick={() => setProfileOpen(true)}>View full profile →</button>
+                      {current.profileUrl && (
+                        <a className="linkedin" href={current.profileUrl} target="_blank" rel="noreferrer">
+                          in&nbsp; LinkedIn profile ↗
+                        </a>
+                      )}
+                    </div>
                   </div>
                   {current.companyPhotoUrl && (
                     <img className="company-logo" src={current.companyPhotoUrl} alt={`${current.company} logo`} onError={(event) => { event.currentTarget.style.display = "none"; }} />
@@ -574,6 +693,50 @@ function Inbox() {
                   {current.sentiment && (
                     <span className={`sentiment-badge sentiment-${current.sentiment}`}>{current.sentiment}</span>
                   )}
+                  {(assignments[current.id] ?? []).map((id) => tagById.get(id)).filter((tag): tag is Tag => Boolean(tag)).map((tag) => (
+                    <TagChip key={tag.id} tag={tag} onRemove={() => toggleTag(current.id, tag.id)} />
+                  ))}
+                  <div className="tag-add-wrap" ref={tagBox}>
+                    <button type="button" className="tag-add" onClick={() => { setTagMenuOpen((open) => !open); setTagError(""); }}>+ Tag</button>
+                    {tagMenuOpen && (
+                      <div className="tag-pop" role="dialog" aria-label="Tags">
+                        {tags.length > 0 && (
+                          <div className="tag-pop-list">
+                            {tags.map((tag) => {
+                              const on = (assignments[current.id] ?? []).includes(tag.id);
+                              return (
+                                <div key={tag.id} className="tag-pop-row">
+                                  <button type="button" className={`tag-pop-item ${on ? "is-on" : ""}`} onClick={() => toggleTag(current.id, tag.id)}>
+                                    <i className="tag-dot" style={{ background: tag.color }} />
+                                    <span>{tag.name}</span>
+                                    {on && <b>✓</b>}
+                                  </button>
+                                  <button type="button" className="tag-pop-delete" title={`Delete "${tag.name}" for everyone`} aria-label={`Delete tag ${tag.name}`} onClick={() => deleteTag(tag.id)}>×</button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <form className="tag-pop-new" onSubmit={(event) => { event.preventDefault(); createTag(current.id); }}>
+                          <input value={newTag} maxLength={40} placeholder="New tag name" onChange={(event) => setNewTag(event.target.value)} />
+                          <div className="tag-pop-colors">
+                            {tagColors.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                className={`tag-swatch ${(newTagColor || tagColors[tags.length % Math.max(1, tagColors.length)]) === color ? "is-on" : ""}`}
+                                style={{ background: color }}
+                                aria-label={`Colour ${color}`}
+                                onClick={() => setNewTagColor(color)}
+                              />
+                            ))}
+                          </div>
+                          <button type="submit" className="tag-pop-create" disabled={!newTag.trim()}>Create tag</button>
+                        </form>
+                        {tagError && <p className="tag-pop-error">{tagError}</p>}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {(current.headline || current.industry) && (
@@ -642,6 +805,14 @@ function Inbox() {
           )}
         </aside>
       </div>
+
+      {profileOpen && current && (
+        <LeadProfileDrawer
+          lead={{ id: current.leadId, name: current.name, role: current.role, company: current.company, photoUrl: current.photoUrl, profileUrl: current.profileUrl }}
+          clientSlug={clientSlug}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -658,6 +829,17 @@ function Metric({ label, value, tone, loading = false }: { label: string; value:
 }
 
 /** One row of the Filters menu: a label, what it is currently set to, and a chevron into its submenu. */
+function TagChip({ tag, onRemove }: { tag: Tag; onRemove?: () => void }) {
+  return (
+    <span className="tag-chip" style={{ ["--tag" as string]: tag.color }}>
+      {tag.name}
+      {onRemove && (
+        <button type="button" aria-label={`Remove ${tag.name}`} onClick={(event) => { event.stopPropagation(); onRemove(); }}>×</button>
+      )}
+    </span>
+  );
+}
+
 function FilterRow({ label, value, onOpen }: { label: string; value: string; onOpen: () => void }) {
   return (
     <button className="uf-item" onMouseEnter={onOpen} onClick={onOpen}>

@@ -57,6 +57,10 @@ const CLIENT_READABLE: Record<string, string> = {
   // QC Command's project board. The route reads only tasks staff marked "Show to client", and only the
   // safe columns — never notes, blockers, links or who last edited.
   rr_projects: "workspace_id",
+  // A client's own inbox tags and which conversations carry them. Written only through /api/inbox/tags,
+  // which scopes every write to the session's workspace.
+  qc_portal_tags: "workspace_id",
+  qc_portal_tag_assignments: "workspace_id",
 };
 
 /** Tables only a staff session may read. Never reachable from a client session, filtered or not. */

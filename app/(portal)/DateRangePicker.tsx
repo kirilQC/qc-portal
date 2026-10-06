@@ -4,6 +4,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import "./DateRangePicker.css";
 
 /**
  * The overview's custom range: a button that opens a two-month calendar.

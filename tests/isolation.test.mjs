@@ -29,6 +29,8 @@ const CLIENT_READABLE = {
   rr_webhook_events: "workspace_id",
   qc_portal_meeting_overrides: "workspace_id",
   rr_projects: "workspace_id",
+  qc_portal_tags: "workspace_id",
+  qc_portal_tag_assignments: "workspace_id",
 };
 const STAFF_ONLY = new Set([
   "qc_portal_users",
@@ -187,4 +189,12 @@ test("a client reads only its own project tasks, whatever workspace it names", (
   const query = scopeFor(willow, "rr_projects", { select: "id,title", client_visible: "eq.true", workspace_id: "eq.ws-bluevia" });
   assert.ok(query.includes("workspace_id=eq.ws-willow"));
   assert.ok(!query.includes("ws-bluevia"));
+});
+
+test("a client reads only its own tags and tag assignments", () => {
+  for (const table of ["qc_portal_tags", "qc_portal_tag_assignments"]) {
+    const query = scopeFor(willow, table, { select: "*", workspace_id: "eq.ws-bluevia" });
+    assert.ok(query.includes("workspace_id=eq.ws-willow"), table);
+    assert.ok(!query.includes("ws-bluevia"), table);
+  }
 });
