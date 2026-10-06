@@ -168,3 +168,5 @@
 /* Portal-only: links read as QC Command's (no underline), and the device's chosen zoom still applies. */
 .qc-lead a { text-decoration: none; }
 .qc-lead { zoom: var(--zoom, 1); }
+/* The portal's global headings are bolder and tighter; QC Command's drawer headings are regular weight. */
+.qc-lead h2, .qc-lead h3 { font-weight: 400; letter-spacing: normal; }
