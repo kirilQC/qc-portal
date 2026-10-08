@@ -118,6 +118,7 @@ async function buildInbox(session: Session, workspaceId: string, qcIds: Set<stri
         select:
           "id,conversation_id,direction,body,sent_at," +
           "sender_name:raw_data->reply_radar->sender->>name," +
+          "campaign_name:raw_data->reply_radar->campaign->>name," +
           "sentiment:raw_data->reply_radar->>sentiment," +
           "cached_draft:raw_data->reply_radar->>cached_draft," +
           "cached_reason:raw_data->reply_radar->>cached_reason," +
@@ -138,6 +139,12 @@ async function buildInbox(session: Session, workspaceId: string, qcIds: Set<stri
   const threadByConversation = new Map<string, Message[]>();
   /** The newest inbound message per conversation — where Reply Radar caches its draft and sentiment. */
   const latestInbound = new Map<string, Row>();
+  /**
+   * The campaign and our sender as the messages record them. A LinkedIn lead carries both in its rollup; an
+   * email lead (Email Bison) does not, so without these an email reply read "No campaign · Unknown sender".
+   */
+  const campaignByConversation = new Map<string, string>();
+  const senderByConversation = new Map<string, string>();
 
   for (const row of messages) {
     const key = str(row.conversation_id);
@@ -157,6 +164,8 @@ async function buildInbox(session: Session, workspaceId: string, qcIds: Set<stri
     else threadByConversation.set(key, [message]);
 
     if (direction === "inbound") latestInbound.set(key, row);
+    if (str(row.campaign_name)) campaignByConversation.set(key, str(row.campaign_name));
+    if (direction === "outbound" && senderName) senderByConversation.set(key, senderName);
   }
 
   return conversations
@@ -202,10 +211,11 @@ async function buildInbox(session: Session, workspaceId: string, qcIds: Set<stri
         enriched: Object.keys(enrichment).length > 0,
 
         campaignName:
-          asList(rollup.campaign_names)[0] ??
-          str((leadRadar.campaign as Record<string, unknown>)?.name) ??
+          asList(rollup.campaign_names)[0] ||
+          campaignByConversation.get(id) ||
+          str((leadRadar.campaign as Record<string, unknown>)?.name) ||
           null,
-        senderName: asList(rollup.sender_names)[0] || "Unknown sender",
+        senderName: asList(rollup.sender_names)[0] || senderByConversation.get(id) || "Unknown sender",
 
         // The number in the LEAD SCORE column is the ICP score, exactly as Reply Radar shows it.
         leadScore: leadRadar.icp_score == null ? null : num(leadRadar.icp_score),
