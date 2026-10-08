@@ -110,7 +110,8 @@ export async function GET(request: Request) {
         linkedinId: row.linkedin_id ? str(row.linkedin_id) : null,
         profileUrl: row.linkedin_profile_url ? str(row.linkedin_profile_url) : null,
         photoUrl: enrichment.profilePhotoSource ? str(enrichment.profilePhotoSource) : null,
-        email: str(raw.email_address ?? raw.custom_email ?? raw.enriched_email) || null,
+        // Email Bison and lemlist leads keep their address on raw_data.email / reply_radar.email.
+        email: str(raw.email_address ?? raw.custom_email ?? raw.enriched_email ?? raw.email ?? (raw.reply_radar as Record<string, unknown> | undefined)?.email) || null,
         location: enrichment.location ? str(enrichment.location) : null,
         headline: enrichment.headline ? str(enrichment.headline) : null,
         industry: enrichment.industry ? str(enrichment.industry) : null,

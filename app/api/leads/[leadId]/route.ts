@@ -136,7 +136,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ lead
         createdAt: str(row.created_at),
 
         // Contact and profile.
-        email: text(raw.email_address) || text(raw.custom_email) || text(raw.enriched_email) || null,
+        // Email Bison and lemlist leads keep their address on raw_data.email / reply_radar.email.
+        email: text(raw.email_address) || text(raw.custom_email) || text(raw.enriched_email) || text(raw.email) || text((raw.reply_radar as Record<string, unknown> | undefined)?.email) || null,
         location: locationLabel(ai.location ?? raw.location),
         headline: text(ai.headline) || null,
         industry: text(ai.industry) || null,

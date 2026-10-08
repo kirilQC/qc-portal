@@ -94,7 +94,7 @@ async function build(session: Session, workspaceId: string) {
     scopedRows(
       session,
       "rr_sync_runs",
-      { select: "status,started_at,finished_at,error_text,run_type", order: "started_at.desc", limit: "6" },
+      { select: "status,started_at,finished_at,error_text,run_type", run_type: "eq.analytics", order: "started_at.desc", limit: "6" },
       workspaceId,
     ),
   ]);

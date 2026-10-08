@@ -152,7 +152,7 @@ export async function listClientOps(session: Session): Promise<ClientOps[]> {
   const [workspaces, runs, webhooks, campaigns, conversations] = await Promise.all([
     scopedRows(session, "rr_workspaces", {
       select:
-        "id,name,slug,logo_url,accent_color,timezone,website_url,brain_folder,airtable_base_id,crm_provider,crm_last_synced_at,slack_internal_channel_id,slack_external_channel_id,morning_brief_enabled,call_analysis_enabled,eow_report_enabled,onboarding_status,heyreach_api_key_ciphertext,last_webhook_received_at,last_successful_poll_at,last_reconciled_at",
+        "id,name,slug,logo_url,accent_color,timezone,website_url,brain_folder,airtable_base_id,crm_provider,crm_last_synced_at,slack_internal_channel_id,slack_external_channel_id,morning_brief_enabled,call_analysis_enabled,eow_report_enabled,onboarding_status,heyreach_api_key_ciphertext,lemlist_api_key,emailbison_workspace_id,last_webhook_received_at,last_successful_poll_at,last_reconciled_at",
       order: "name.asc",
     }),
     scopedRows(session, "rr_sync_runs", {
@@ -196,7 +196,8 @@ export async function listClientOps(session: Session): Promise<ClientOps[]> {
 
     // Reply Radar's rule, reproduced exactly: a missing key is a different problem from a stale clock,
     // and it is checked first because there is no point reporting silence on a client never plumbed in.
-    const heyreachConnected = Boolean(str(row.heyreach_api_key_ciphertext));
+    // Any outreach account counts (HeyReach, lemlist or Email Bison): a lemlist-only client is connected.
+    const heyreachConnected = Boolean(str(row.heyreach_api_key_ciphertext) || str(row.lemlist_api_key) || str(row.emailbison_workspace_id));
     const webhookHealthy = fresherThan(lastWebhookAt, WEBHOOK_FRESH_SECONDS);
     const pollHealthy = fresherThan(lastPollAt, POLL_FRESH_SECONDS);
     const health: Health = !heyreachConnected

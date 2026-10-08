@@ -133,7 +133,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
     scopedRows(
       session,
       "rr_conversations",
-      { select: "id,lead_id,last_message_at,last_message_direction", order: "last_message_at.desc", limit: "600" },
+      { select: "id,lead_id,last_message_at,last_message_direction,channel,heyreach_conversation_id", order: "last_message_at.desc", limit: "600" },
       workspaceId,
     ),
     scopedRows(
@@ -237,6 +237,10 @@ async function build(session: Session, workspaceId: string, range: string, custo
     return [...byConversation.values()];
   };
   const replies30 = latestReplyPerConversation(windowStart, windowEnd);
+  // Rates against LinkedIn sends (connection requests) count LinkedIn replies only: an email reply was never
+  // "reached" by a connection request, and counting it pushed the reply rate past what was sent.
+  const emailConversations = new Set(allConversations.filter((row) => str(row.channel) === "email" || str(row.heyreach_conversation_id).startsWith("bison:")).map((row) => str(row.id)));
+  const linkedinReplies30 = replies30.filter((row) => !emailConversations.has(str(row.conversation_id))).length;
   const repliesPrev = latestReplyPerConversation(previousStart, windowStart).length;
   const scored30 = replies30.filter((row) => ["positive", "neutral", "negative"].includes(str(row.sentiment).toLowerCase()));
   const positive30 = scored30.filter((row) => str(row.sentiment).toLowerCase() === "positive").length;
@@ -465,7 +469,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
     : [
         { key: "reached", label: "Reached", value: reached30, tone: "f1", rate: null as number | null, of: null as string | null },
         { key: "accepted", label: "Accepted", value: accepted30, tone: "f2", rate: Math.min(100, rate(accepted30, reached30)), of: "of reached" },
-        { key: "replied", label: "Replied", value: replies30.length, tone: "f3", rate: Math.min(100, rate(replies30.length, reached30)), of: "of reached" },
+        { key: "replied", label: "Replied", value: replies30.length, tone: "f3", rate: Math.min(100, rate(linkedinReplies30, reached30)), of: "of reached" },
         { key: "warm", label: "Replied positively", value: positive30, tone: "f4", rate: rate(positive30, scored30.length), of: `of ${scored30.length} read closely` },
       ];
 
@@ -720,7 +724,7 @@ async function build(session: Session, workspaceId: string, range: string, custo
       // ago, so that ratio drifts past 100% (107 replies over 104 accepts = 103%, which is nonsense).
       // Measuring both against "reached" keeps them comparable and always ≤ 100%.
       acceptanceRate: Math.min(100, rate(accepted30, reached30)),
-      replyRate: Math.min(100, rate(replies30.length, reached30)),
+      replyRate: Math.min(100, rate(linkedinReplies30, reached30)),
       // The previous window, so the briefing can say whether this one was better.
       previousReached: reachedPrev,
       previousReplies: repliesPrev,
