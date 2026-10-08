@@ -22,6 +22,7 @@
  * downloading `raw_data` whole — selecting the entire HeyReach payload to read one string out of it is
  * how Reply Radar's own analytics route once came to move megabytes to count sentiments.
  */
+import { isOurCampaign } from "../../../shared/campaign-code.mjs";
 import { NextResponse } from "next/server";
 import { resolveScope } from "../../lib/auth-context";
 import { num, scopedByConversation, scopedRows, str, type Row } from "../../lib/db";
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
 }
 
 async function build(session: Session, workspaceId: string) {
-  const [workspaceRows, campaignRows, dailyRows, conversations, runs] = await Promise.all([
+  const [workspaceRows, campaignRows, dailyRows, conversations, runs, emailCampaignRows, emailDayRows] = await Promise.all([
     scopedRows(session, "rr_workspaces", { select: "id,name,slug,logo_url,accent_color", limit: "1" }, workspaceId),
     scopedRows(
       session,
@@ -97,6 +98,9 @@ async function build(session: Session, workspaceId: string) {
       { select: "status,started_at,finished_at,error_text,run_type", run_type: "eq.analytics", order: "started_at.desc", limit: "6" },
       workspaceId,
     ),
+    // Email campaigns (Email Bison and lemlist email), as QC Command's analytics shows them. Never fails the page.
+    scopedRows(session, "rr_email_campaign_stats", { select: "campaign_id,name,status,total_leads,leads_contacted,emails_sent,unique_replies,interested,bounced", order: "emails_sent.desc", limit: "200" }, workspaceId).catch(() => [] as Row[]),
+    scopedRows(session, "rr_email_daily_stats", { select: "day,sent,replies", day: `gte.${new Date(Date.now() - 13 * 86_400_000).toISOString().slice(0, 10)}`, order: "day.asc", limit: "30" }, workspaceId).catch(() => [] as Row[]),
   ]);
 
   const workspace = workspaceRows[0];
@@ -253,7 +257,29 @@ async function build(session: Session, workspaceId: string) {
   const pending = analyticsRuns.find((row) => ["queued", "running"].includes(str(row.status).toLowerCase()));
   const settled = analyticsRuns.find((row) => !["queued", "running"].includes(str(row.status).toLowerCase()));
 
+  // Email: our campaigns only (the same QC code rule as LinkedIn), totals and the last 14 days.
+  const emailCampaigns = emailCampaignRows.filter((row) => isOurCampaign(str(row.name))).map((row) => ({
+    name: str(row.name),
+    status: str(row.status),
+    leads: num(row.total_leads),
+    contacted: num(row.leads_contacted),
+    sent: num(row.emails_sent),
+    replies: num(row.unique_replies),
+    interested: num(row.interested),
+    bounced: num(row.bounced),
+  }));
+  const emailTotal = (key: "contacted" | "sent" | "replies" | "interested" | "bounced") => emailCampaigns.reduce((sum, row) => sum + row[key], 0);
+  const email = emailCampaigns.length
+    ? {
+        campaigns: emailCampaigns,
+        totals: { contacted: emailTotal("contacted"), sent: emailTotal("sent"), replies: emailTotal("replies"), interested: emailTotal("interested"), bounced: emailTotal("bounced") },
+        sent14: emailDayRows.reduce((sum, row) => sum + num(row.sent), 0),
+        replies14: emailDayRows.reduce((sum, row) => sum + num(row.replies), 0),
+      }
+    : null;
+
   return {
+    email,
     workspace: {
       id: str(workspace.id),
       name: str(workspace.name),

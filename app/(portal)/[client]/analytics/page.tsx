@@ -37,6 +37,14 @@ type Payload = {
   campaigns?: Campaign[]; daily?: DailyPoint[]; senders?: SenderSeries[]; senderCap?: number;
   repliesSynced?: number; replies7d?: number; conversations?: number; collectedAt?: string | null;
   sync?: { state: string; lastStatus: string | null; lastFinishedAt: string | null; lastError: string | null };
+  email?: EmailFigures | null;
+};
+
+type EmailFigures = {
+  campaigns: Array<{ name: string; status: string; leads: number; contacted: number; sent: number; replies: number; interested: number; bounced: number }>;
+  totals: { contacted: number; sent: number; replies: number; interested: number; bounced: number };
+  sent14: number;
+  replies14: number;
 };
 
 const sum = <T,>(rows: T[], of: (row: T) => number) => rows.reduce((total, row) => total + of(row), 0);
@@ -261,6 +269,8 @@ function Analytics() {
         <Kpi label="Requests last 14 days" value={view.windowSent.toLocaleString()} sub={`${Math.round(view.windowSent / Math.max(view.daily.length, 1)).toLocaleString()} a day`} />
       </section>
 
+      {data?.email && <EmailCard email={data.email} />}
+
       <section className="analytics-primary">
         <article className="analytics-card analytics-trend">
           <CardTitle title="Connection requests sent" subtitle={`Every sender, day by day · ${view.windowSent.toLocaleString()} in the last ${view.daily.length || 14} days`} />
@@ -406,6 +416,37 @@ function Analytics() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Email campaigns (Email Bison and lemlist email): totals, then one row per campaign. */
+function EmailCard({ email }: { email: EmailFigures }) {
+  const pct = (part: number, whole: number) => (whole ? `${((part / whole) * 100).toFixed(1)}%` : "–");
+  return (
+    <section className="analytics-primary">
+      <article className="analytics-card">
+        <CardTitle title="Email" subtitle={`${email.campaigns.length} campaign${email.campaigns.length === 1 ? "" : "s"} · ${email.sent14.toLocaleString()} emails sent in the last 14 days`} />
+        <section className="analytics-kpis analytics-kpis-secondary">
+          <Kpi label="Emails sent" value={email.totals.sent.toLocaleString()} sub={`${email.totals.contacted.toLocaleString()} leads contacted`} />
+          <Kpi label="Replies" value={email.totals.replies.toLocaleString()} sub={`${pct(email.totals.replies, email.totals.contacted)} of leads contacted`} />
+          <Kpi label="Interested" value={email.totals.interested.toLocaleString()} sub={`${pct(email.totals.interested, email.totals.replies)} of replies`} />
+          <Kpi label="Bounced" value={email.totals.bounced.toLocaleString()} sub={`${pct(email.totals.bounced, email.totals.sent)} of emails sent`} />
+        </section>
+        <div className="email-campaigns">
+          <div className="email-campaign-row email-campaign-head"><span>Campaign</span><span>Sent</span><span>Contacted</span><span>Replies</span><span>Reply rate</span><span>Interested</span></div>
+          {email.campaigns.map((campaign) => (
+            <div key={campaign.name} className="email-campaign-row">
+              <span title={campaign.status}>{campaign.name}</span>
+              <span>{campaign.sent.toLocaleString()}</span>
+              <span>{campaign.contacted.toLocaleString()}</span>
+              <span>{campaign.replies.toLocaleString()}</span>
+              <span>{pct(campaign.replies, campaign.contacted)}</span>
+              <span>{campaign.interested.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </article>
+    </section>
   );
 }
 

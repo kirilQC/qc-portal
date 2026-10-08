@@ -20,6 +20,8 @@ const CLIENT_READABLE = {
   rr_workspaces: "id",
   rr_campaign_stats: "workspace_id",
   rr_daily_stats: "workspace_id",
+  rr_email_campaign_stats: "workspace_id",
+  rr_email_daily_stats: "workspace_id",
   rr_conversations: "workspace_id",
   rr_leads: "workspace_id",
   rr_lead_index: "workspace_id",
@@ -72,7 +74,7 @@ const bluevia = { userId: "u2", role: "client", workspaceId: "ws-bluevia" };
 const staff = { userId: "u3", role: "staff", workspaceId: null };
 
 test("a client read is always confined to that client's workspace", () => {
-  for (const table of ["rr_meetings", "rr_deals", "rr_leads", "rr_campaign_stats", "rr_daily_stats", "rr_conversations"]) {
+  for (const table of ["rr_meetings", "rr_deals", "rr_leads", "rr_campaign_stats", "rr_daily_stats", "rr_email_campaign_stats", "rr_email_daily_stats", "rr_conversations"]) {
     const query = scopeFor(willow, table, { select: "*" });
     assert.ok(query.includes("workspace_id=eq.ws-willow"), `${table} was not scoped`);
   }

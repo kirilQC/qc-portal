@@ -41,6 +41,9 @@ const CLIENT_READABLE: Record<string, string> = {
   rr_workspaces: "id",
   rr_campaign_stats: "workspace_id",
   rr_daily_stats: "workspace_id",
+  // Email campaign figures (Email Bison, and lemlist email with `lemlist:` ids), per client.
+  rr_email_campaign_stats: "workspace_id",
+  rr_email_daily_stats: "workspace_id",
   rr_conversations: "workspace_id",
   rr_leads: "workspace_id",
   rr_lead_index: "workspace_id",

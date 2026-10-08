@@ -297,3 +297,10 @@
 }
 .analytics-bars > div.is-unsynced i { background: transparent; border: 1px dashed var(--border); }
 .analytics-bars > div.is-unsynced strong { color: var(--muted-2); }
+
+/* Email campaigns card: one row per campaign, numbers right-aligned, scrolls sideways on a phone. */
+.email-campaigns { display: grid; gap: 2px; margin-top: 14px; overflow-x: auto; }
+.email-campaign-row { display: grid; grid-template-columns: minmax(180px, 2.4fr) repeat(5, minmax(70px, 1fr)); gap: 10px; padding: 8px 4px; border-top: 1px solid var(--line, rgba(255,255,255,.08)); font-size: 13px; font-variant-numeric: tabular-nums; }
+.email-campaign-row > span:not(:first-child) { text-align: right; }
+.email-campaign-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.email-campaign-head { border-top: 0; color: var(--muted, #8a8f98); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
