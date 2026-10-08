@@ -209,6 +209,8 @@ async function buildInbox(session: Session, workspaceId: string, qcIds: Set<stri
         headline: enrichment.headline ? str(enrichment.headline) : null,
         industry: enrichment.industry ? str(enrichment.industry) : null,
         enriched: Object.keys(enrichment).length > 0,
+        // Email threads (Email Bison) are keyed `bison:<lead id>`; everything else came through HeyReach.
+        channel: str(row.heyreach_conversation_id).startsWith("bison:") ? "email" : "linkedin",
 
         campaignName:
           asList(rollup.campaign_names)[0] ||

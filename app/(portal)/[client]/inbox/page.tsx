@@ -28,7 +28,7 @@ type Lead = {
   id: string; leadId: string; initials: string; name: string; role: string; company: string;
   profileUrl: string | null; photoUrl: string | null; companyPhotoUrl: string | null;
   headline: string | null; industry: string | null; enriched: boolean;
-  campaignName: string | null; senderName: string;
+  campaignName: string | null; senderName: string; channel?: "linkedin" | "email";
   leadScore: number | null; icpReason: string | null;
   score: number; tier: "hot" | "warm" | "nurture"; reason: string;
   sentiment: string | null; cachedDraft: string | null; cachedReason: string | null;
@@ -122,6 +122,7 @@ function Inbox() {
   const [campaignFilter, setCampaignFilter] = useState("");
   const [senderFilter, setSenderFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sort, setSort] = useState<Sort>("recent");
@@ -333,6 +334,7 @@ function Inbox() {
         if (campaignFilter && lead.campaignName !== campaignFilter) return false;
         if (senderFilter && lead.senderName !== senderFilter) return false;
         if (sentimentFilter && lead.sentiment !== sentimentFilter) return false;
+        if (channelFilter && (lead.channel || "linkedin") !== channelFilter) return false;
         if (tierFilter && lead.tier !== tierFilter) return false;
         if (starredOnly && !stars.includes(lead.leadId)) return false;
         if (tagFilter && !(assignments[lead.id] ?? []).includes(tagFilter)) return false;
@@ -352,7 +354,7 @@ function Inbox() {
         if (sort === "name") return a.name.localeCompare(b.name);
         return Date.parse(b.latestReplyAt || b.lastMessageAt) - Date.parse(a.latestReplyAt || a.lastMessageAt);
       });
-  }, [leads, search, filter, campaignFilter, senderFilter, sentimentFilter, tierFilter, starredOnly, stars, sort, tagFilter, assignments, customRange, timeZone]);
+  }, [leads, search, filter, campaignFilter, senderFilter, sentimentFilter, channelFilter, tierFilter, starredOnly, stars, sort, tagFilter, assignments, customRange, timeZone]);
 
   const current = filtered.find((lead) => lead.id === selectedId) ?? filtered[0] ?? null;
 
@@ -428,7 +430,7 @@ function Inbox() {
   // against the overview's 688, and both were wrong).
   // The server's uncapped total stands only while nothing narrows the queue; once a search or a filter is
   // on, every tile counts what is in view, so "Replies" never reads 90 beside "Positive replies" 1.
-  const narrowed = Boolean(search.trim() || campaignFilter || senderFilter || sentimentFilter || tierFilter || tagFilter || starredOnly);
+  const narrowed = Boolean(search.trim() || campaignFilter || senderFilter || sentimentFilter || channelFilter || tierFilter || tagFilter || starredOnly);
   const isAllReplies = filter === "all" && !narrowed;
   const repliesValue = isAllReplies ? conversationTotal : filtered.length;
   const needsReply = filtered.filter((lead) => lead.messages.at(-1)?.direction === "inbound").length;
@@ -507,7 +509,7 @@ function Inbox() {
           />
           <div className="filter-wrap" ref={filterBox}>
             <button className="filter-button" onClick={() => { setFiltersOpen((open) => !open); setSubmenu(null); }}>
-              Filters{campaignFilter || senderFilter || sentimentFilter || tierFilter || tagFilter || starredOnly ? " ●" : ""}
+              Filters{campaignFilter || senderFilter || sentimentFilter || channelFilter || tierFilter || tagFilter || starredOnly ? " ●" : ""}
             </button>
             {filtersOpen && (
               <div className="filter-dropdown" onMouseLeave={() => setSubmenu(null)}>
@@ -522,6 +524,7 @@ function Inbox() {
                 <FilterRow label="Campaign" value={campaignFilter} onOpen={() => setSubmenu("campaign")} />
                 <FilterRow label="Sender" value={senderFilter} onOpen={() => setSubmenu("sender")} />
                 <FilterRow label="Sentiment" value={sentimentFilter} onOpen={() => setSubmenu("sentiment")} />
+                <FilterRow label="Channel" value={CHANNEL_LABELS[channelFilter] ?? ""} onOpen={() => setSubmenu("channel")} />
                 <FilterRow label="Tier" value={tierFilter} onOpen={() => setSubmenu("tier")} />
                 <FilterRow label="Tag" value={tagById.get(tagFilter)?.name ?? ""} onOpen={() => setSubmenu("tag")} />
                 <FilterRow label="Sort" value={sort === "recent" ? "" : (SORTS.find(([key]) => key === sort)?.[1] ?? "")} onOpen={() => setSubmenu("sort")} />
@@ -530,7 +533,7 @@ function Inbox() {
                 <button
                   className="uf-item uf-clear"
                   onClick={() => {
-                    setCampaignFilter(""); setSenderFilter(""); setSentimentFilter("");
+                    setCampaignFilter(""); setSenderFilter(""); setSentimentFilter(""); setChannelFilter("");
                     setTierFilter(""); setTagFilter(""); setStarredOnly(false); setSort("recent");
                     setSubmenu(null); setFiltersOpen(false);
                   }}
@@ -541,6 +544,15 @@ function Inbox() {
                 {submenu === "campaign" && <Submenu current={campaignFilter} values={options((l) => l.campaignName)} onPick={setCampaignFilter} allLabel="All campaigns" />}
                 {submenu === "sender" && <Submenu current={senderFilter} values={options((l) => l.senderName)} onPick={setSenderFilter} allLabel="All senders" />}
                 {submenu === "sentiment" && <Submenu current={sentimentFilter} values={["positive", "neutral", "negative"]} onPick={setSentimentFilter} allLabel="Any sentiment" />}
+                {submenu === "channel" && (
+                  <div className="uf-sub">
+                    {([["", "All channels"], ["linkedin", "LinkedIn"], ["email", "Email"]] as const).map(([key, label]) => (
+                      <button key={key || "all"} className={`uf-sub-item ${channelFilter === key ? "uf-active" : ""}`} onClick={() => setChannelFilter(key)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {submenu === "tier" && <Submenu current={tierFilter} values={TIERS} onPick={setTierFilter} allLabel="Any tier" />}
                 {submenu === "tag" && (
                   <div className="uf-sub">
@@ -605,6 +617,7 @@ function Inbox() {
                       <div className="lead-words">
                         <strong className="lead-name">
                           <span className="lead-name-text">{lead.name}</span>
+                          {lead.channel === "email" && <EmailBadge />}
                           {lead.messages.at(-1)?.direction === "outbound" && (
                             <span className="responded-check" title="Already replied">✓</span>
                           )}
@@ -672,6 +685,7 @@ function Inbox() {
                   <div className="detail-words">
                     <h3>
                       {current.name}
+                      {current.channel === "email" && <EmailBadge detail />}
                       {current.messages.at(-1)?.direction === "outbound" && (
                         <span className="responded-check" title="Already replied">✓</span>
                       )}
@@ -849,6 +863,21 @@ function FilterRow({ label, value, onOpen }: { label: string; value: string; onO
       <span>{label}{value ? ` · ${value.slice(0, 18)}` : ""}</span>
       <b>›</b>
     </button>
+  );
+}
+
+const CHANNEL_LABELS: Record<string, string> = { linkedin: "LinkedIn", email: "Email" };
+
+/** The blue envelope beside a name when the conversation came in by email rather than LinkedIn. */
+function EmailBadge({ detail = false }: { detail?: boolean }) {
+  const size = detail ? 13 : 11;
+  return (
+    <span className={`channel-email-icon${detail ? " detail-channel-email-icon" : ""}`} title="Email reply" aria-label="Email">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m3 7 9 6 9-6" />
+      </svg>
+    </span>
   );
 }
 
