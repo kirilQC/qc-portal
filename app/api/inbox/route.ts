@@ -70,7 +70,7 @@ async function buildInbox(session: Session, workspaceId: string, qcIds: Set<stri
     session,
     "rr_conversations",
     {
-      select: "id,lead_id,heyreach_conversation_id,score,tier,score_reason,last_message_at,last_message_direction,last_refreshed_at",
+      select: "id,lead_id,heyreach_conversation_id,channel,score,tier,score_reason,last_message_at,last_message_direction,last_refreshed_at",
       order: "last_message_at.desc",
       // Read wider than the page and cut to QC's conversations straight away, before any lead or message
       // is fetched: a client's own campaigns would otherwise use up LIMIT and push QC's out of the inbox.
@@ -209,8 +209,8 @@ async function buildInbox(session: Session, workspaceId: string, qcIds: Set<stri
         headline: enrichment.headline ? str(enrichment.headline) : null,
         industry: enrichment.industry ? str(enrichment.industry) : null,
         enriched: Object.keys(enrichment).length > 0,
-        // Email threads (Email Bison) are keyed `bison:<lead id>`; everything else came through HeyReach.
-        channel: str(row.heyreach_conversation_id).startsWith("bison:") ? "email" : "linkedin",
+        // QC Command stores the channel (email from Email Bison or lemlist, LinkedIn from HeyReach or lemlist).
+        channel: str(row.channel) === "email" || str(row.heyreach_conversation_id).startsWith("bison:") ? "email" : "linkedin",
 
         campaignName:
           asList(rollup.campaign_names)[0] ||
