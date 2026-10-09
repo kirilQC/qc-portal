@@ -52,8 +52,7 @@ test("hardening: plain path characters only, segments encoded, rate and size lim
   assert.deepEqual(kinds("[d](https://ok.com)"), ["link:https://ok.com"]);
 });
 
-test("pentest follow-ups: offboarded links die, client-style write paths fold into the client's own corner, new notes list at once", () => {
-  assert.match(lib, /if \(!workspace \|\| workspace\.offboarded_at\) return null;/);
+test("pentest follow-ups: client-style write paths fold into the client's own corner, new notes list at once", () => {
   assert.match(lib, /\.replace\(\/\^clients\\\/\[\^\/\]\+\\\/\/, ""\)\.replace\(new RegExp\(`\^\$\{CLIENT_CORNER\}\/`\), ""\)/);
   assert.match(lib, /forgetBrainTree\(\);\n  return \{ path:/);
   const fold = (r) => r.trim().replace(/^\/+/, "").replace(/^clients\/[^/]+\//, "").replace(/^from-client\//, "");

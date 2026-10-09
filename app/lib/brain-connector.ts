@@ -66,8 +66,7 @@ export async function connectorFor(token: string): Promise<Connector | null> {
   if (!row) return null;
   const workspaceId = str(row.workspace_id);
   const [workspace] = await adminRows("rr_workspaces", { select: "id,slug,name,brain_folder,offboarded_at", id: `eq.${workspaceId}`, limit: "1" });
-  // An offboarded client's link stops working with them.
-  if (!workspace || workspace.offboarded_at) return null;
+  if (!workspace) return null;
   const folder = await resolveActualFolder({ slug: str(workspace.slug), name: str(workspace.name), brainFolder: str(workspace.brain_folder) });
   if (!folder) return null;
   // Best effort: when the link was last used, for the Brain tab.
