@@ -185,6 +185,11 @@ export type BrainFile = { path: string; name: string; sha: string; size: number 
 let treeCache: { expires: number; rows: BrainFile[] } | null = null;
 const TREE_CACHE_MS = 5 * 60_000;
 
+/** Forget the cached tree, after a write, so the new file shows on the next listing. */
+export function forgetBrainTree(): void {
+  treeCache = null;
+}
+
 async function fullTree(): Promise<BrainFile[]> {
   if (treeCache && treeCache.expires > Date.now()) return treeCache.rows;
   const response = await fetch(`${API}/repos/${REPO}/git/trees/HEAD?recursive=1`, {

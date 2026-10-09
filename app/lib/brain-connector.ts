@@ -22,7 +22,7 @@
  */
 import { createHash, randomBytes } from "node:crypto";
 import { adminRows, adminWrite, str } from "./db";
-import { brainTree, readClientDoc, resolveActualFolder } from "./brain";
+import { brainTree, forgetBrainTree, readClientDoc, resolveActualFolder } from "./brain";
 
 const REPO = "jsbiv18/qc-growth-os";
 const API = "https://api.github.com";
@@ -66,7 +66,8 @@ export async function connectorFor(token: string): Promise<Connector | null> {
   if (!row) return null;
   const workspaceId = str(row.workspace_id);
   const [workspace] = await adminRows("rr_workspaces", { select: "id,slug,name,brain_folder,offboarded_at", id: `eq.${workspaceId}`, limit: "1" });
-  if (!workspace) return null;
+  // An offboarded client's link stops working with them.
+  if (!workspace || workspace.offboarded_at) return null;
   const folder = await resolveActualFolder({ slug: str(workspace.slug), name: str(workspace.name), brainFolder: str(workspace.brain_folder) });
   if (!folder) return null;
   // Best effort: when the link was last used, for the Brain tab.
@@ -152,7 +153,9 @@ export async function searchFolder(folder: string, query: string): Promise<Array
  * only. Nothing outside that subfolder can be written, whatever path is given.
  */
 export async function writeClientNote(connector: Connector, relative: string, content: string): Promise<{ path: string; created: boolean }> {
-  let name = relative.trim().replace(/^\/+/, "").replace(new RegExp(`^${CLIENT_CORNER}/`), "");
+  // Paths the way reads take them ("clients/<any>/from-client/x.md") come down to the note's own name,
+  // so a client-style path can never make a folder that looks like another client's inside this one.
+  let name = relative.trim().replace(/^\/+/, "").replace(/^clients\/[^/]+\//, "").replace(new RegExp(`^${CLIENT_CORNER}/`), "");
   if (!name || name.length > 200 || name.includes("..") || !SAFE_PATH.test(name) || name.split("/").some((part) => !part.trim() || part.startsWith("."))) throw new Error("Give the note a simple name, like meeting-notes.md.");
   if (!/\.(md|markdown|txt)$/i.test(name)) name = `${name}.md`;
   if (content.length > MAX_NOTE) throw new Error("That note is too long (200,000 characters at most).");
@@ -174,5 +177,6 @@ export async function writeClientNote(connector: Connector, relative: string, co
   });
   if (response.status === 403 || response.status === 404) throw new Error("QC's brain isn't open for client writes yet. Ask QC Growth to enable it.");
   if (!response.ok) throw new Error(`The note couldn't be saved (${response.status}).`);
+  forgetBrainTree();
   return { path: `${CLIENT_CORNER}/${name}`, created: !sha };
 }

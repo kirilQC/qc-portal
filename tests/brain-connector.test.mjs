@@ -51,3 +51,13 @@ test("hardening: plain path characters only, segments encoded, rate and size lim
   assert.ok(!kinds("[f](//evil.com)").some((k) => k.startsWith("link")));
   assert.deepEqual(kinds("[d](https://ok.com)"), ["link:https://ok.com"]);
 });
+
+test("pentest follow-ups: offboarded links die, client-style write paths fold into the client's own corner, new notes list at once", () => {
+  assert.match(lib, /if \(!workspace \|\| workspace\.offboarded_at\) return null;/);
+  assert.match(lib, /\.replace\(\/\^clients\\\/\[\^\/\]\+\\\/\/, ""\)\.replace\(new RegExp\(`\^\$\{CLIENT_CORNER\}\/`\), ""\)/);
+  assert.match(lib, /forgetBrainTree\(\);\n  return \{ path:/);
+  const fold = (r) => r.trim().replace(/^\/+/, "").replace(/^clients\/[^/]+\//, "").replace(/^from-client\//, "");
+  assert.equal(fold("clients/hyperpath/pwned.md"), "pwned.md");
+  assert.equal(fold("/clients/bluevia-health/from-client/notes.md"), "notes.md");
+  assert.equal(fold("clients/x/../y.md").includes(".."), true); // still refused by the ".." check
+});
