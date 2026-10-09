@@ -5,7 +5,11 @@ Clients sign in to see QC's work for them. QC Command (repo `kirilQC/reply-radar
 internal tool and the data source. Both use one Supabase database.
 
 **Next.js 16 App Router, React 19, TypeScript, on Vercel · raw `fetch` to Supabase PostgREST with the
-service key · no SDKs, no auth or chart libraries · live at https://qc-portal-mu.vercel.app**
+service key · no SDKs, no auth or chart libraries · live at https://www.qcgrowth.dev (also
+qc-portal-mu.vercel.app)**
+
+**Picking up cold?** The newest work is at the top of [`docs/changelog.md`](docs/changelog.md). Open items
+are listed there under "Open".
 
 | Read | For |
 |---|---|
@@ -42,7 +46,7 @@ service key · no SDKs, no auth or chart libraries · live at https://qc-portal-
 ```bash
 npm run typecheck        # clean
 npm run lint             # 0 errors (warnings ~18, baseline: <img>, exhaustive-deps)
-npm test                 # all passing (116 at last count)
+npm test                 # all passing (123 at last count, 2026-10-09)
 npm run watermark:check  # `npm run watermark` adds the header to new files
 npm run build
 ```
@@ -67,6 +71,12 @@ Claude-Session: <session url>
   `ai_ark` enrichment, or the person's email fields.
 - **QC Brain** is the GitHub repo `jsbiv18/qc-growth-os`, folder `clients/<folder>/`. The folder is resolved
   per workspace (`brain_folder`, else slug or name, else a guarded loose match).
+- **The Claude connector** (`/api/mcp/brain/<token>`) is the one route with no session: middleware opens exactly
+  one path segment, and the folder comes from the token only, never from the request. Writes go only to
+  `clients/<folder>/from-client/`. Links are derived from `SESSION_SECRET`, so rotating it changes every
+  client's link. See `docs/security.md`.
+- **Don't block offboarded workspaces in the connector.** Bluevia has `offboarded_at` set but is an active
+  portal client; a check on it broke its link. Access follows the portal's rules.
 - **Vercel deploys sometimes don't trigger.** Push an empty commit.
 - **The automation browser tab counts as hidden**, so animations, rAF and the starfield pause there. Verify
   motion by state or a single drawn frame, not by watching.

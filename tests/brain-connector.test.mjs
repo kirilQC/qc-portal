@@ -54,7 +54,7 @@ test("hardening: plain path characters only, segments encoded, rate and size lim
 
 test("pentest follow-ups: client-style write paths fold into the client's own corner, new notes list at once", () => {
   assert.match(lib, /\.replace\(\/\^clients\\\/\[\^\/\]\+\\\/\/, ""\)\.replace\(new RegExp\(`\^\$\{CLIENT_CORNER\}\/`\), ""\)/);
-  assert.match(lib, /forgetBrainTree\(\);\n  return \{ path:/);
+  assert.match(lib, /forgetBrainTree\(\);\n {2}return \{ path:/);
   const fold = (r) => r.trim().replace(/^\/+/, "").replace(/^clients\/[^/]+\//, "").replace(/^from-client\//, "");
   assert.equal(fold("clients/hyperpath/pwned.md"), "pwned.md");
   assert.equal(fold("/clients/bluevia-health/from-client/notes.md"), "notes.md");

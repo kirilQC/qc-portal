@@ -45,6 +45,29 @@ claims that folder more directly.
 
 `/api/health` is public and returns only `{ ok, ready, database }`. Staff get the full diagnosis.
 
+## The Claude connector (`/api/mcp/brain/<token>`)
+
+A client's own Claude reads their brain through this route, so it has **no session**. What keeps it to one
+client:
+
+- **The link is the key.** `qcb_` + an HMAC of the workspace id and when the link was made, keyed by
+  `SESSION_SECRET`. Only its SHA-256 hash is stored (`rr_brain_connectors`). Reset makes a new one and the
+  old one stops working. A malformed or unknown token is 401 before anything else runs.
+- **Middleware opens exactly one segment** (`/^\/api\/mcp\/brain\/[^/]+$/`); nothing below it is open.
+- **The folder comes from the token**, never from the request. Every read path goes through `inFolder`
+  (a leading `clients/<x>/` is stripped, so naming another client's folder looks inside the caller's own;
+  `..`, empty segments and anything outside plain file-name characters are refused; segments are encoded one
+  by one) and then `assertClientPath`.
+- **Writes** go only to `clients/<folder>/from-client/<name>`: `.md`/`.txt`, no hidden files, at most 200,000
+  characters, committed as "QC Portal (client)". QC's own documents can't be changed.
+- Limits: 1 MB request, 20 messages per batch, 600 calls and 60 writes per hour per link per instance.
+- QC Command treats `from-client/` text as untrusted client input for its assistants.
+
+**Pentest, 2026-10-09 (Bluevia's live link):** 28 traversal and encoding payloads against a real Hyperpath
+file, search for 8 other client names, 22 write-escape names, tampered tokens, oversize bodies and batches,
+30 parallel calls. No cross-client read or write; every write landed in `clients/bluevia-health/from-client/`
+(test notes deleted afterwards). Covered by `tests/brain-connector.test.mjs`.
+
 ## Tests
 
 `tests/isolation.test.mjs` states each attack and asserts it fails:

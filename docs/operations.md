@@ -2,7 +2,8 @@
 
 ## Deploy
 
-- `main` deploys to Vercel (project `qc-portal`, URL `qc-portal-mu.vercel.app`). A push is a release.
+- `main` deploys to Vercel (project `qc-portal`; production domain `www.qcgrowth.dev`, also
+  `qc-portal-mu.vercel.app`). A push is a release.
 - After pushing, wait for the GitHub commit status to read `success`
   (`gh api repos/kirilQC/qc-portal/commits/<sha>/status --jq .state`), then confirm the live site serves
   the change before calling it done.
@@ -16,7 +17,8 @@
 - `supabase/portal-schema.sql` is the portal's schema, idempotent. Run new statements in the Supabase SQL
   editor. There are no migration files; the schema file is the record.
 - Portal-owned tables: `qc_portal_users`, `qc_portal_messaging_links`, `qc_portal_health_state`,
-  `qc_portal_meeting_overrides`, `qc_portal_tags`, `qc_portal_tag_assignments`.
+  `qc_portal_meeting_overrides`, `qc_portal_tags`, `qc_portal_tag_assignments`, `rr_brain_connectors`
+  (hash of each client's Claude link; admin-only, never client-readable).
 - QC Command tables the portal reads (all scoped):
   - `rr_workspaces`
   - `rr_campaign_stats`
@@ -75,3 +77,5 @@ QC Command's own rules (lint baseline, no dashes in UI strings, `context/` docs)
 - **No QC Brain folder** (Brain, Messaging and Weekly calls are empty): Arcjet, Autoheal, CAMB, Hetz, NOK,
   Sazabi, Topo.
 - **`misc`** is QC's internal workspace and is hidden from the directory.
+- **Bluevia** (folder `bluevia-health`) has `offboarded_at` set in QC Command but is used as an active portal
+  client (the connector pentest ran on it). Clear the flag if it should be active.

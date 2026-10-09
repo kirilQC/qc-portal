@@ -2,6 +2,32 @@
 
 Newest first. The why behind each change, so a later session does not undo it. Commit hashes are in `git log`.
 
+## Oct 8–9, 2026
+
+### Clients connect their own Claude to their brain
+- **Connector** (`/api/mcp/brain/<token>`): a client's Claude (claude.ai, desktop, Claude Code) can list,
+  read and search their QC Brain folder and save notes into `from-client/`. Kiril chose a client-owned corner
+  over read-only or proposals; nothing in the client's folder is internal to QC.
+- **Links are shown to every client automatically** (Kiril: never make them ask). Derived from
+  `SESSION_SECRET` and when the link was made, so nothing but a hash is stored; Reset link reissues.
+- **Brain tab redesign** of the section: tags instead of a paragraph, numbered steps per app, click-to-copy
+  "Try asking" prompts.
+- **Pentest on Bluevia: no cross-client access.** Hardening that came out of it: plain path characters only
+  and each segment encoded, per-link rate limits, request size and batch caps, markdown links limited to web,
+  email and in-app addresses, client-style write paths folded into the client's own corner, new notes listed
+  at once. An offboarded check was tried and reverted (it broke Bluevia, which is marked offboarded).
+
+### Email channels (mirroring QC Command)
+- Inbox email badge and Channel filter; lemlist email shows as email; email-only leads show their address.
+- Analytics Email card (Email Bison and lemlist email campaigns), tenant-scoped; lemlist/Bison clients count
+  as connected; reply rate is LinkedIn replies over LinkedIn sends.
+- Inbox bubbles keep line breaks.
+
+### Open
+- Bluevia's `offboarded_at` flag (see operations).
+- `ANTHROPIC_API_KEY` on the portal for on-demand document layout, if not set.
+- Connector rate limits are per server instance, not global.
+
 ## Oct 6–7, 2026
 
 ### Data accuracy

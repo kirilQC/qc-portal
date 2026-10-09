@@ -6,7 +6,8 @@ the work QC is doing for them: who was reached, who replied, what was booked, wh
 
 One website, every client, and a login that decides which one you are looking at.
 
-- Live: **https://qc-portal-mu.vercel.app** (Vercel project `qc-portal`, deploys from `main`)
+- Live: **https://www.qcgrowth.dev** (production domain; also `qc-portal-mu.vercel.app`). Vercel project
+  `qc-portal`, deploys from `main`.
 - Repo: **github.com/kirilQC/qc-portal**
 - Data: the **same Supabase project** as QC Command. The portal reads QC Command's `rr_*` tables and owns a
   handful of `qc_portal_*` tables of its own.
@@ -41,7 +42,7 @@ The sidebar shows only the tabs that have something in them. Empty tabs are hidd
 | **Analytics** | QC Command's analytics page: eleven figures, daily requests, requests by sender, best and underperforming campaigns. | Always |
 | **Meetings** | Booked meetings, upcoming first. | Always |
 | **Messaging** | The client's campaign messaging sequences from QC Brain, joined to campaign results. "Messaging that performed best" is collapsed by default. | The client's QC Brain has at least one messaging doc |
-| **Brain** | The client's QC Brain folder (brief, ICP, personas, voice, and so on) rendered as readable documents. | Always |
+| **Brain** | The client's QC Brain folder (brief, ICP, personas, voice, and so on) rendered as readable documents, plus **Connect your Claude**: the client's own link to plug their Claude (app or Claude Code) into their brain, with step-by-step setup and click-to-copy example prompts. Their Claude can read and search the folder and save notes into `from-client/`. | Always |
 | **Weekly calls** | Recaps of the weekly calls, newest first, with the transcript folded away. | At least one call recap exists |
 | **Project tracker** | QC Command's project board, read-only, showing only tasks staff marked "Show to client". | At least one visible task |
 
@@ -79,6 +80,8 @@ app/lib/qc-conversations.ts    ★ Which conversations are QC's work (QC-coded c
 shared/campaign-code.mjs       The "is this a QC campaign" rule, copied verbatim from QC Command.
 app/lib/users.ts · password.ts Logins, PBKDF2 hashing, last-active tracking.
 app/lib/brain*.ts              QC Brain (GitHub repo jsbiv18/qc-growth-os) reads, scoped to the client folder.
+app/lib/brain-connector.ts     The client's Claude connector: derived links, folder fence, from-client/ writes.
+app/api/mcp/brain/[token]      The MCP server a client's Claude talks to (open path; the link is the key).
 app/api/**                     One route per screen; every one resolves the scope first.
 app/(portal)/**                The pages. OverviewApp.tsx is the overview; [client]/* are the tabs.
 app/components/**              Shell (sidebar and nav gating), the lead drawer, skeletons, the starfield.
@@ -96,9 +99,10 @@ The full file map and the data flow from HeyReach through QC Command into the po
 
 | Variable | Needed for |
 |---|---|
-| `SESSION_SECRET` | **Required.** Signs sessions. Unset means nobody can sign in (fails shut). Rotating it signs everyone out. `openssl rand -hex 32` |
+| `SESSION_SECRET` | **Required.** Signs sessions and derives every client's Claude connector link. Unset means nobody can sign in (fails shut). **Rotating it signs everyone out and changes every client's Claude link** (each client must re-add theirs). `openssl rand -hex 32` |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | **Required.** The same project QC Command uses. |
-| `BRAIN_GITHUB_TOKEN` | Brain, Messaging and Weekly calls (reads the QC Brain repo). |
+| `BRAIN_GITHUB_TOKEN` | Brain, Messaging and Weekly calls (reads the QC Brain repo). Also writes clients' `from-client/` notes unless `BRAIN_GITHUB_WRITE_TOKEN` is set; the current token has write access. |
+| `BRAIN_GITHUB_WRITE_TOKEN` | Optional. A separate token for client note writes. |
 | `ANTHROPIC_API_KEY` | Laying out Brain documents for reading. |
 | `CRON_SECRET` | The `/api/cron/health-alert` watchdog (Vercel cron sends it as a Bearer token). |
 | `HEALTH_ALERT_SLACK_WEBHOOK` | Where the watchdog posts. |
@@ -111,7 +115,8 @@ The full file map and the data flow from HeyReach through QC Command into the po
 
 Run `supabase/portal-schema.sql` in the Supabase SQL editor. It is idempotent and creates the portal's own
 tables: `qc_portal_users`, `qc_portal_messaging_links`, `qc_portal_health_state`,
-`qc_portal_meeting_overrides`, `qc_portal_tags` and `qc_portal_tag_assignments`. The first staff login is
+`qc_portal_meeting_overrides`, `qc_portal_tags`, `qc_portal_tag_assignments` and `rr_brain_connectors`
+(one row per client: the hash of their Claude link, never the link). The first staff login is
 made by hand: `npm run hash-password -- '<password>'`, then paste the hash into the insert at the bottom of
 the file. Everyone else is created from **Admin → Add a login**. The password is shown once and cannot be
 read back.
@@ -127,7 +132,7 @@ the Git connection has needed reconnecting once already. Always confirm the live
 
 ```bash
 npm run dev               # local server (needs .env.local with the variables above)
-npm test                  # 116 tests: isolation, tenancy, campaign rule, parsers, password
+npm test                  # 123 tests: isolation, tenancy, campaign rule, parsers, password, brain connector
 npm run typecheck         # clean
 npm run lint              # 0 errors; ~18 warnings, all <img> or exhaustive-deps, baseline
 npm run watermark:check   # every source file carries the header; `npm run watermark` adds it
@@ -150,6 +155,8 @@ Every source file starts with:
 - **Sessions are long-lived cookies.** Switching a login off takes effect within 30 seconds (the login is
   re-checked), but there is no per-session revoke list. Rotating `SESSION_SECRET` signs everyone out.
 - **No self-service password reset.** Staff reset passwords from Admin.
+- **A client's Claude link works like a password.** Anyone it is forwarded to can read that client's brain and
+  add notes. Reset link (Brain tab) turns the old one off. Rate limits on it are per server instance.
 - **The portal depends on QC Command's worker** for HeyReach figures. If a client stops syncing, the portal
   says so (a notice and "not synced yet" days) rather than showing zeros. See
   [`docs/operations.md`](docs/operations.md).

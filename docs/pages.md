@@ -92,6 +92,10 @@ QC Command's analytics page:
   skeleton: Brief, ICP, Personas, Voice, Engagement, Pipeline, Do-not-contact.
 - Documents are laid out for reading with Claude (`brain-render`, needs `ANTHROPIC_API_KEY`).
 - Raw files and a zip download are available.
+- **Connect your Claude** (`ConnectClaude` in `BrainApp.tsx`, `/api/brain/connector`): the client's link is
+  shown on arrival (made the first time it's asked for), with two tabs of numbered steps (Claude app,
+  Claude Code), a "Try asking" grid of click-to-copy prompts (two of them save a note), a connected/last-used
+  pill and Reset link with an in-page confirm.
 
 ## Weekly calls: `[client]/calls/page.tsx`, `/api/brain-docs?folder=calls`
 
