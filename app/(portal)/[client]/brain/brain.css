@@ -252,3 +252,21 @@
   .brn-hero-side { min-width: 0; }
   .brn-page { padding: 22px 18px; }
 }
+
+/* Connect your Claude */
+.cc { margin-top: 28px; border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+.cc-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.cc-head h2 { margin: 4px 0 0; font-size: 20px; }
+.cc-state { font-size: 12px; opacity: .75; }
+.cc-lede { margin: 0; max-width: 70ch; line-height: 1.55; opacity: .85; }
+.cc-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cc-row code, .cc-placeholder { flex: 1 1 320px; min-width: 0; overflow-wrap: anywhere; font-size: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(127,127,127,.12); }
+.cc-row button, .cc-primary, .cc-quiet { min-height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.cc-primary { background: var(--accent, #2f6fed); border-color: transparent; color: var(--accent-ink, #fff); }
+.cc-row button:disabled, .cc-primary:disabled, .cc-quiet:disabled { opacity: .55; cursor: default; }
+.cc-link { display: flex; flex-direction: column; gap: 8px; }
+.cc-note { margin: 0; font-size: 12px; opacity: .7; }
+.cc-error { margin: 0; color: #d9534f; font-size: 13px; }
+.cc-steps { margin: 0; padding-left: 20px; display: grid; gap: 12px; }
+.cc-steps li { display: flex; flex-direction: column; gap: 6px; line-height: 1.5; }
+.cc-steps li > span { opacity: .85; }

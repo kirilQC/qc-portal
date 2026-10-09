@@ -163,3 +163,15 @@ create index if not exists qc_portal_tag_assignments_workspace on qc_portal_tag_
 
 alter table qc_portal_tags enable row level security;
 alter table qc_portal_tag_assignments enable row level security;
+
+-- QC Brain connector: one secret link per client, stored only as a SHA-256 hash (app/lib/brain-connector.ts).
+create table if not exists rr_brain_connectors (
+  workspace_id uuid primary key references rr_workspaces(id) on delete cascade,
+  token_hash text not null unique,
+  token_last4 text not null default '',
+  created_at timestamptz not null default now(),
+  created_by text not null default '',
+  last_used_at timestamptz
+);
+alter table rr_brain_connectors enable row level security;
+notify pgrst, 'reload schema';

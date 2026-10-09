@@ -30,7 +30,10 @@ function isOpenPath(pathname: string): boolean {
     pathname === "/api/health" ||
     // The health watchdog carries no session — it is a cron on a timer. It gates itself on CRON_SECRET
     // instead (see the route), so the middleware lets it reach that check rather than bouncing it to login.
-    pathname === "/api/cron/health-alert"
+    pathname === "/api/cron/health-alert" ||
+    // A client's Claude carries no session either: the QC Brain connector's secret link is its key, and the
+    // route turns away any link it doesn't know (see app/lib/brain-connector.ts).
+    /^\/api\/mcp\/brain\/[^/]+$/.test(pathname)
   );
 }
 

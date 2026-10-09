@@ -256,7 +256,91 @@ export default function BrainApp() {
           <FileCard key={file.path} file={file} onOpen={() => openEntry(file, setOpenFile)} />
         ))}
       </div>
+
+      <ConnectClaude slug={clientSlug ?? ""} label={data.label} />
     </div>
+  );
+}
+
+type ConnectorStatus = { exists: boolean; last4: string; createdAt: string; lastUsedAt: string };
+
+/**
+ * "Connect your Claude": a secret link the client adds to Claude once, so their Claude reads this folder
+ * (and writes notes into from-client/). The link is shown once when made; making a new one turns the old
+ * one off.
+ */
+function ConnectClaude({ slug, label }: { slug: string; label: string }) {
+  const [status, setStatus] = useState<ConnectorStatus | null>(null);
+  const [link, setLink] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState("");
+  const [error, setError] = useState("");
+  const query = slug ? `?client=${encodeURIComponent(slug)}` : "";
+
+  useEffect(() => {
+    void fetch(`/api/brain/connector${query}`, { cache: "no-store" }).then((r) => r.json()).then((payload) => { if (payload.ok) setStatus(payload); }).catch(() => undefined);
+  }, [query]);
+
+  const make = async () => {
+    setBusy(true); setError("");
+    const payload = await fetch(`/api/brain/connector${query}`, { method: "POST" }).then((r) => r.json()).catch(() => ({ ok: false, error: "Could not make the link." }));
+    setBusy(false);
+    if (payload.ok) { setLink(payload.url); setStatus(payload); } else setError(payload.error);
+  };
+  const turnOff = async () => {
+    setBusy(true); setError("");
+    const payload = await fetch(`/api/brain/connector${query}`, { method: "DELETE" }).then((r) => r.json()).catch(() => ({ ok: false, error: "Could not turn it off." }));
+    setBusy(false);
+    if (payload.ok) { setLink(""); setStatus(payload); } else setError(payload.error);
+  };
+  const copy = (text: string, what: string) => {
+    void navigator.clipboard?.writeText(text).then(() => { setCopied(what); window.setTimeout(() => setCopied(""), 1600); }).catch(() => setCopied(""));
+  };
+  const codeCommand = link ? `claude mcp add --transport http qc-brain ${link}` : "";
+
+  return (
+    <section className="cc" aria-label="Connect your Claude">
+      <div className="cc-head">
+        <div>
+          <span className="brn-kicker">Connect your Claude</span>
+          <h2>Use this brain in your own Claude</h2>
+        </div>
+        {status?.exists && <span className="cc-state">{status.lastUsedAt ? `Connected · last used ${agoLabel(status.lastUsedAt)}` : "Link made · not used yet"}</span>}
+      </div>
+      <p className="cc-lede">Your Claude can read and search everything here, and save notes for QC Growth into a <b>from-client</b> folder. It can't see any other company's brain.</p>
+
+      {link ? (
+        <div className="cc-link">
+          <span className="brn-kicker">Your link · keep it private, it works like a password</span>
+          <div className="cc-row"><code>{link}</code><button onClick={() => copy(link, "link")}>{copied === "link" ? "Copied" : "Copy"}</button></div>
+          <p className="cc-note">This is the only time it's shown. If it's lost, make a new one.</p>
+        </div>
+      ) : (
+        <div className="cc-row">
+          <button className="cc-primary" onClick={() => void make()} disabled={busy}>{busy ? "Making…" : status?.exists ? `Make a new link (turns off the one ending ${status.last4})` : "Make my connection link"}</button>
+          {status?.exists && <button className="cc-quiet" onClick={() => void turnOff()} disabled={busy}>Turn off</button>}
+        </div>
+      )}
+      {error && <p className="cc-error">{error}</p>}
+
+      <ol className="cc-steps">
+        <li>
+          <b>Claude (web or desktop app)</b>
+          <span>Settings → Connectors → Add custom connector. Name it "{label} brain", paste the link, and click Add. In a chat, turn it on from the tools menu.</span>
+        </li>
+        <li>
+          <b>Claude Code</b>
+          <span>Run this once in your terminal:</span>
+          {link ? (
+            <span className="cc-row"><code>{codeCommand}</code><button onClick={() => copy(codeCommand, "code")}>{copied === "code" ? "Copied" : "Copy"}</button></span>
+          ) : <code className="cc-placeholder">claude mcp add --transport http qc-brain &lt;your link&gt;</code>}
+        </li>
+        <li>
+          <b>Try it</b>
+          <span>Ask: "Using the QC Brain, summarize who we sell to and what's changed this month." To add context: "Save a note to the QC Brain about our new pricing."</span>
+        </li>
+      </ol>
+    </section>
   );
 }
 
