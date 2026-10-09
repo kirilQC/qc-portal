@@ -20,7 +20,7 @@
  * in `from-client/`, so QC's assistants can treat it as the client's words rather than QC's standing
  * context, and the client can never rewrite QC's documents.
  */
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { adminRows, adminWrite, str } from "./db";
 import { brainTree, forgetBrainTree, readClientDoc, resolveActualFolder } from "./brain";
 
@@ -33,19 +33,43 @@ const hash = (token: string) => createHash("sha256").update(token).digest("hex")
 
 export type Connector = { workspaceId: string; name: string; slug: string; folder: string };
 
-/** A new link for this client; the old one stops working. The token is returned once and kept only as a hash. */
+/**
+ * The link is derived, not random: an HMAC of the workspace and the moment the link was made, keyed by the
+ * server's secret. So the Brain tab can show a client their link every time without the link being kept
+ * anywhere (only its hash is stored), and making a new one (a new moment) turns the old one off.
+ */
+function tokenFor(workspaceId: string, madeAt: string): string {
+  const secret = (process.env.SESSION_SECRET || "").trim();
+  if (!secret) throw new Error("The portal has no SESSION_SECRET, so links can't be made.");
+  const mac = createHmac("sha256", secret).update(`qc-brain-link|${workspaceId}|${Date.parse(madeAt)}`).digest("base64url");
+  return `qcb_${mac.slice(0, 32)}`;
+}
+
+/** A new link for this client; the old one stops working. */
 export async function issueConnector(workspaceId: string, by: string): Promise<{ token: string; last4: string }> {
-  const token = `qcb_${randomBytes(24).toString("base64url")}`;
+  const madeAt = new Date().toISOString();
+  const token = tokenFor(workspaceId, madeAt);
   const saved = await adminWrite("rr_brain_connectors", "POST", {
     workspace_id: workspaceId,
     token_hash: hash(token),
     token_last4: token.slice(-4),
-    created_at: new Date().toISOString(),
+    created_at: madeAt,
     created_by: by,
     last_used_at: null,
   }, {}, ["resolution=merge-duplicates"]);
   if (!saved.ok) throw new Error(`Could not save the connection link: ${saved.error}`);
   return { token, last4: token.slice(-4) };
+}
+
+/** This client's link, made the first time it's asked for. */
+export async function linkFor(workspaceId: string, by: string): Promise<string> {
+  const [row] = await adminRows("rr_brain_connectors", { select: "token_hash,created_at", workspace_id: `eq.${workspaceId}`, limit: "1" });
+  if (row) {
+    const token = tokenFor(workspaceId, str(row.created_at));
+    if (hash(token) === str(row.token_hash)) return token;
+  }
+  // None yet, or one from before links were derived: make one this page can show.
+  return (await issueConnector(workspaceId, by)).token;
 }
 
 /** Whether this client has a link, when it was made and last used (never the link itself). */

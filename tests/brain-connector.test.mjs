@@ -60,3 +60,12 @@ test("pentest follow-ups: client-style write paths fold into the client's own co
   assert.equal(fold("/clients/bluevia-health/from-client/notes.md"), "notes.md");
   assert.equal(fold("clients/x/../y.md").includes(".."), true); // still refused by the ".." check
 });
+
+test("every client gets a link without asking: derived from the secret and when it was made, only the hash kept", () => {
+  assert.match(lib, /createHmac\("sha256", secret\)\.update\(`qc-brain-link\|\$\{workspaceId\}\|\$\{Date\.parse\(madeAt\)\}`\)/);
+  assert.match(lib, /export async function linkFor\(/);
+  assert.doesNotMatch(lib, /token_plain|randomBytes/);
+  const api = readFileSync(new URL("../app/api/brain/connector/route.ts", import.meta.url), "utf8");
+  assert.match(api, /const token = await linkFor\(workspaceId/);
+  assert.match(api, /"Cache-Control": "no-store"/);
+});

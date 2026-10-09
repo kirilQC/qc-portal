@@ -2,13 +2,13 @@
 // QC Portal — proprietary. Not licensed for redistribution or resale.
 
 /**
- * The Brain tab's "Connect your Claude" section. GET says whether this client has a link (never the link
- * itself, which is shown once); POST makes a new one, which turns any earlier one off; DELETE turns it off.
+ * The Brain tab's "Connect your Claude" section. GET gives this client's link (made the first time), POST
+ * resets it, which turns the earlier one off; DELETE turns it off until the tab is next opened.
  * The client comes from the session: a client session manages only its own link, staff the client named.
  */
 import { NextResponse } from "next/server";
 import { resolveScope } from "../../../lib/auth-context";
-import { connectorStatus, issueConnector, revokeConnector } from "../../../lib/brain-connector";
+import { connectorStatus, issueConnector, linkFor, revokeConnector } from "../../../lib/brain-connector";
 
 async function scope(request: Request) {
   const slug = new URL(request.url).searchParams.get("client");
@@ -26,8 +26,9 @@ const origin = (request: Request) => {
 
 export async function GET(request: Request) {
   try {
-    const { workspaceId } = await scope(request);
-    return NextResponse.json({ ok: true, ...(await connectorStatus(workspaceId)) });
+    const { session, workspaceId } = await scope(request);
+    const token = await linkFor(workspaceId, `${session.role}:${session.userId}`);
+    return NextResponse.json({ ok: true, url: `${origin(request)}/api/mcp/brain/${token}`, ...(await connectorStatus(workspaceId)) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Could not read the connection." }, { status: 400 });
   }
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
   try {
     const { session, workspaceId } = await scope(request);
     const { token } = await issueConnector(workspaceId, `${session.role}:${session.userId}`);
-    return NextResponse.json({ ok: true, url: `${origin(request)}/api/mcp/brain/${token}`, ...(await connectorStatus(workspaceId)) });
+    return NextResponse.json({ ok: true, url: `${origin(request)}/api/mcp/brain/${token}`, ...(await connectorStatus(workspaceId)) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Could not make the link." }, { status: 400 });
   }

@@ -269,77 +269,160 @@ type ConnectorStatus = { exists: boolean; last4: string; createdAt: string; last
  * (and writes notes into from-client/). The link is shown once when made; making a new one turns the old
  * one off.
  */
+/** Ready-made asks for a client's Claude. Clicking one copies it. `saves` marks the ones that write a note. */
+const CLAUDE_USES = [
+  { title: "Prep for a sales call", prompt: "Using the QC Brain, give me a one-page cheat sheet on our ICP, our top personas and the objections we hear most." },
+  { title: "Write in our voice", prompt: "Using the QC Brain, draft a LinkedIn post in our brand voice about the problem we solve." },
+  { title: "Catch up on our calls", prompt: "Using the QC Brain, summarize what we decided in our last three weekly calls with QC Growth." },
+  { title: "Review our messaging", prompt: "Using the QC Brain, show me the campaign messaging QC Growth runs for us and suggest one improvement." },
+  { title: "Tell QC about a change", prompt: "Save a note to the QC Brain: we're launching something new next month. Here are the details: ", saves: true },
+  { title: "Flag what's out of date", prompt: "Read our ICP and personas in the QC Brain, then save a note to the QC Brain listing anything that's out of date.", saves: true },
+];
+
 function ConnectClaude({ slug, label }: { slug: string; label: string }) {
   const [status, setStatus] = useState<ConnectorStatus | null>(null);
   const [link, setLink] = useState("");
+  const [app, setApp] = useState<"claude" | "code">("claude");
   const [busy, setBusy] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const [copied, setCopied] = useState("");
   const [error, setError] = useState("");
   const query = slug ? `?client=${encodeURIComponent(slug)}` : "";
 
   useEffect(() => {
-    void fetch(`/api/brain/connector${query}`, { cache: "no-store" }).then((r) => r.json()).then((payload) => { if (payload.ok) setStatus(payload); }).catch(() => undefined);
+    void fetch(`/api/brain/connector${query}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((payload) => { if (payload.ok) { setStatus(payload); setLink(payload.url ?? ""); } else setError(payload.error ?? "Your link didn't load."); })
+      .catch(() => setError("Your link didn't load."));
   }, [query]);
 
-  const make = async () => {
-    setBusy(true); setError("");
-    const payload = await fetch(`/api/brain/connector${query}`, { method: "POST" }).then((r) => r.json()).catch(() => ({ ok: false, error: "Could not make the link." }));
+  const reset = async () => {
+    setBusy(true); setError(""); setConfirmReset(false);
+    const payload = await fetch(`/api/brain/connector${query}`, { method: "POST" }).then((r) => r.json()).catch(() => ({ ok: false, error: "Could not reset the link." }));
     setBusy(false);
     if (payload.ok) { setLink(payload.url); setStatus(payload); } else setError(payload.error);
-  };
-  const turnOff = async () => {
-    setBusy(true); setError("");
-    const payload = await fetch(`/api/brain/connector${query}`, { method: "DELETE" }).then((r) => r.json()).catch(() => ({ ok: false, error: "Could not turn it off." }));
-    setBusy(false);
-    if (payload.ok) { setLink(""); setStatus(payload); } else setError(payload.error);
   };
   const copy = (text: string, what: string) => {
     void navigator.clipboard?.writeText(text).then(() => { setCopied(what); window.setTimeout(() => setCopied(""), 1600); }).catch(() => setCopied(""));
   };
-  const codeCommand = link ? `claude mcp add --transport http qc-brain ${link}` : "";
+  const command = `claude mcp add --transport http qc-brain ${link || "<your link>"}`;
+  const connectorName = `${label} brain`;
 
   return (
     <section className="cc" aria-label="Connect your Claude">
-      <div className="cc-head">
+      <header className="cc-head">
         <div>
           <span className="brn-kicker">Connect your Claude</span>
-          <h2>Use this brain in your own Claude</h2>
+          <h2>Use this brain in Claude</h2>
         </div>
-        {status?.exists && <span className="cc-state">{status.lastUsedAt ? `Connected · last used ${agoLabel(status.lastUsedAt)}` : "Link made · not used yet"}</span>}
+        <span className={`cc-state${status?.lastUsedAt ? " is-on" : ""}`}>
+          <i aria-hidden="true" />
+          {status?.lastUsedAt ? `Connected · used ${agoLabel(status.lastUsedAt)}` : "Not connected yet"}
+        </span>
+      </header>
+
+      <ul className="cc-perks">
+        <li>Reads your whole brain</li>
+        <li>Saves your notes for QC</li>
+        <li>Sees only {label}</li>
+      </ul>
+
+      <div className="cc-grid">
+        <div className="cc-setup">
+          <div className="cc-tabs" role="tablist">
+            <button role="tab" aria-selected={app === "claude"} className={app === "claude" ? "is-on" : ""} onClick={() => setApp("claude")}>Claude app</button>
+            <button role="tab" aria-selected={app === "code"} className={app === "code" ? "is-on" : ""} onClick={() => setApp("code")}>Claude Code</button>
+          </div>
+
+          {app === "claude" ? (
+            <ol className="cc-steps">
+              <li>
+                <i>1</i>
+                <div>
+                  <b>Copy your link</b>
+                  <div className="cc-copy">
+                    <code>{link || "Making your link…"}</code>
+                    <button onClick={() => copy(link, "link")} disabled={!link}>{copied === "link" ? "Copied" : "Copy"}</button>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <i>2</i>
+                <div>
+                  <b>Open <a href="https://claude.ai/settings/connectors" target="_blank" rel="noreferrer">Settings → Connectors</a></b>
+                </div>
+              </li>
+              <li>
+                <i>3</i>
+                <div>
+                  <b>Click Add custom connector</b>
+                  <span>Name: <em>{connectorName}</em> · URL: paste your link</span>
+                </div>
+              </li>
+              <li>
+                <i>4</i>
+                <div>
+                  <b>Turn it on in a chat</b>
+                  <span>Tools menu → {connectorName}</span>
+                </div>
+              </li>
+            </ol>
+          ) : (
+            <ol className="cc-steps">
+              <li>
+                <i>1</i>
+                <div>
+                  <b>Copy this command</b>
+                  <div className="cc-copy">
+                    <code>{command}</code>
+                    <button onClick={() => copy(command, "code")} disabled={!link}>{copied === "code" ? "Copied" : "Copy"}</button>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <i>2</i>
+                <div><b>Paste it in your terminal and press Enter</b></div>
+              </li>
+              <li>
+                <i>3</i>
+                <div>
+                  <b>Start Claude and ask</b>
+                  <span>Run <em>claude</em>, then try a question from the right</span>
+                </div>
+              </li>
+            </ol>
+          )}
+
+          <div className="cc-private">
+            <span>Your link works like a password. Keep it private.</span>
+            {confirmReset ? (
+              <span className="cc-confirm">
+                Old link stops working.
+                <button onClick={() => void reset()} disabled={busy}>Reset</button>
+                <button onClick={() => setConfirmReset(false)}>Cancel</button>
+              </span>
+            ) : (
+              <button onClick={() => setConfirmReset(true)} disabled={busy || !link}>{busy ? "Resetting…" : "Reset link"}</button>
+            )}
+          </div>
+          {error && <p className="cc-error">{error}</p>}
+        </div>
+
+        <div className="cc-uses">
+          <span className="brn-kicker">Try asking · click to copy</span>
+          <div className="cc-use-grid">
+            {CLAUDE_USES.map((use) => (
+              <button key={use.title} className="cc-use" onClick={() => copy(use.prompt, use.title)}>
+                <span className="cc-use-top">
+                  <b>{use.title}</b>
+                  {use.saves && <span className="cc-tag">Saves a note</span>}
+                </span>
+                <span className="cc-use-prompt">{copied === use.title ? "Copied" : `"${use.prompt.trim()}"`}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-      <p className="cc-lede">Your Claude can read and search everything here, and save notes for QC Growth into a <b>from-client</b> folder. It can't see any other company's brain.</p>
-
-      {link ? (
-        <div className="cc-link">
-          <span className="brn-kicker">Your link · keep it private, it works like a password</span>
-          <div className="cc-row"><code>{link}</code><button onClick={() => copy(link, "link")}>{copied === "link" ? "Copied" : "Copy"}</button></div>
-          <p className="cc-note">This is the only time it's shown. If it's lost, make a new one.</p>
-        </div>
-      ) : (
-        <div className="cc-row">
-          <button className="cc-primary" onClick={() => void make()} disabled={busy}>{busy ? "Making…" : status?.exists ? `Make a new link (turns off the one ending ${status.last4})` : "Make my connection link"}</button>
-          {status?.exists && <button className="cc-quiet" onClick={() => void turnOff()} disabled={busy}>Turn off</button>}
-        </div>
-      )}
-      {error && <p className="cc-error">{error}</p>}
-
-      <ol className="cc-steps">
-        <li>
-          <b>Claude (web or desktop app)</b>
-          <span>Settings → Connectors → Add custom connector. Name it "{label} brain", paste the link, and click Add. In a chat, turn it on from the tools menu.</span>
-        </li>
-        <li>
-          <b>Claude Code</b>
-          <span>Run this once in your terminal:</span>
-          {link ? (
-            <span className="cc-row"><code>{codeCommand}</code><button onClick={() => copy(codeCommand, "code")}>{copied === "code" ? "Copied" : "Copy"}</button></span>
-          ) : <code className="cc-placeholder">claude mcp add --transport http qc-brain &lt;your link&gt;</code>}
-        </li>
-        <li>
-          <b>Try it</b>
-          <span>Ask: "Using the QC Brain, summarize who we sell to and what's changed this month." To add context: "Save a note to the QC Brain about our new pricing."</span>
-        </li>
-      </ol>
     </section>
   );
 }
