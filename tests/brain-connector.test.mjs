@@ -26,14 +26,28 @@ test("the link is stored only as a hash, and a client's folder comes from the li
 
 test("writes land only in from-client/ inside the client's own folder", () => {
   assert.match(lib, /const path = `clients\/\$\{connector\.folder\}\/\$\{CLIENT_CORNER\}\/\$\{name\}`;/);
-  assert.match(lib, /if \(!name \|\| name\.includes\("\.\."\) \|\| name\.includes\("\\\\"\) \|\| name\.startsWith\("\."\)\)/);
+  assert.match(lib, /if \(!name \|\| name\.length > 200 \|\| name\.includes\("\.\."\) \|\| !SAFE_PATH\.test\(name\)/);
   assert.match(lib, /export const CLIENT_CORNER = "from-client";/);
   // Reads go through the folder-scoped checks too.
   assert.match(lib, /readClientDoc\(folder, inFolder\(folder, relative\)\)/);
-  assert.match(lib, /if \(!clean \|\| clean\.includes\("\.\."\)/);
+  assert.match(lib, /if \(!clean \|\| clean\.length > 300 \|\| clean\.includes\("\.\."\)/);
 });
 
 test("the connector speaks MCP: initialize, tools/list, tools/call, and the four tools", () => {
   for (const method of ["initialize", "tools/list", "tools/call", "ping"]) assert.ok(route.includes(`method === "${method}"`), method);
   for (const tool of ["list_brain_files", "read_brain_file", "search_brain", "write_client_note"]) assert.ok(route.includes(`name: "${tool}"`), tool);
+});
+
+test("hardening: plain path characters only, segments encoded, rate and size limits, safe link schemes", async () => {
+  assert.match(lib, /const SAFE_PATH = \/\^\[\\p\{L\}\\p\{N\} _\.,'&\(\)\+\\-\/\]\+\$\/u;/);
+  assert.match(lib, /const repoPath = \(path: string\) => path\.split\("\/"\)\.map\(encodeURIComponent\)\.join\("\/"\);/);
+  assert.match(lib, /if \(write && entry\.writes > 60\)/);
+  assert.match(route, /if \(raw\.length > 1_000_000\)/);
+  assert.match(route, /body\.length > 20/);
+  const { parseInline } = await import("../shared/markdown-blocks.mjs");
+  const kinds = (t) => parseInline(t).map((s) => s.kind + (s.href ? `:${s.href}` : ""));
+  assert.ok(!kinds("[a](javascript:alert(1))").some((k) => k.startsWith("link")));
+  assert.ok(!kinds("[c](data:text/html,x)").some((k) => k.startsWith("link")));
+  assert.ok(!kinds("[f](//evil.com)").some((k) => k.startsWith("link")));
+  assert.deepEqual(kinds("[d](https://ok.com)"), ["link:https://ok.com"]);
 });

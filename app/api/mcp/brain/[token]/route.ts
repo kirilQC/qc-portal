@@ -8,7 +8,7 @@
  * app/lib/brain-connector.ts). No session cookie is involved: the link is the key.
  */
 import { NextResponse } from "next/server";
-import { CLIENT_CORNER, connectorFor, listFiles, readFile, searchFolder, writeClientNote, type Connector } from "../../../../lib/brain-connector";
+import { CLIENT_CORNER, connectorFor, listFiles, overLimit, readFile, searchFolder, writeClientNote, type Connector } from "../../../../lib/brain-connector";
 
 export const maxDuration = 60;
 
@@ -51,6 +51,8 @@ const textResult = (value: unknown, isError = false) => ({ content: [{ type: "te
 
 async function callTool(connector: Connector, name: string, args: Record<string, unknown>) {
   const arg = (key: string) => (typeof args[key] === "string" ? String(args[key]) : "");
+  const limited = overLimit(connector.workspaceId, name === "write_client_note");
+  if (limited) return textResult(limited, true);
   try {
     if (name === "list_brain_files") {
       const files = await listFiles(connector.folder);
@@ -96,8 +98,13 @@ async function handle(connector: Connector, message: Rpc) {
 export async function POST(request: Request, context: { params: Promise<{ token: string }> }) {
   const connector = await connectorFor((await context.params).token).catch(() => null);
   if (!connector) return NextResponse.json(fail(null, -32001, "This QC Brain link isn't valid any more. Get a new one from the Brain tab in QC Portal."), { status: 401 });
-  const body = (await request.json().catch(() => null)) as Rpc | Rpc[] | null;
-  if (!body) return NextResponse.json(fail(null, -32700, "Parse error"), { status: 400 });
+  // A note is at most 200,000 characters; anything far past that is not a request this server makes sense of.
+  const raw = await request.text().catch(() => "");
+  if (raw.length > 1_000_000) return NextResponse.json(fail(null, -32600, "Request too large."), { status: 413 });
+  let body: Rpc | Rpc[] | null = null;
+  try { body = JSON.parse(raw) as Rpc | Rpc[]; } catch { body = null; }
+  if (!body || typeof body !== "object") return NextResponse.json(fail(null, -32700, "Parse error"), { status: 400 });
+  if (Array.isArray(body) && body.length > 20) return NextResponse.json(fail(null, -32600, "Too many requests in one batch."), { status: 400 });
   const messages = Array.isArray(body) ? body : [body];
   const answers = [];
   for (const message of messages) {

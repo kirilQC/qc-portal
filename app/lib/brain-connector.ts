@@ -74,11 +74,39 @@ export async function connectorFor(token: string): Promise<Connector | null> {
   return { workspaceId, name: str(workspace.name), slug: str(workspace.slug), folder };
 }
 
+/**
+ * Plain file-name characters only. Anything else (`?`, `#`, `%`, control characters, a backslash) is
+ * refused rather than escaped: none belongs in a brain path, and each is a way to make a path mean
+ * something other than it looks like to the GitHub API.
+ */
+const SAFE_PATH = /^[\p{L}\p{N} _.,'&()+\-/]+$/u;
+
 /** A path the client gave, relative to their folder, made into a repo path inside it (or refused). */
 export function inFolder(folder: string, relative: string): string {
   const clean = relative.trim().replace(/^\/+/, "").replace(/^clients\/[^/]+\//, "");
-  if (!clean || clean.includes("..") || clean.includes("\\")) throw new Error("That path isn't in this client's folder.");
+  if (!clean || clean.length > 300 || clean.includes("..") || !SAFE_PATH.test(clean) || clean.split("/").some((part) => !part.trim())) {
+    throw new Error("That path isn't in this client's folder.");
+  }
   return `clients/${folder}/${clean}`;
+}
+
+/** Each path segment encoded on its own, so nothing in a name is read as URL syntax by GitHub. */
+const repoPath = (path: string) => path.split("/").map(encodeURIComponent).join("/");
+
+/**
+ * A ceiling per link, so a client's Claude stuck in a loop can't use up the GitHub allowance QC's own
+ * tools share. Per server instance: approximate across instances, which is enough to stop a runaway.
+ */
+const windows = new Map<string, { start: number; requests: number; writes: number }>();
+export function overLimit(workspaceId: string, write: boolean): string {
+  const now = Date.now();
+  let entry = windows.get(workspaceId);
+  if (!entry || now - entry.start > 60 * 60_000) { entry = { start: now, requests: 0, writes: 0 }; windows.set(workspaceId, entry); }
+  entry.requests += 1;
+  if (write) entry.writes += 1;
+  if (entry.requests > 600) return "Too many requests to the QC Brain this hour. Try again later.";
+  if (write && entry.writes > 60) return "Too many notes saved this hour. Try again later.";
+  return "";
 }
 
 /** Every file in the folder, relative, with whether the client wrote it. */
@@ -125,16 +153,16 @@ export async function searchFolder(folder: string, query: string): Promise<Array
  */
 export async function writeClientNote(connector: Connector, relative: string, content: string): Promise<{ path: string; created: boolean }> {
   let name = relative.trim().replace(/^\/+/, "").replace(new RegExp(`^${CLIENT_CORNER}/`), "");
-  if (!name || name.includes("..") || name.includes("\\") || name.startsWith(".")) throw new Error("Give the note a simple name, like meeting-notes.md.");
+  if (!name || name.length > 200 || name.includes("..") || !SAFE_PATH.test(name) || name.split("/").some((part) => !part.trim() || part.startsWith("."))) throw new Error("Give the note a simple name, like meeting-notes.md.");
   if (!/\.(md|markdown|txt)$/i.test(name)) name = `${name}.md`;
   if (content.length > MAX_NOTE) throw new Error("That note is too long (200,000 characters at most).");
   const path = `clients/${connector.folder}/${CLIENT_CORNER}/${name}`;
   const token = (process.env.BRAIN_GITHUB_WRITE_TOKEN || process.env.BRAIN_GITHUB_TOKEN || "").trim();
   if (!token) throw new Error("The brain isn't connected for writing yet.");
   const headers = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
-  const existing = await fetch(`${API}/repos/${REPO}/contents/${encodeURI(path)}`, { headers, cache: "no-store" });
+  const existing = await fetch(`${API}/repos/${REPO}/contents/${repoPath(path)}`, { headers, cache: "no-store" });
   const sha = existing.ok ? str(((await existing.json().catch(() => ({}))) as Record<string, unknown>).sha) : "";
-  const response = await fetch(`${API}/repos/${REPO}/contents/${encodeURI(path)}`, {
+  const response = await fetch(`${API}/repos/${REPO}/contents/${repoPath(path)}`, {
     method: "PUT",
     headers: { ...headers, "content-type": "application/json" },
     body: JSON.stringify({
