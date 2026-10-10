@@ -33,7 +33,9 @@ function isOpenPath(pathname: string): boolean {
     pathname === "/api/cron/health-alert" ||
     // A client's Claude carries no session either: the QC Brain connector's secret link is its key, and the
     // route turns away any link it doesn't know (see app/lib/brain-connector.ts).
-    /^\/api\/mcp\/brain\/[^/]+$/.test(pathname)
+    /^\/api\/mcp\/brain\/[^/]+$/.test(pathname) ||
+    // A client's logo for link previews, which Slack fetches with no session. The logo only, nothing else.
+    /^\/api\/og\/[a-z0-9-]+$/.test(pathname)
   );
 }
 

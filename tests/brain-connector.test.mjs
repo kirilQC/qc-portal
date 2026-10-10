@@ -69,3 +69,16 @@ test("every client gets a link without asking: derived from the secret and when 
   assert.match(api, /const token = await linkFor\(workspaceId/);
   assert.match(api, /"Cache-Control": "no-store"/);
 });
+
+test("link previews: only a client's name and logo, read from the login redirect's next", async () => {
+  const preview = readFileSync(new URL("../app/lib/link-preview.ts", import.meta.url), "utf8");
+  const login = readFileSync(new URL("../app/login/page.tsx", import.meta.url), "utf8");
+  assert.match(mw, /\/\^\\\/api\\\/og\\\/\[a-z0-9-\]\+\$\//);
+  assert.match(preview, /select: "slug,name,logo_url"/);
+  assert.match(login, /previewClient\(slugFromNext\(/);
+  const slugFromNext = (next) => { if (!next.startsWith("/") || next.startsWith("//")) return ""; const f = next.split(/[/?#]/)[1] ?? ""; return /^[a-z0-9][a-z0-9-]{0,63}$/.test(f) && !["admin","login","api","settings","account"].includes(f) ? f : ""; };
+  assert.equal(slugFromNext("/bluevia/inbox?x=1"), "bluevia");
+  assert.equal(slugFromNext("/admin"), "");
+  assert.equal(slugFromNext("//evil.com/x"), "");
+  assert.equal(slugFromNext("/../etc"), "");
+});
